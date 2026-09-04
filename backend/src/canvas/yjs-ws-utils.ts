@@ -260,3 +260,22 @@ export function setupWSConnection(
 export function clearCanvasDocs(): void {
   docs.clear();
 }
+
+export function teardownCanvasDoc(projectId: string): void {
+  const doc = docs.get(projectId);
+  if (!doc) {
+    return;
+  }
+
+  for (const connection of [...doc.conns.keys()]) {
+    doc.conns.delete(connection);
+    try {
+      connection.close();
+    } catch {
+      // Ignore errors while tearing down deleted projects.
+    }
+  }
+
+  doc.destroy();
+  docs.delete(projectId);
+}

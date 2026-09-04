@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import type { Prisma } from "@prisma/client";
+import { normalizeCanvasRecords } from "./records.js";
 import { prisma } from "../db.js";
 
 export const CANVAS_YARRAY_PREFIX = "tl_";
@@ -52,6 +53,24 @@ export function applyRecordsToDoc(
   });
 }
 
+export function replaceRecordsInDoc(
+  doc: Y.Doc,
+  projectId: string,
+  records: Record<string, unknown>,
+): void {
+  const yArray = doc.getArray<CanvasRecordEntry>(getCanvasYArrayName(projectId));
+
+  doc.transact(() => {
+    if (yArray.length > 0) {
+      yArray.delete(0, yArray.length);
+    }
+
+    for (const [key, value] of Object.entries(records)) {
+      yArray.push([{ key, val: value }]);
+    }
+  });
+}
+
 export async function loadCanvasSnapshot(
   projectId: string,
 ): Promise<CanvasSnapshotJson | null> {
@@ -69,7 +88,9 @@ export async function loadCanvasSnapshot(
     return { records: {} };
   }
 
-  return json;
+  return {
+    records: normalizeCanvasRecords(json.records as Record<string, unknown>),
+  };
 }
 
 function toJsonValue(records: Record<string, unknown>): Prisma.InputJsonValue {
@@ -79,8 +100,18 @@ function toJsonValue(records: Record<string, unknown>): Prisma.InputJsonValue {
 export async function upsertCanvasSnapshot(
   projectId: string,
   records: Record<string, unknown>,
-): Promise<void> {
-  const tldrawJson = toJsonValue(records);
+): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    return false;
+  }
+
+  const normalizedRecords = normalizeCanvasRecords(records);
+  const tldrawJson = toJsonValue(normalizedRecords);
 
   await prisma.canvasSnapshot.upsert({
     where: { projectId },
@@ -92,12 +123,14 @@ export async function upsertCanvasSnapshot(
       tldrawJson,
     },
   });
+
+  return true;
 }
 
 export async function saveCanvasSnapshotFromDoc(
   projectId: string,
   doc: Y.Doc,
-): Promise<void> {
+): Promise<boolean> {
   const records = readRecordsFromDoc(doc, projectId);
-  await upsertCanvasSnapshot(projectId, records);
+  return upsertCanvasSnapshot(projectId, records);
 }

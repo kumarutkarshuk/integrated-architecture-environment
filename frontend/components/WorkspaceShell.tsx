@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
+import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 
@@ -15,29 +18,62 @@ export function WorkspaceShell() {
     isLoading: isProjectsLoading,
     error: projectsError,
     createBlankProject,
+    createPromptProject,
+    refreshProject,
+    updateProjectInList,
     removeProject,
   } = useProjects(Boolean(user));
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
+    Record<string, string>
+  >({});
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
 
+  const initialPrompt = selectedProject
+    ? (initialPromptByProjectId[selectedProject.id] ?? null)
+    : null;
+
+  const ai = useAiGeneration(
+    selectedProject,
+    refreshProject,
+    updateProjectInList,
+    initialPrompt,
+  );
+
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
-  const { storeWithStatus, saveStatus } = useYjsTldrawStore(
+  const { storeWithStatus, saveStatus, onEditorReady } = useYjsTldrawStore(
     selectedProject?.id ?? null,
     canvasEnabled,
   );
 
-  async function handleCreateProject(name: string) {
+  const previewRecords = ai.selectedPreview?.result?.records ?? null;
+
+  async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
+    setSelectedProjectId(project.id);
+  }
+
+  async function handleCreatePromptProject(name: string, prompt: string) {
+    const project = await createPromptProject(name, prompt);
+    setInitialPromptByProjectId((current) => ({
+      ...current,
+      [project.id]: prompt,
+    }));
     setSelectedProjectId(project.id);
   }
 
   async function handleDeleteProject(projectId: string) {
     await removeProject(projectId);
+    setInitialPromptByProjectId((current) => {
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
     if (selectedProjectId === projectId) {
       setSelectedProjectId(null);
     }
@@ -64,13 +100,16 @@ export function WorkspaceShell() {
           isLoading={isUserLoading || isProjectsLoading}
           error={userError ?? projectsError}
           onSelectProject={setSelectedProjectId}
-          onCreateProject={handleCreateProject}
+          onCreateBlankProject={handleCreateBlankProject}
+          onCreatePromptProject={handleCreatePromptProject}
           onDeleteProject={handleDeleteProject}
         />
 
         <main className="flex min-w-0 flex-1 flex-col bg-panel">
           <div className="flex h-9 items-center justify-between border-b border-sidebar-border px-3 text-xs">
-            <span className="text-muted">Canvas</span>
+            <span className="text-muted">
+              {selectedProject?.status === "ready" ? "Canvas" : "Preview"}
+            </span>
             {selectedProject?.status === "ready" && (
               <CanvasSaveStatusLabel status={saveStatus} />
             )}
@@ -82,11 +121,34 @@ export function WorkspaceShell() {
             </div>
           )}
 
-          {selectedProject && selectedProject.status !== "ready" && (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">
-              Canvas is locked while this project is {selectedProject.status}
-            </div>
-          )}
+          {selectedProject &&
+            selectedProject.status !== "ready" &&
+            previewRecords && (
+              <PreviewCanvas
+                records={previewRecords}
+                label={ai.selectedPreview?.prompt ?? selectedProject.name}
+              />
+            )}
+
+          {selectedProject &&
+            selectedProject.status !== "ready" &&
+            !previewRecords && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm">
+                {ai.generationFailed ? (
+                  <>
+                    <p className="text-red-400">Preview generation failed.</p>
+                    <p className="text-muted">
+                      Check your Groq API key and model, then regenerate from
+                      the AI panel.
+                    </p>
+                  </>
+                ) : ai.isGenerating ? (
+                  <p className="text-muted">Generating preview...</p>
+                ) : (
+                  <p className="text-muted">Waiting for preview...</p>
+                )}
+              </div>
+            )}
 
           {selectedProject &&
             selectedProject.status === "ready" &&
@@ -94,6 +156,7 @@ export function WorkspaceShell() {
               <ProjectCanvas
                 projectName={selectedProject.name}
                 storeWithStatus={storeWithStatus}
+                onEditorReady={onEditorReady}
               />
             )}
         </main>
@@ -102,9 +165,7 @@ export function WorkspaceShell() {
           <div className="border-b border-sidebar-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
             AI Assistant
           </div>
-          <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted">
-            Coming in v2
-          </div>
+          <AiSidebar ai={ai} project={selectedProject} />
         </aside>
       </div>
     </div>

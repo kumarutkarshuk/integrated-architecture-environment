@@ -3,6 +3,10 @@
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import type { ApiProject } from "../lib/api";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 
 interface ProjectSidebarProps {
   projects: ApiProject[];
@@ -10,7 +14,8 @@ interface ProjectSidebarProps {
   isLoading: boolean;
   error: string | null;
   onSelectProject: (projectId: string) => void;
-  onCreateProject: (name: string) => Promise<void>;
+  onCreateBlankProject: (name: string) => Promise<void>;
+  onCreatePromptProject: (name: string, prompt: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
 }
 
@@ -20,23 +25,28 @@ export function ProjectSidebar({
   isLoading,
   error,
   onSelectProject,
-  onCreateProject,
+  onCreateBlankProject,
+  onCreatePromptProject,
   onDeleteProject,
 }: ProjectSidebarProps) {
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingBlank, setIsCreatingBlank] = useState(false);
+  const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [showPromptForm, setShowPromptForm] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectPrompt, setProjectPrompt] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function handleCreateProject() {
+  async function handleCreateBlankProject() {
     const name = window.prompt("Project name");
     if (!name?.trim()) {
       return;
     }
 
-    setIsCreating(true);
+    setIsCreatingBlank(true);
     setActionError(null);
 
     try {
-      await onCreateProject(name.trim());
+      await onCreateBlankProject(name.trim());
     } catch (createError) {
       setActionError(
         createError instanceof Error
@@ -44,7 +54,32 @@ export function ProjectSidebar({
           : "Failed to create project",
       );
     } finally {
-      setIsCreating(false);
+      setIsCreatingBlank(false);
+    }
+  }
+
+  async function handleCreatePromptProject() {
+    if (!projectName.trim() || !projectPrompt.trim()) {
+      setActionError("Name and prompt are required");
+      return;
+    }
+
+    setIsCreatingPrompt(true);
+    setActionError(null);
+
+    try {
+      await onCreatePromptProject(projectName.trim(), projectPrompt.trim());
+      setShowPromptForm(false);
+      setProjectName("");
+      setProjectPrompt("");
+    } catch (createError) {
+      setActionError(
+        createError instanceof Error
+          ? createError.message
+          : "Failed to create prompt project",
+      );
+    } finally {
+      setIsCreatingPrompt(false);
     }
   }
 
@@ -81,15 +116,54 @@ export function ProjectSidebar({
         <UserButton afterSignOutUrl="/" />
       </div>
 
-      <div className="border-b border-sidebar-border p-2">
-        <button
+      <div className="space-y-2 border-b border-sidebar-border p-2">
+        <Button
           type="button"
-          className="w-full rounded bg-accent px-2 py-1.5 text-sm text-accent-foreground hover:opacity-90 disabled:opacity-50"
-          onClick={() => void handleCreateProject()}
-          disabled={isCreating}
+          className="w-full"
+          disabled={isCreatingBlank}
+          onClick={() => void handleCreateBlankProject()}
         >
-          {isCreating ? "Creating..." : "New blank project"}
-        </button>
+          {isCreatingBlank ? "Creating..." : "New blank project"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full"
+          onClick={() => setShowPromptForm((current) => !current)}
+        >
+          {showPromptForm ? "Cancel prompt project" : "New prompt project"}
+        </Button>
+
+        {showPromptForm && (
+          <div className="space-y-2 rounded-md border border-sidebar-border p-2">
+            <div className="space-y-1">
+              <Label htmlFor="project-name">Name</Label>
+              <Input
+                id="project-name"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="Payment service"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-prompt">Prompt</Label>
+              <Textarea
+                id="project-prompt"
+                value={projectPrompt}
+                onChange={(event) => setProjectPrompt(event.target.value)}
+                placeholder="Design a payment flow with Stripe"
+              />
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={isCreatingPrompt}
+              onClick={() => void handleCreatePromptProject()}
+            >
+              {isCreatingPrompt ? "Creating..." : "Create prompt project"}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -124,7 +198,7 @@ export function ProjectSidebar({
                   >
                     <span className="block truncate">{project.name}</span>
                     <span className="block text-xs text-muted">
-                      {project.status}
+                      {project.mode} · {project.status}
                     </span>
                   </button>
                   <button

@@ -3,13 +3,9 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
 import { prisma } from "../../src/db.js";
+import { testAppConfig } from "../test-config.js";
 
-const app = createApp({
-  port: 4000,
-  corsOrigin: "http://localhost:3000",
-  clerkSecretKey: "test-secret",
-  isTest: true,
-});
+const app = createApp(testAppConfig);
 
 function authHeader(clerkId: string, email: string, displayName?: string) {
   return createTestAuthHeader({ clerkId, email, displayName });

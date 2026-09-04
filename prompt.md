@@ -37,11 +37,6 @@
 - Manage context window if we decide user can iterate with AI in a chat window
 - AI response generation should be reasonably fast
 - Rate limiting per diagram for AI usage 
-- Identify and handle failure cases
-- Handle retries on the frontend after connection drops
-- Handle bottlenecks like:
-    - High write throughput
-- Handle inconsistencies like guessing "saved" status
 
 # Flow and Points
 
@@ -55,3 +50,14 @@
     - diagram_to_user mapping for getting rooms/projects per user
     - ai_generation (for AI job tracking)
 - Frontend would be deployed on Vercel and Backend would be hosted using a Docker image with GitHub Actions building and pushing the image to Dockerhub with a new tag on every push to GitHub's main branch
+
+# Todos
+
+- Identify and handle failure cases
+- Handle retries on the frontend after connection drops
+- Handle bottlenecks like:
+    - High write throughput
+- Handle inconsistencies like guessing "saved" status
+- Use zustand and axios instead of fetch
+- backend logging, monitoring, retries
+- make AI layer reliable

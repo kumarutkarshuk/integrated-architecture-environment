@@ -12,9 +12,26 @@ export interface ApiProject {
   createdAt: string;
 }
 
+export interface ApiAiPreview {
+  id: string;
+  prompt: string | null;
+  status: string;
+  result: { records?: Record<string, unknown> } | null;
+  appliedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiAiActiveJob {
+  id: string;
+  status: string;
+  prompt: string | null;
+  createdAt: string;
+}
+
 export interface CreateProjectInput {
   name: string;
-  mode: "blank";
+  mode: "blank" | "prompt";
+  prompt?: string;
 }
 
 export function getApiBaseUrl(): string {
@@ -36,7 +53,16 @@ async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    let message = `API request failed: ${response.status}`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) {
+        message = body.error;
+      }
+    } catch {
+      // Ignore non-JSON error bodies.
+    }
+    throw new Error(message);
   }
 
   if (response.status === 204) {
@@ -52,6 +78,13 @@ export function fetchCurrentUser(token: string): Promise<ApiUser> {
 
 export function fetchProjects(token: string): Promise<ApiProject[]> {
   return apiFetch<ApiProject[]>("/api/projects", token);
+}
+
+export function fetchProject(
+  token: string,
+  projectId: string,
+): Promise<ApiProject> {
+  return apiFetch<ApiProject>(`/api/projects/${projectId}`, token);
 }
 
 export function createProject(
@@ -70,5 +103,47 @@ export function deleteProject(
 ): Promise<void> {
   return apiFetch<void>(`/api/projects/${projectId}`, token, {
     method: "DELETE",
+  });
+}
+
+export function fetchAiPreviews(
+  token: string,
+  projectId: string,
+): Promise<ApiAiPreview[]> {
+  return apiFetch<ApiAiPreview[]>(
+    `/api/projects/${projectId}/ai/previews`,
+    token,
+  );
+}
+
+export function fetchAiActiveJob(
+  token: string,
+  projectId: string,
+): Promise<ApiAiActiveJob | null> {
+  return apiFetch<ApiAiActiveJob | null>(
+    `/api/projects/${projectId}/ai/active-job`,
+    token,
+  );
+}
+
+export function regenerateAiPreview(
+  token: string,
+  projectId: string,
+  prompt: string,
+): Promise<ApiAiPreview> {
+  return apiFetch<ApiAiPreview>(`/api/projects/${projectId}/ai/generate`, token, {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+export function applyAiPreview(
+  token: string,
+  projectId: string,
+  aiGenerationId: string,
+): Promise<ApiProject> {
+  return apiFetch<ApiProject>(`/api/projects/${projectId}/ai/apply`, token, {
+    method: "POST",
+    body: JSON.stringify({ aiGenerationId }),
   });
 }

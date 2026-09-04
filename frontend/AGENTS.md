@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+### UI components
+
+Use **shadcn/ui** from `components/ui/` for interactive UI (buttons, inputs, dialogs, cards, etc.). Do not hand-roll common controls when a shadcn component exists or can be added with `bunx shadcn@latest add <component>`. Compose shadcn primitives with the VS Code theme tokens in `app/globals.css`.

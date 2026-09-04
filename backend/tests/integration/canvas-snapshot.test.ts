@@ -14,13 +14,9 @@ import {
 } from "../../src/canvas/snapshot.js";
 import { attachCanvasWebSocket } from "../../src/canvas/ws.js";
 import { prisma } from "../../src/db.js";
+import { testAppConfig } from "../test-config.js";
 
-const app = createApp({
-  port: 4000,
-  corsOrigin: "http://localhost:3000",
-  clerkSecretKey: "test-secret",
-  isTest: true,
-});
+const app = createApp(testAppConfig);
 
 function authHeader(clerkId: string, email: string) {
   return createTestAuthHeader({ clerkId, email });
@@ -28,12 +24,7 @@ function authHeader(clerkId: string, email: string) {
 
 function createTestServer() {
   const server = http.createServer(app);
-  attachCanvasWebSocket(server, {
-    port: 0,
-    corsOrigin: "http://localhost:3000",
-    clerkSecretKey: "test-secret",
-    isTest: true,
-  });
+  attachCanvasWebSocket(server, testAppConfig);
   return server;
 }
 
