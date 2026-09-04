@@ -37,6 +37,11 @@
 - Manage context window if we decide user can iterate with AI in a chat window
 - AI response generation should be reasonably fast
 - Rate limiting per diagram for AI usage 
+- Identify and handle failure cases
+- Handle retries on the frontend after connection drops
+- Handle bottlenecks like:
+    - High write throughput
+- Handle inconsistencies like guessing "saved" status
 
 # Flow and Points
 

@@ -1,6 +1,6 @@
 import type * as Y from "yjs";
-import { prisma } from "../db.js";
 import type { Prisma } from "@prisma/client";
+import { prisma } from "../db.js";
 
 export const CANVAS_YARRAY_PREFIX = "tl_";
 

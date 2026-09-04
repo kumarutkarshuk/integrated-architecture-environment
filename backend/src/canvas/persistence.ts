@@ -1,5 +1,7 @@
-import { setPersistence } from "@y/websocket-server/utils";
-import type { WSSharedDoc } from "@y/websocket-server/utils";
+import {
+  setPersistence,
+  type WSSharedDoc,
+} from "./yjs-ws-utils.js";
 import {
   applyRecordsToDoc,
   saveCanvasSnapshotFromDoc,
@@ -26,17 +28,13 @@ function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
     projectId,
     setTimeout(() => {
       debounceTimers.delete(projectId);
-      void saveCanvasSnapshotFromDoc(
-        projectId,
-        doc as unknown as import("yjs").Doc,
-      );
+      void saveCanvasSnapshotFromDoc(projectId, doc);
     }, DEBOUNCE_MS),
   );
 }
 
 export function configureCanvasPersistence(): void {
   setPersistence({
-    provider: null,
     bindState: async (docName, doc) => {
       const projectId = docName;
 
@@ -47,11 +45,7 @@ export function configureCanvasPersistence(): void {
       const snapshot = await loadCanvasSnapshot(projectId);
 
       if (snapshot && Object.keys(snapshot.records).length > 0) {
-        applyRecordsToDoc(
-          doc as unknown as import("yjs").Doc,
-          projectId,
-          snapshot.records,
-        );
+        applyRecordsToDoc(doc, projectId, snapshot.records);
       }
     },
     writeState: async (docName, doc) => {
@@ -61,10 +55,7 @@ export function configureCanvasPersistence(): void {
         clearTimeout(pending);
         debounceTimers.delete(projectId);
       }
-      await saveCanvasSnapshotFromDoc(
-        projectId,
-        doc as unknown as import("yjs").Doc,
-      );
+      await saveCanvasSnapshotFromDoc(projectId, doc);
     },
   });
 }

@@ -8,3 +8,6 @@ export function getCanvasWsBaseUrl(apiBaseUrl: string): string {
   const wsOrigin = apiBaseUrl.replace(/^http/i, "ws");
   return `${wsOrigin}/ws/projects`;
 }
+
+/** Matches backend canvas snapshot debounce in persistence.ts */
+export const CANVAS_SAVE_DEBOUNCE_MS = 2000;

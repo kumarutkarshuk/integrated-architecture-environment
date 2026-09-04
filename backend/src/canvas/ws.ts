@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { setupWSConnection } from "@y/websocket-server/utils";
+import { setupWSConnection } from "./yjs-ws-utils.js";
 import type { AppConfig } from "../config.js";
 import { createClerkTokenVerifier } from "../auth/clerk-token-verifier.js";
 import { createTestTokenVerifier } from "../auth/test-token-verifier.js";
@@ -74,7 +74,7 @@ export function attachCanvasWebSocket(
 
   const tokenVerifier = config.isTest
     ? createTestTokenVerifier()
-    : createClerkTokenVerifier(config.clerkSecretKey);
+    : createClerkTokenVerifier(config.clerkSecretKey, [config.corsOrigin]);
 
   const wss = new WebSocketServer({ noServer: true });
 

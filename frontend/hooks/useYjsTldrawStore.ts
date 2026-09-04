@@ -8,19 +8,59 @@ import { WebsocketProvider } from "y-websocket";
 import { YKeyValue } from "y-utility/y-keyvalue";
 import * as Y from "yjs";
 import { getApiBaseUrl } from "../lib/api";
-import { getCanvasWsBaseUrl, getCanvasYArrayName } from "../lib/canvas";
+import {
+  CANVAS_SAVE_DEBOUNCE_MS,
+  getCanvasWsBaseUrl,
+  getCanvasYArrayName,
+} from "../lib/canvas";
+
+const LOCAL_ORIGIN = "tldraw-local";
+
+export type CanvasSaveStatus =
+  | "loading"
+  | "saved"
+  | "saving"
+  | "offline"
+  | "error";
+
+type YKeyValueChange =
+  | { action: "add"; newValue: TLRecord }
+  | { action: "update"; oldValue: TLRecord; newValue: TLRecord }
+  | { action: "delete"; oldValue: TLRecord };
+
+function readRecordsFromYArray(
+  yArray: Y.Array<{ key: string; val: TLRecord }>,
+): TLRecord[] {
+  const records: TLRecord[] = [];
+  const seen = new Set<string>();
+
+  for (let index = yArray.length - 1; index >= 0; index -= 1) {
+    const entry = yArray.get(index);
+    if (!seen.has(entry.key)) {
+      seen.add(entry.key);
+      records.push(entry.val);
+    }
+  }
+
+  return records;
+}
 
 export function useYjsTldrawStore(
   projectId: string | null,
   enabled: boolean,
-): TLStoreWithStatus | null {
+): {
+  storeWithStatus: TLStoreWithStatus | null;
+  saveStatus: CanvasSaveStatus;
+} {
   const { getToken } = useAuth();
   const [storeWithStatus, setStoreWithStatus] =
     useState<TLStoreWithStatus | null>(null);
+  const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("loading");
 
   useEffect(() => {
     if (!projectId || !enabled) {
       setStoreWithStatus(null);
+      setSaveStatus("loading");
       return;
     }
 
@@ -29,11 +69,36 @@ export function useYjsTldrawStore(
     let yDoc: Y.Doc | null = null;
     let unsubscribeStore: (() => void) | null = null;
     let removeYStoreListener: (() => void) | null = null;
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    let isConnected = false;
 
     const activeProjectId = projectId;
 
+    function clearSaveTimer() {
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+    }
+
+    function markSaving() {
+      if (cancelled) {
+        return;
+      }
+
+      setSaveStatus("saving");
+      clearSaveTimer();
+      saveTimer = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        setSaveStatus(isConnected ? "saved" : "offline");
+      }, CANVAS_SAVE_DEBOUNCE_MS);
+    }
+
     async function connect() {
       setStoreWithStatus({ status: "loading" });
+      setSaveStatus("loading");
 
       try {
         const token = await getToken();
@@ -78,29 +143,19 @@ export function useYjsTldrawStore(
           return;
         }
 
-        const applyRemoteChanges = (
-          events: Y.YMapEvent<TLRecord>,
-        ) => {
+        const applyRemoteChanges = (changes: Map<string, YKeyValueChange>) => {
           const toAdd: TLRecord[] = [];
           const toUpdate: TLRecord[] = [];
           const toRemove: TLRecord["id"][] = [];
 
-          events.changes.keys.forEach((change, key) => {
+          changes.forEach((change, key) => {
             switch (change.action) {
-              case "add": {
-                const record = yStore.get(key);
-                if (record) {
-                  toAdd.push(record);
-                }
+              case "add":
+                toAdd.push(change.newValue);
                 break;
-              }
-              case "update": {
-                const record = yStore.get(key);
-                if (record) {
-                  toUpdate.push(record);
-                }
+              case "update":
+                toUpdate.push(change.newValue);
                 break;
-              }
               case "delete":
                 toRemove.push(key as TLRecord["id"]);
                 break;
@@ -120,8 +175,15 @@ export function useYjsTldrawStore(
           });
         };
 
-        const onYStoreChange = (events: Y.YMapEvent<TLRecord>) => {
-          applyRemoteChanges(events);
+        const onYStoreChange = (
+          changes: Map<string, YKeyValueChange>,
+          transaction: Y.Transaction,
+        ) => {
+          if (transaction.origin === LOCAL_ORIGIN) {
+            return;
+          }
+
+          applyRemoteChanges(changes);
         };
 
         yStore.on("change", onYStoreChange);
@@ -129,8 +191,24 @@ export function useYjsTldrawStore(
           yStore.off("change", onYStoreChange);
         };
 
+        const initialRecords = readRecordsFromYArray(yArray);
+        if (initialRecords.length > 0) {
+          store.mergeRemoteChanges(() => {
+            store.put(initialRecords);
+          });
+        }
+
         unsubscribeStore = store.listen(
           ({ changes }) => {
+            const hasDocumentChanges =
+              Object.keys(changes.added).length > 0 ||
+              Object.keys(changes.updated).length > 0 ||
+              Object.keys(changes.removed).length > 0;
+
+            if (hasDocumentChanges) {
+              markSaving();
+            }
+
             yDoc?.transact(() => {
               for (const record of Object.values(changes.added)) {
                 yStore.set(record.id, record);
@@ -141,7 +219,7 @@ export function useYjsTldrawStore(
               for (const record of Object.values(changes.removed)) {
                 yStore.delete(record.id);
               }
-            });
+            }, LOCAL_ORIGIN);
           },
           { source: "user", scope: "document" },
         );
@@ -151,6 +229,8 @@ export function useYjsTldrawStore(
             return;
           }
 
+          isConnected = status === "connected";
+
           setStoreWithStatus((current) => {
             if (!current || current.status !== "synced-remote") {
               return current;
@@ -158,10 +238,26 @@ export function useYjsTldrawStore(
 
             return {
               ...current,
-              connectionStatus: status === "connected" ? "online" : "offline",
+              connectionStatus: isConnected ? "online" : "offline",
             };
           });
+
+          if (!isConnected) {
+            setSaveStatus((current) =>
+              current === "loading" ? current : "offline",
+            );
+            return;
+          }
+
+          setSaveStatus((current) => {
+            if (current === "offline") {
+              return "saved";
+            }
+            return current;
+          });
         });
+
+        isConnected = true;
 
         if (!cancelled) {
           setStoreWithStatus({
@@ -169,6 +265,7 @@ export function useYjsTldrawStore(
             store,
             connectionStatus: "online",
           });
+          setSaveStatus("saved");
         }
       } catch (error) {
         if (!cancelled) {
@@ -177,6 +274,7 @@ export function useYjsTldrawStore(
             error:
               error instanceof Error ? error : new Error("Canvas sync failed"),
           });
+          setSaveStatus("error");
         }
       }
     }
@@ -185,6 +283,7 @@ export function useYjsTldrawStore(
 
     return () => {
       cancelled = true;
+      clearSaveTimer();
       unsubscribeStore?.();
       removeYStoreListener?.();
       provider?.destroy();
@@ -192,5 +291,5 @@ export function useYjsTldrawStore(
     };
   }, [projectId, enabled, getToken]);
 
-  return storeWithStatus;
+  return { storeWithStatus, saveStatus };
 }

@@ -31,7 +31,7 @@ export function ProjectCanvas({
 
   return (
     <div className="relative min-h-0 flex-1">
-      <Tldraw store={storeWithStatus.store} />
+      <Tldraw store={storeWithStatus.store} colorScheme="dark" />
     </div>
   );
 }

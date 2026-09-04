@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 
@@ -25,7 +26,7 @@ export function WorkspaceShell() {
 
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
-  const storeWithStatus = useYjsTldrawStore(
+  const { storeWithStatus, saveStatus } = useYjsTldrawStore(
     selectedProject?.id ?? null,
     canvasEnabled,
   );
@@ -68,8 +69,11 @@ export function WorkspaceShell() {
         />
 
         <main className="flex min-w-0 flex-1 flex-col bg-panel">
-          <div className="flex h-9 items-center border-b border-sidebar-border px-3 text-xs text-muted">
-            Canvas
+          <div className="flex h-9 items-center justify-between border-b border-sidebar-border px-3 text-xs">
+            <span className="text-muted">Canvas</span>
+            {selectedProject?.status === "ready" && (
+              <CanvasSaveStatusLabel status={saveStatus} />
+            )}
           </div>
 
           {!selectedProject && (

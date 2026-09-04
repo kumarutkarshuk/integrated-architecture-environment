@@ -2,7 +2,7 @@ import http from "node:http";
 import WebSocket from "ws";
 import request from "supertest";
 import { afterEach, describe, expect, it } from "vitest";
-import { docs, getYDoc } from "@y/websocket-server/utils";
+import { clearCanvasDocs, docs, getYDoc } from "../../src/canvas/yjs-ws-utils.js";
 import { clearCanvasPersistenceTimers } from "../../src/canvas/persistence.js";
 import { createApp } from "../../src/app.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
@@ -57,7 +57,7 @@ async function listen(server: http.Server): Promise<{ port: number; close: () =>
 describe("Canvas Snapshot", () => {
   afterEach(() => {
     clearCanvasPersistenceTimers();
-    docs.clear();
+    clearCanvasDocs();
   });
 
   it("restores Canvas Snapshot records into Yjs state on room bind", async () => {
@@ -79,12 +79,7 @@ describe("Canvas Snapshot", () => {
     const doc = getYDoc(created.body.id);
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(
-      readRecordsFromDoc(
-        doc as unknown as import("yjs").Doc,
-        created.body.id,
-      ),
-    ).toEqual(records);
+    expect(readRecordsFromDoc(doc, created.body.id)).toEqual(records);
   });
 
   it("persists Canvas Snapshot after debounced Yjs updates", async () => {
@@ -158,12 +153,7 @@ describe("Canvas Snapshot", () => {
     const reloaded = getYDoc(created.body.id);
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(
-      readRecordsFromDoc(
-        reloaded as unknown as import("yjs").Doc,
-        created.body.id,
-      ),
-    ).toEqual({
+    expect(readRecordsFromDoc(reloaded, created.body.id)).toEqual({
       "shape:roundtrip": {
         id: "shape:roundtrip",
         typeName: "shape",
