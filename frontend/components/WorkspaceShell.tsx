@@ -46,7 +46,7 @@ export function WorkspaceShell() {
 
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
-  const { storeWithStatus, saveStatus } = useYjsTldrawStore(
+  const { storeWithStatus, saveStatus, onEditorReady } = useYjsTldrawStore(
     selectedProject?.id ?? null,
     canvasEnabled,
   );
@@ -146,6 +146,7 @@ export function WorkspaceShell() {
               <ProjectCanvas
                 projectName={selectedProject.name}
                 storeWithStatus={storeWithStatus}
+                onEditorReady={onEditorReady}
               />
             )}
         </main>

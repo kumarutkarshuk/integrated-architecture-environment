@@ -2,8 +2,9 @@ import http from "node:http";
 import WebSocket from "ws";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearCanvasDocs } from "../../src/canvas/yjs-ws-utils.js";
-import { clearCanvasPersistenceTimers } from "../../src/canvas/persistence.js";
+import { clearCanvasDocs, docs, getYDoc } from "../../src/canvas/yjs-ws-utils.js";
+import { clearCanvasPersistenceTimers, configureCanvasPersistence } from "../../src/canvas/persistence.js";
+import { readRecordsFromDoc } from "../../src/canvas/snapshot.js";
 import { createApp } from "../../src/app.js";
 import { runGenerateJob } from "../../src/ai/generate-service.js";
 import {
@@ -273,6 +274,57 @@ describe("AI generation preview and apply", () => {
         "shape:preview-box": expect.objectContaining({
           typeName: "shape",
         }),
+      }),
+    });
+  });
+
+  it("restores applied preview records from Canvas Snapshot after room rebind", async () => {
+    configureCanvasPersistence();
+
+    const header = authHeader("clerk_apply_reload", "applyreload@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Apply Reload",
+        mode: "prompt",
+        prompt: "Design a reload-safe diagram",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/ai/apply`)
+      .set("Authorization", header)
+      .send({ aiGenerationId: jobId })
+      .expect(200);
+
+    const stored = await prisma.canvasSnapshot.findUnique({
+      where: { projectId: created.body.id },
+    });
+
+    expect(stored?.tldrawJson).toEqual({
+      records: expect.objectContaining({
+        "shape:preview-box": expect.objectContaining({
+          typeName: "shape",
+        }),
+      }),
+    });
+
+    docs.delete(created.body.id);
+
+    const reloaded = getYDoc(created.body.id);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(readRecordsFromDoc(reloaded, created.body.id)).toEqual({
+      "page:preview": expect.objectContaining({
+        typeName: "page",
+      }),
+      "shape:preview-box": expect.objectContaining({
+        typeName: "shape",
       }),
     });
   });

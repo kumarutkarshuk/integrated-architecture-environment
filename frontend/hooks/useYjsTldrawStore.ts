@@ -1,9 +1,9 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createTLStore, defaultShapeUtils } from "tldraw";
-import type { TLRecord, TLStoreWithStatus } from "tldraw";
+import type { Editor, TLRecord, TLStoreWithStatus } from "tldraw";
 import { WebsocketProvider } from "y-websocket";
 import { YKeyValue } from "y-utility/y-keyvalue";
 import * as Y from "yjs";
@@ -45,20 +45,39 @@ function readRecordsFromYArray(
   return records;
 }
 
+function focusPageWithShapes(editor: Editor): void {
+  const pageWithShapes = editor.getPages().find((page) => {
+    return editor.getPageShapeIds(page.id).size > 0;
+  });
+
+  if (pageWithShapes) {
+    editor.setCurrentPage(pageWithShapes.id);
+    editor.zoomToFit({ animation: { duration: 0 } });
+  }
+}
+
 export function useYjsTldrawStore(
   projectId: string | null,
   enabled: boolean,
 ): {
   storeWithStatus: TLStoreWithStatus | null;
   saveStatus: CanvasSaveStatus;
+  onEditorReady: (editor: Editor) => void;
 } {
   const { getToken } = useAuth();
   const [storeWithStatus, setStoreWithStatus] =
     useState<TLStoreWithStatus | null>(null);
   const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("loading");
+  const syncToYjsEnabledRef = useRef(false);
+
+  const onEditorReady = useCallback((editor: Editor) => {
+    focusPageWithShapes(editor);
+    syncToYjsEnabledRef.current = true;
+  }, []);
 
   useEffect(() => {
     if (!projectId || !enabled) {
+      syncToYjsEnabledRef.current = false;
       setStoreWithStatus(null);
       setSaveStatus("loading");
       return;
@@ -73,6 +92,7 @@ export function useYjsTldrawStore(
     let isConnected = false;
 
     const activeProjectId = projectId;
+    syncToYjsEnabledRef.current = false;
 
     function clearSaveTimer() {
       if (saveTimer) {
@@ -200,6 +220,10 @@ export function useYjsTldrawStore(
 
         unsubscribeStore = store.listen(
           ({ changes }) => {
+            if (!syncToYjsEnabledRef.current) {
+              return;
+            }
+
             const hasDocumentChanges =
               Object.keys(changes.added).length > 0 ||
               Object.keys(changes.updated).length > 0 ||
@@ -283,6 +307,7 @@ export function useYjsTldrawStore(
 
     return () => {
       cancelled = true;
+      syncToYjsEnabledRef.current = false;
       clearSaveTimer();
       unsubscribeStore?.();
       removeYStoreListener?.();
@@ -291,5 +316,5 @@ export function useYjsTldrawStore(
     };
   }, [projectId, enabled, getToken]);
 
-  return { storeWithStatus, saveStatus };
+  return { storeWithStatus, saveStatus, onEditorReady };
 }

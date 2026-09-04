@@ -1,8 +1,9 @@
-import { getYDoc } from "../canvas/yjs-ws-utils.js";
+import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import {
   replaceRecordsInDoc,
   upsertCanvasSnapshot,
 } from "../canvas/snapshot.js";
+import { getYDoc, teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import { prisma } from "../db.js";
 import type { GenerateResult } from "./types.js";
 
@@ -62,6 +63,8 @@ export async function applyPreviewToCanvas(
   const doc = getYDoc(projectId);
   replaceRecordsInDoc(doc, projectId, result.records);
   await upsertCanvasSnapshot(projectId, result.records);
+  clearCanvasPersistenceTimer(projectId);
+  teardownCanvasDoc(projectId);
 
   await prisma.$transaction([
     prisma.aiGeneration.update({
