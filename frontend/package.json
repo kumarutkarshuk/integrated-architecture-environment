@@ -12,7 +12,11 @@
     "@clerk/nextjs": "^6.12.5",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "tldraw": "^5.4.0",
+    "y-utility": "^0.1.4",
+    "y-websocket": "^3.1.0",
+    "yjs": "^13.6.32"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

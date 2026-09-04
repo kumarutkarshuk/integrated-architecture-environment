@@ -1,8 +1,13 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
-import { fetchProjects, type ApiProject } from "../lib/api";
+import { useCallback, useEffect, useState } from "react";
+import {
+  createProject,
+  deleteProject,
+  fetchProjects,
+  type ApiProject,
+} from "../lib/api";
 
 export function useProjects(enabled: boolean) {
   const { getToken } = useAuth();
@@ -10,49 +15,72 @@ export function useProjects(enabled: boolean) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadProjects = useCallback(async () => {
     if (!enabled) {
       setProjects([]);
       return;
     }
 
-    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
 
-    async function loadProjects() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
-
-        const projectList = await fetchProjects(token);
-        if (!cancelled) {
-          setProjects(projectList);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Failed to load projects",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
       }
+
+      const projectList = await fetchProjects(token);
+      setProjects(projectList);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load projects",
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    void loadProjects();
-
-    return () => {
-      cancelled = true;
-    };
   }, [enabled, getToken]);
 
-  return { projects, isLoading, error };
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  const createBlankProject = useCallback(
+    async (name: string) => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      const project = await createProject(token, { name, mode: "blank" });
+      setProjects((current) => [project, ...current]);
+      return project;
+    },
+    [getToken],
+  );
+
+  const removeProject = useCallback(
+    async (projectId: string) => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      await deleteProject(token, projectId);
+      setProjects((current) =>
+        current.filter((project) => project.id !== projectId),
+      );
+    },
+    [getToken],
+  );
+
+  return {
+    projects,
+    isLoading,
+    error,
+    createBlankProject,
+    removeProject,
+  };
 }
