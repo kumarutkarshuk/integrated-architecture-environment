@@ -97,7 +97,16 @@ function toJsonValue(records: Record<string, unknown>): Prisma.InputJsonValue {
 export async function upsertCanvasSnapshot(
   projectId: string,
   records: Record<string, unknown>,
-): Promise<void> {
+): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    return false;
+  }
+
   const tldrawJson = toJsonValue(records);
 
   await prisma.canvasSnapshot.upsert({
@@ -110,12 +119,14 @@ export async function upsertCanvasSnapshot(
       tldrawJson,
     },
   });
+
+  return true;
 }
 
 export async function saveCanvasSnapshotFromDoc(
   projectId: string,
   doc: Y.Doc,
-): Promise<void> {
+): Promise<boolean> {
   const records = readRecordsFromDoc(doc, projectId);
-  await upsertCanvasSnapshot(projectId, records);
+  return upsertCanvasSnapshot(projectId, records);
 }

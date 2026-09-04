@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { startGenerateJob } from "../ai/start-generate-job.js";
+import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
+import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { prisma } from "../db.js";
 import { requireOwner } from "../projects/access.js";
@@ -152,6 +154,11 @@ projectsRouter.delete("/:id", async (req, res) => {
     return;
   }
 
-  await prisma.project.delete({ where: { id: req.params.id } });
+  const projectId = req.params.id;
+
+  clearCanvasPersistenceTimer(projectId);
+  teardownCanvasDoc(projectId);
+
+  await prisma.project.delete({ where: { id: projectId } });
   res.status(204).send();
 });

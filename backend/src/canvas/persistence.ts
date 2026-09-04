@@ -18,6 +18,25 @@ export function clearCanvasPersistenceTimers(): void {
   debounceTimers.clear();
 }
 
+export function clearCanvasPersistenceTimer(projectId: string): void {
+  const pending = debounceTimers.get(projectId);
+  if (pending) {
+    clearTimeout(pending);
+    debounceTimers.delete(projectId);
+  }
+}
+
+async function persistCanvasSnapshot(
+  projectId: string,
+  doc: WSSharedDoc,
+): Promise<void> {
+  try {
+    await saveCanvasSnapshotFromDoc(projectId, doc);
+  } catch (error) {
+    console.error("Failed to persist canvas snapshot", projectId, error);
+  }
+}
+
 function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
   const existing = debounceTimers.get(projectId);
   if (existing) {
@@ -28,7 +47,7 @@ function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
     projectId,
     setTimeout(() => {
       debounceTimers.delete(projectId);
-      void saveCanvasSnapshotFromDoc(projectId, doc);
+      void persistCanvasSnapshot(projectId, doc);
     }, DEBOUNCE_MS),
   );
 }
@@ -50,12 +69,8 @@ export function configureCanvasPersistence(): void {
     },
     writeState: async (docName, doc) => {
       const projectId = docName;
-      const pending = debounceTimers.get(projectId);
-      if (pending) {
-        clearTimeout(pending);
-        debounceTimers.delete(projectId);
-      }
-      await saveCanvasSnapshotFromDoc(projectId, doc);
+      clearCanvasPersistenceTimer(projectId);
+      await persistCanvasSnapshot(projectId, doc);
     },
   });
 }
