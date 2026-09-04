@@ -52,6 +52,24 @@ export function applyRecordsToDoc(
   });
 }
 
+export function replaceRecordsInDoc(
+  doc: Y.Doc,
+  projectId: string,
+  records: Record<string, unknown>,
+): void {
+  const yArray = doc.getArray<CanvasRecordEntry>(getCanvasYArrayName(projectId));
+
+  doc.transact(() => {
+    if (yArray.length > 0) {
+      yArray.delete(0, yArray.length);
+    }
+
+    for (const [key, value] of Object.entries(records)) {
+      yArray.push([{ key, val: value }]);
+    }
+  });
+}
+
 export async function loadCanvasSnapshot(
   projectId: string,
 ): Promise<CanvasSnapshotJson | null> {

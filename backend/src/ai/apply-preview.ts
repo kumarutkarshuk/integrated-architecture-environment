@@ -1,6 +1,6 @@
 import { getYDoc } from "../canvas/yjs-ws-utils.js";
 import {
-  applyRecordsToDoc,
+  replaceRecordsInDoc,
   upsertCanvasSnapshot,
 } from "../canvas/snapshot.js";
 import { prisma } from "../db.js";
@@ -60,7 +60,7 @@ export async function applyPreviewToCanvas(
   }
 
   const doc = getYDoc(projectId);
-  applyRecordsToDoc(doc, projectId, result.records);
+  replaceRecordsInDoc(doc, projectId, result.records);
   await upsertCanvasSnapshot(projectId, result.records);
 
   await prisma.$transaction([

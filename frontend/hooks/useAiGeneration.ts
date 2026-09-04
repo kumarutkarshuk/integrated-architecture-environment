@@ -70,12 +70,15 @@ export function useAiGeneration(
 
     const interval = window.setInterval(() => {
       void refreshProject(project.id)
-        .then(updateProjectInList)
+        .then((updated) => {
+          updateProjectInList(updated);
+          return loadPreviews();
+        })
         .catch(() => undefined);
     }, 2000);
 
     return () => window.clearInterval(interval);
-  }, [project, refreshProject, updateProjectInList]);
+  }, [project, refreshProject, updateProjectInList, loadPreviews]);
 
   const regenerate = useCallback(async () => {
     if (!project || !prompt.trim()) {
@@ -94,6 +97,7 @@ export function useAiGeneration(
       await regenerateAiPreview(token, project.id, prompt.trim());
       const updated = await refreshProject(project.id);
       updateProjectInList(updated);
+      await loadPreviews();
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -103,7 +107,7 @@ export function useAiGeneration(
     } finally {
       setIsBusy(false);
     }
-  }, [getToken, project, prompt, refreshProject, updateProjectInList]);
+  }, [getToken, project, prompt, refreshProject, updateProjectInList, loadPreviews]);
 
   const applySelectedPreview = useCallback(async () => {
     if (!project || !selectedPreviewId) {

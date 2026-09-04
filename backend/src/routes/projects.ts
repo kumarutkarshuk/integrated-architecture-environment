@@ -83,7 +83,12 @@ projectsRouter.post("/", async (req, res) => {
 
     await startGenerateJob(project.id, user.id, prompt);
 
-    res.status(201).json(project);
+    const refreshed = await prisma.project.findUnique({
+      where: { id: project.id },
+      select: projectSelect,
+    });
+
+    res.status(201).json(refreshed ?? project);
     return;
   }
 

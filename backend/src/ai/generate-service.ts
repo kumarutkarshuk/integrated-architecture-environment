@@ -36,7 +36,8 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
   try {
     const result = await produceGenerateResult(job.prompt ?? "");
     await completeGenerateJob(aiGenerationId, result);
-  } catch {
+  } catch (error) {
+    console.error("Generate job failed", aiGenerationId, error);
     await prisma.aiGeneration.update({
       where: { id: aiGenerationId },
       data: { status: "failed" },

@@ -8,7 +8,7 @@ export interface JobRunner {
 export function createInProcessJobRunner(): JobRunner {
   return {
     async enqueueGenerate(payload) {
-      void runGenerateJob(payload.aiGenerationId);
+      await runGenerateJob(payload.aiGenerationId);
     },
   };
 }

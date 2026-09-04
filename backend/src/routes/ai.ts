@@ -51,9 +51,15 @@ aiRouter.post("/generate", async (req, res) => {
     return;
   }
 
-  const job = await startGenerateJob(projectId, user.id, prompt);
+  await startGenerateJob(projectId, user.id, prompt);
 
-  res.status(201).json(job);
+  const latestJob = await prisma.aiGeneration.findFirst({
+    where: { projectId, type: "generate" },
+    orderBy: { createdAt: "desc" },
+    select: previewSelect,
+  });
+
+  res.status(201).json(latestJob);
 });
 
 aiRouter.get("/previews", async (req, res) => {
