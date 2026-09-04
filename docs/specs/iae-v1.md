@@ -12,7 +12,7 @@ Build **Integrated Architecture Environment (IAE) v1**: a VS Code–inspired web
 
 ## User Stories
 
-1. As a visitor, I want to sign in with email and a one-time code (OTP), so that I can access my projects securely.
+1. As a visitor, I want to sign in with Google or email + OTP, so that I can access my projects securely.
 2. As a signed-in user, I want my account created automatically on first use, so that I don't need a separate registration step.
 3. As a signed-in user, I want to see a list of my projects in a left sidebar, so that I can navigate between designs quickly.
 4. As a signed-in user, I want to create a blank project, so that I can start drawing manually without AI.
@@ -49,7 +49,7 @@ Build **Integrated Architecture Environment (IAE) v1**: a VS Code–inspired web
 
 - **Frontend**: Next.js + Tailwind in `frontend/`, deployed to Vercel.
 - **Backend**: Express in `backend/`, Docker image built and pushed to Docker Hub on push to `main`.
-- **Auth**: Clerk (email + OTP only). Backend verifies JWT on every HTTP request and WebSocket handshake. Lazy **User** upsert in auth middleware (no dedicated POST endpoint). Frontend calls `GET /api/users/me` when Clerk session becomes active.
+- **Auth**: Clerk (Google + email + OTP; no magic link). Backend verifies JWT on every HTTP request and WebSocket handshake. Lazy **User** upsert in auth middleware (no dedicated POST endpoint). Frontend calls `GET /api/users/me` when Clerk session becomes active.
 - **Real-time**: Yjs CRDT over WebSocket on Express (ADR-0001). **Canvas State** is authoritative while connected; **Canvas Snapshot** (one upserted row per project with `updated_at`) is persisted on debounced save for cold start and backup.
 - **Canvas library**: tldraw.
 - **AI jobs**: Trigger.dev background tasks. OpenRouter/Groq for inference.

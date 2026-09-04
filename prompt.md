@@ -24,7 +24,7 @@
 - Typescript
 - Next frontend with Tailwind in ./frontend/
 - Express backend in ./backend/
-- Clerk auth (email + OTP for sign-in and sign-up)
+- Clerk auth (Google + email + OTP for sign-in and sign-up)
 - Yjs for real-time collaboration on the backend
 - tldraw canvas library
 - Trigger.dev for background running AI jobs on the backend
@@ -42,7 +42,7 @@
 
 - Follow programming best practices like modular codebase, use suitable design patterns, clean, readable and understandable code, tailwind color token variables
 - ticket-wise PRs to be created for main
-- For authentication, client and Clerk connect for auth token and the backend verifies the token with Clerk on every request. Users sign in and sign up with email + OTP (no Google, no magic link).
+- For authentication, client and Clerk connect for auth token and the backend verifies the token with Clerk on every request. Users sign in and sign up with Google or email + OTP (no magic link).
 - tldraw and Yjs are integrated and handle real-time collaboration
 - At a high level, I have come up with the entities which would be used in the backend APIs (HTTP + Web Socket). I am open to discussion if something needs be modified (do document the schema and API design when finalized)
     - user
