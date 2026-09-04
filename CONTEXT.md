@@ -9,7 +9,7 @@ A single collaborative canvas where users design a system. One project is one ed
 _Avoid_: Diagram, room
 
 **User**:
-A person who can sign in via Clerk. A Postgres row is created lazily on the user's first authenticated backend request.
+A person who can sign in via Clerk with email + OTP. A Postgres row is created lazily on the user's first authenticated backend request.
 _Avoid_: Account, member
 
 **Collaborator**:
