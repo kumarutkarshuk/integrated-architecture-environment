@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createProject,
   deleteProject,
+  fetchProject,
   fetchProjects,
   type ApiProject,
 } from "../lib/api";
@@ -61,6 +62,46 @@ export function useProjects(enabled: boolean) {
     [getToken],
   );
 
+  const createPromptProject = useCallback(
+    async (name: string, prompt: string) => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      const project = await createProject(token, {
+        name,
+        mode: "prompt",
+        prompt,
+      });
+      setProjects((current) => [project, ...current]);
+      return project;
+    },
+    [getToken],
+  );
+
+  const refreshProject = useCallback(
+    async (projectId: string) => {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Missing auth token");
+      }
+
+      const project = await fetchProject(token, projectId);
+      setProjects((current) =>
+        current.map((entry) => (entry.id === projectId ? project : entry)),
+      );
+      return project;
+    },
+    [getToken],
+  );
+
+  const updateProjectInList = useCallback((project: ApiProject) => {
+    setProjects((current) =>
+      current.map((entry) => (entry.id === project.id ? project : entry)),
+    );
+  }, []);
+
   const removeProject = useCallback(
     async (projectId: string) => {
       const token = await getToken();
@@ -81,6 +122,9 @@ export function useProjects(enabled: boolean) {
     isLoading,
     error,
     createBlankProject,
+    createPromptProject,
+    refreshProject,
+    updateProjectInList,
     removeProject,
   };
 }

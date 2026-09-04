@@ -1,7 +1,8 @@
 import { Router } from "express";
+import { startGenerateJob } from "../ai/start-generate-job.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { prisma } from "../db.js";
-import { findOwnedProject, requireOwner } from "../projects/access.js";
+import { requireOwner } from "../projects/access.js";
 
 export const projectsRouter = Router();
 
@@ -42,15 +43,47 @@ projectsRouter.post("/", async (req, res) => {
     return;
   }
 
-  const { name, mode } = req.body as { name?: string; mode?: string };
+  const { name, mode, prompt } = req.body as {
+    name?: string;
+    mode?: string;
+    prompt?: string;
+  };
 
   if (!name || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "Name is required" });
     return;
   }
 
-  if (mode !== "blank") {
-    res.status(400).json({ error: "Only blank mode is supported in this endpoint" });
+  if (mode !== "blank" && mode !== "prompt") {
+    res.status(400).json({ error: "Mode must be blank or prompt" });
+    return;
+  }
+
+  if (mode === "prompt") {
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      res.status(400).json({ error: "Prompt is required for prompt mode" });
+      return;
+    }
+
+    const project = await prisma.project.create({
+      data: {
+        name: name.trim(),
+        mode: "prompt",
+        status: "generating",
+        ownerId: user.id,
+        collaborators: {
+          create: {
+            userId: user.id,
+            role: "owner",
+          },
+        },
+      },
+      select: projectSelect,
+    });
+
+    await startGenerateJob(project.id, user.id, prompt);
+
+    res.status(201).json(project);
     return;
   }
 

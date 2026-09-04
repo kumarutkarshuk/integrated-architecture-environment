@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
@@ -15,6 +16,9 @@ export function WorkspaceShell() {
     isLoading: isProjectsLoading,
     error: projectsError,
     createBlankProject,
+    createPromptProject,
+    refreshProject,
+    updateProjectInList,
     removeProject,
   } = useProjects(Boolean(user));
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -31,8 +35,13 @@ export function WorkspaceShell() {
     canvasEnabled,
   );
 
-  async function handleCreateProject(name: string) {
+  async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
+    setSelectedProjectId(project.id);
+  }
+
+  async function handleCreatePromptProject(name: string, prompt: string) {
+    const project = await createPromptProject(name, prompt);
     setSelectedProjectId(project.id);
   }
 
@@ -64,7 +73,8 @@ export function WorkspaceShell() {
           isLoading={isUserLoading || isProjectsLoading}
           error={userError ?? projectsError}
           onSelectProject={setSelectedProjectId}
-          onCreateProject={handleCreateProject}
+          onCreateBlankProject={handleCreateBlankProject}
+          onCreatePromptProject={handleCreatePromptProject}
           onDeleteProject={handleDeleteProject}
         />
 
@@ -102,9 +112,11 @@ export function WorkspaceShell() {
           <div className="border-b border-sidebar-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
             AI Assistant
           </div>
-          <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted">
-            Coming in v2
-          </div>
+          <AiSidebar
+            project={selectedProject}
+            refreshProject={refreshProject}
+            updateProjectInList={updateProjectInList}
+          />
         </aside>
       </div>
     </div>

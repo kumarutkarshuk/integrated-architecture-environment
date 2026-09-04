@@ -12,9 +12,19 @@ export interface ApiProject {
   createdAt: string;
 }
 
+export interface ApiAiPreview {
+  id: string;
+  prompt: string | null;
+  status: string;
+  result: { records?: Record<string, unknown> } | null;
+  appliedAt: string | null;
+  createdAt: string;
+}
+
 export interface CreateProjectInput {
   name: string;
-  mode: "blank";
+  mode: "blank" | "prompt";
+  prompt?: string;
 }
 
 export function getApiBaseUrl(): string {
@@ -54,6 +64,13 @@ export function fetchProjects(token: string): Promise<ApiProject[]> {
   return apiFetch<ApiProject[]>("/api/projects", token);
 }
 
+export function fetchProject(
+  token: string,
+  projectId: string,
+): Promise<ApiProject> {
+  return apiFetch<ApiProject>(`/api/projects/${projectId}`, token);
+}
+
 export function createProject(
   token: string,
   input: CreateProjectInput,
@@ -70,5 +87,37 @@ export function deleteProject(
 ): Promise<void> {
   return apiFetch<void>(`/api/projects/${projectId}`, token, {
     method: "DELETE",
+  });
+}
+
+export function fetchAiPreviews(
+  token: string,
+  projectId: string,
+): Promise<ApiAiPreview[]> {
+  return apiFetch<ApiAiPreview[]>(
+    `/api/projects/${projectId}/ai/previews`,
+    token,
+  );
+}
+
+export function regenerateAiPreview(
+  token: string,
+  projectId: string,
+  prompt: string,
+): Promise<ApiAiPreview> {
+  return apiFetch<ApiAiPreview>(`/api/projects/${projectId}/ai/generate`, token, {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+export function applyAiPreview(
+  token: string,
+  projectId: string,
+  aiGenerationId: string,
+): Promise<ApiProject> {
+  return apiFetch<ApiProject>(`/api/projects/${projectId}/ai/apply`, token, {
+    method: "POST",
+    body: JSON.stringify({ aiGenerationId }),
   });
 }
