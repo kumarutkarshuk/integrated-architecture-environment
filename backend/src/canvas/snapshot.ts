@@ -1,5 +1,6 @@
 import type * as Y from "yjs";
 import type { Prisma } from "@prisma/client";
+import { normalizeCanvasRecords } from "./records.js";
 import { prisma } from "../db.js";
 
 export const CANVAS_YARRAY_PREFIX = "tl_";
@@ -87,7 +88,9 @@ export async function loadCanvasSnapshot(
     return { records: {} };
   }
 
-  return json;
+  return {
+    records: normalizeCanvasRecords(json.records as Record<string, unknown>),
+  };
 }
 
 function toJsonValue(records: Record<string, unknown>): Prisma.InputJsonValue {
@@ -107,7 +110,8 @@ export async function upsertCanvasSnapshot(
     return false;
   }
 
-  const tldrawJson = toJsonValue(records);
+  const normalizedRecords = normalizeCanvasRecords(records);
+  const tldrawJson = toJsonValue(normalizedRecords);
 
   await prisma.canvasSnapshot.upsert({
     where: { projectId },

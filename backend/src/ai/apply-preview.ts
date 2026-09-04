@@ -1,4 +1,5 @@
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
+import { normalizeCanvasRecords } from "../canvas/records.js";
 import {
   replaceRecordsInDoc,
   upsertCanvasSnapshot,
@@ -60,9 +61,11 @@ export async function applyPreviewToCanvas(
     };
   }
 
+  const normalizedRecords = normalizeCanvasRecords(result.records);
+
   const doc = getYDoc(projectId);
-  replaceRecordsInDoc(doc, projectId, result.records);
-  await upsertCanvasSnapshot(projectId, result.records);
+  replaceRecordsInDoc(doc, projectId, normalizedRecords);
+  await upsertCanvasSnapshot(projectId, normalizedRecords);
   clearCanvasPersistenceTimer(projectId);
   teardownCanvasDoc(projectId);
 

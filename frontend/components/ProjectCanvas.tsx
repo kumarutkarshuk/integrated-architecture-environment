@@ -2,6 +2,7 @@
 
 import { Tldraw } from "tldraw";
 import type { Editor, TLStoreWithStatus } from "tldraw";
+import { TLDRAW_OPTIONS } from "../lib/canvas";
 import "tldraw/tldraw.css";
 
 interface ProjectCanvasProps {
@@ -35,6 +36,7 @@ export function ProjectCanvas({
     <div className="relative min-h-0 flex-1">
       <Tldraw
         store={storeWithStatus.store}
+        options={TLDRAW_OPTIONS}
         colorScheme="dark"
         onMount={onEditorReady}
       />

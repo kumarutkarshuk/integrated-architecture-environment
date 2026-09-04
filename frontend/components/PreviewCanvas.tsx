@@ -9,6 +9,11 @@ import {
   type TLRecord,
   type TLStoreWithStatus,
 } from "tldraw";
+import {
+  CANVAS_PAGE_ID,
+  normalizeCanvasRecords,
+  TLDRAW_OPTIONS,
+} from "../lib/canvas";
 import "tldraw/tldraw.css";
 
 interface PreviewCanvasProps {
@@ -17,15 +22,13 @@ interface PreviewCanvasProps {
 }
 
 export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
-  const recordList = useMemo(
-    () => Object.values(records) as TLRecord[],
+  const normalizedRecords = useMemo(
+    () => normalizeCanvasRecords(records),
     [records],
   );
-  const pageId = useMemo(
-    () =>
-      (Object.keys(records).find((key) => key.startsWith("page:")) ??
-        null) as TLPageId | null,
-    [records],
+  const recordList = useMemo(
+    () => Object.values(normalizedRecords) as TLRecord[],
+    [normalizedRecords],
   );
   const [storeWithStatus, setStoreWithStatus] =
     useState<TLStoreWithStatus | null>(null);
@@ -76,13 +79,12 @@ export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
       </div>
       <Tldraw
         store={storeWithStatus.store}
+        options={TLDRAW_OPTIONS}
         hideUi
         colorScheme="dark"
         onMount={(editor) => {
           editor.updateInstanceState({ isReadonly: true });
-          if (pageId) {
-            editor.setCurrentPage(pageId);
-          }
+          editor.setCurrentPage(CANVAS_PAGE_ID as TLPageId);
           editor.zoomToFit({ animation: { duration: 0 } });
         }}
       />

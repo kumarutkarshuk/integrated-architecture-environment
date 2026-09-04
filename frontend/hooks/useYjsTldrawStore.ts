@@ -3,15 +3,17 @@
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createTLStore, defaultShapeUtils } from "tldraw";
-import type { Editor, TLRecord, TLStoreWithStatus } from "tldraw";
+import type { Editor, TLPageId, TLRecord, TLStoreWithStatus } from "tldraw";
 import { WebsocketProvider } from "y-websocket";
 import { YKeyValue } from "y-utility/y-keyvalue";
 import * as Y from "yjs";
 import { getApiBaseUrl } from "../lib/api";
 import {
+  CANVAS_PAGE_ID,
   CANVAS_SAVE_DEBOUNCE_MS,
   getCanvasWsBaseUrl,
   getCanvasYArrayName,
+  normalizeCanvasRecords,
 } from "../lib/canvas";
 
 const LOCAL_ORIGIN = "tldraw-local";
@@ -46,6 +48,12 @@ function readRecordsFromYArray(
 }
 
 function focusPageWithShapes(editor: Editor): void {
+  if (editor.getPageShapeIds(CANVAS_PAGE_ID as TLPageId).size > 0) {
+    editor.setCurrentPage(CANVAS_PAGE_ID as TLPageId);
+    editor.zoomToFit({ animation: { duration: 0 } });
+    return;
+  }
+
   const pageWithShapes = editor.getPages().find((page) => {
     return editor.getPageShapeIds(page.id).size > 0;
   });
@@ -211,7 +219,13 @@ export function useYjsTldrawStore(
           yStore.off("change", onYStoreChange);
         };
 
-        const initialRecords = readRecordsFromYArray(yArray);
+        const rawRecords = readRecordsFromYArray(yArray);
+        const recordsMap = Object.fromEntries(
+          rawRecords.map((record) => [record.id, record]),
+        );
+        const initialRecords = Object.values(
+          normalizeCanvasRecords(recordsMap),
+        ) as TLRecord[];
         if (initialRecords.length > 0) {
           store.mergeRemoteChanges(() => {
             store.put(initialRecords);

@@ -1,10 +1,4 @@
-export const CANVAS_YARRAY_PREFIX = "tl_";
-export const CANVAS_PAGE_ID = "page:page" as const;
-
-export const TLDRAW_OPTIONS = {
-  maxPages: 1,
-} as const;
-
+export const CANVAS_PAGE_ID = "page:page";
 const LEGACY_PAGE_ID = "page:preview";
 
 export function normalizeCanvasRecords(
@@ -41,15 +35,3 @@ export function normalizeCanvasRecords(
 
   return normalized;
 }
-
-export function getCanvasYArrayName(projectId: string): string {
-  return `${CANVAS_YARRAY_PREFIX}${projectId}`;
-}
-
-export function getCanvasWsBaseUrl(apiBaseUrl: string): string {
-  const wsOrigin = apiBaseUrl.replace(/^http/i, "ws");
-  return `${wsOrigin}/ws/projects`;
-}
-
-/** Matches backend canvas snapshot debounce in persistence.ts */
-export const CANVAS_SAVE_DEBOUNCE_MS = 2000;

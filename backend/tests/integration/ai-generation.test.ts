@@ -320,11 +320,9 @@ describe("AI generation preview and apply", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(readRecordsFromDoc(reloaded, created.body.id)).toEqual({
-      "page:preview": expect.objectContaining({
-        typeName: "page",
-      }),
       "shape:preview-box": expect.objectContaining({
         typeName: "shape",
+        parentId: "page:page",
       }),
     });
   });

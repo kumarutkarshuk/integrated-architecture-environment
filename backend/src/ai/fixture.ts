@@ -1,6 +1,6 @@
 import type { GenerateResult } from "./types.js";
+import { CANVAS_PAGE_ID } from "../canvas/records.js";
 
-export const PREVIEW_PAGE_ID = "page:preview";
 export const PREVIEW_SHAPE_ID = "shape:preview-box";
 
 function toRichText(text: string) {
@@ -23,13 +23,6 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
 
   return {
     records: {
-      [PREVIEW_PAGE_ID]: {
-        id: PREVIEW_PAGE_ID,
-        typeName: "page",
-        name: "Preview",
-        index: "a1",
-        meta: {},
-      },
       [PREVIEW_SHAPE_ID]: {
         id: PREVIEW_SHAPE_ID,
         typeName: "shape",
@@ -38,7 +31,7 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
         y: 100,
         rotation: 0,
         index: "a1",
-        parentId: PREVIEW_PAGE_ID,
+        parentId: CANVAS_PAGE_ID,
         isLocked: false,
         opacity: 1,
         props: {
