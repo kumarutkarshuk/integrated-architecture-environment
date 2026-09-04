@@ -20,4 +20,4 @@ COPY --from=build /app/prisma ./prisma
 COPY package.json ./
 
 EXPOSE 4000
-CMD ["sh", "-c", "bunx prisma db push && bun run start"]
+CMD ["sh", "-c", "bunx prisma migrate deploy && bun run start"]

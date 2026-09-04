@@ -13,7 +13,17 @@ export default async function globalSetup() {
     process.env.TEST_DATABASE_URL ??
     "postgresql://iae:iae@localhost:5432/iae_test";
 
-  execSync("bunx prisma db push --skip-generate", {
+  execSync(
+    'echo "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" | bunx prisma db execute --stdin --schema prisma/schema.prisma',
+    {
+      cwd: backendRoot,
+      env: process.env,
+      stdio: "inherit",
+      shell: "/bin/sh",
+    },
+  );
+
+  execSync("bunx prisma migrate deploy", {
     cwd: backendRoot,
     env: process.env,
     stdio: "inherit",
