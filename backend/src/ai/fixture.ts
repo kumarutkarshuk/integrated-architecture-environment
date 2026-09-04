@@ -1,21 +1,7 @@
+import { buildGeoShape } from "./diagram-records.js";
 import type { GenerateResult } from "./types.js";
-import { CANVAS_PAGE_ID } from "../canvas/records.js";
 
 export const PREVIEW_SHAPE_ID = "shape:preview-box";
-
-function toRichText(text: string) {
-  return {
-    type: "doc",
-    content: text.split("\n").map((line) =>
-      line
-        ? {
-            type: "paragraph",
-            content: [{ type: "text", text: line }],
-          }
-        : { type: "paragraph" },
-    ),
-  };
-}
 
 export function buildFixtureGenerateResult(prompt: string): GenerateResult {
   const slug = prompt.slice(0, 24).replace(/\s+/g, "-").toLowerCase();
@@ -23,38 +9,16 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
 
   return {
     records: {
-      [PREVIEW_SHAPE_ID]: {
+      [PREVIEW_SHAPE_ID]: buildGeoShape({
         id: PREVIEW_SHAPE_ID,
-        typeName: "shape",
-        type: "geo",
+        label,
         x: 100,
         y: 100,
-        rotation: 0,
+        w: 240,
+        h: 120,
         index: "a1",
-        parentId: CANVAS_PAGE_ID,
-        isLocked: false,
-        opacity: 1,
-        props: {
-          geo: "rectangle",
-          dash: "solid",
-          url: "",
-          w: 240,
-          h: 120,
-          growY: 0,
-          scale: 1,
-          flipX: false,
-          flipY: false,
-          labelColor: "black",
-          color: "black",
-          fill: "solid",
-          size: "m",
-          font: "draw",
-          align: "middle",
-          verticalAlign: "middle",
-          richText: toRichText(label),
-        },
         meta: { generatedFrom: slug },
-      },
+      }),
     },
   };
 }

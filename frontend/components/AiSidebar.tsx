@@ -33,6 +33,8 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
     selectedPreviewId,
     setSelectedPreviewId,
     isBusy,
+    isGenerating,
+    generationFailed,
     error,
     regenerate,
     applySelectedPreview,
@@ -53,8 +55,6 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
       </div>
     );
   }
-
-  const isGenerating = project.status === "generating";
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
@@ -80,10 +80,12 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
           <Button
             type="button"
             className="w-full"
-            disabled={isBusy || !prompt.trim() || isGenerating}
+            disabled={isBusy || !prompt.trim() || (isGenerating && !generationFailed)}
             onClick={() => void regenerate()}
           >
-            {isGenerating ? "Generating..." : "Regenerate preview"}
+            {isGenerating && !generationFailed
+              ? "Generating..."
+              : "Regenerate preview"}
           </Button>
         </CardContent>
       </Card>
@@ -102,7 +104,13 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
             </p>
           )}
 
-          {!isGenerating && previews.length === 0 && (
+          {generationFailed && previews.length === 0 && (
+            <p className="text-sm text-red-400">
+              Generation failed. Update your prompt and try again.
+            </p>
+          )}
+
+          {!isGenerating && !generationFailed && previews.length === 0 && (
             <p className="text-sm text-muted">No completed previews yet.</p>
           )}
 

@@ -2,7 +2,11 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createTLStore, defaultShapeUtils } from "tldraw";
+import {
+  createTLStore,
+  defaultBindingUtils,
+  defaultShapeUtils,
+} from "tldraw";
 import type { Editor, TLPageId, TLRecord, TLStoreWithStatus } from "tldraw";
 import { WebsocketProvider } from "y-websocket";
 import { YKeyValue } from "y-utility/y-keyvalue";
@@ -11,6 +15,7 @@ import { getApiBaseUrl } from "../lib/api";
 import {
   CANVAS_PAGE_ID,
   CANVAS_SAVE_DEBOUNCE_MS,
+  frameCanvasContent,
   getCanvasWsBaseUrl,
   getCanvasYArrayName,
   normalizeCanvasRecords,
@@ -50,7 +55,7 @@ function readRecordsFromYArray(
 function focusPageWithShapes(editor: Editor): void {
   if (editor.getPageShapeIds(CANVAS_PAGE_ID as TLPageId).size > 0) {
     editor.setCurrentPage(CANVAS_PAGE_ID as TLPageId);
-    editor.zoomToFit({ animation: { duration: 0 } });
+    frameCanvasContent(editor);
     return;
   }
 
@@ -60,7 +65,7 @@ function focusPageWithShapes(editor: Editor): void {
 
   if (pageWithShapes) {
     editor.setCurrentPage(pageWithShapes.id);
-    editor.zoomToFit({ animation: { duration: 0 } });
+    frameCanvasContent(editor);
   }
 }
 
@@ -136,6 +141,7 @@ export function useYjsTldrawStore(
 
         const store = createTLStore({
           shapeUtils: [...defaultShapeUtils],
+          bindingUtils: [...defaultBindingUtils],
         });
         yDoc = new Y.Doc({ gc: true });
         const yArray = yDoc.getArray<{ key: string; val: TLRecord }>(

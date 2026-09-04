@@ -8,8 +8,16 @@ import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
 export const aiRouter = Router({ mergeParams: true });
 
-function getProjectId(req: { params: Record<string, string | undefined> }): string {
-  return req.params.id ?? "";
+function readProjectId(
+  req: { params: Record<string, string | undefined> },
+  res: { status: (code: number) => { json: (body: object) => void } },
+): string | null {
+  const projectId = req.params.id?.trim();
+  if (!projectId) {
+    res.status(400).json({ error: "Project id is required" });
+    return null;
+  }
+  return projectId;
 }
 
 const previewSelect = {
@@ -29,7 +37,11 @@ aiRouter.post("/generate", async (req, res) => {
     return;
   }
 
-  const projectId = getProjectId(req);
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
   const { prompt } = req.body as { prompt?: string };
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -62,6 +74,43 @@ aiRouter.post("/generate", async (req, res) => {
   res.status(201).json(latestJob);
 });
 
+aiRouter.get("/active-job", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const job = await prisma.aiGeneration.findFirst({
+    where: {
+      projectId,
+      type: "generate",
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      prompt: true,
+      createdAt: true,
+    },
+  });
+
+  res.json(job);
+});
+
 aiRouter.get("/previews", async (req, res) => {
   const user = (req as AuthenticatedRequest).user;
 
@@ -70,7 +119,11 @@ aiRouter.get("/previews", async (req, res) => {
     return;
   }
 
-  const projectId = getProjectId(req);
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
   const project = await findAccessibleProject(projectId, user.id);
 
   if (!project) {
@@ -100,7 +153,11 @@ aiRouter.post("/apply", async (req, res) => {
     return;
   }
 
-  const projectId = getProjectId(req);
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
   const { aiGenerationId } = req.body as { aiGenerationId?: string };
 
   if (!aiGenerationId || typeof aiGenerationId !== "string") {
@@ -140,7 +197,11 @@ aiRouter.get("/:jobId", async (req, res) => {
     return;
   }
 
-  const projectId = getProjectId(req);
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
   const project = await findAccessibleProject(projectId, user.id);
 
   if (!project) {

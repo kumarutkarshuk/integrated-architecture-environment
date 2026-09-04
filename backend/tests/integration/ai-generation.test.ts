@@ -12,16 +12,13 @@ import {
   resetJobRunner,
   setJobRunner,
 } from "../../src/ai/job-runner.js";
+import { resetInferenceProvider } from "../../src/ai/inference-provider.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
 import { attachCanvasWebSocket } from "../../src/canvas/ws.js";
 import { prisma } from "../../src/db.js";
+import { testAppConfig } from "../test-config.js";
 
-const app = createApp({
-  port: 4000,
-  corsOrigin: "http://localhost:3000",
-  clerkSecretKey: "test-secret",
-  isTest: true,
-});
+const app = createApp(testAppConfig);
 
 const testJobRunner = createTestJobRunner();
 
@@ -31,12 +28,7 @@ function authHeader(clerkId: string, email: string, displayName?: string) {
 
 function createTestServer() {
   const server = http.createServer(app);
-  attachCanvasWebSocket(server, {
-    port: 0,
-    corsOrigin: "http://localhost:3000",
-    clerkSecretKey: "test-secret",
-    isTest: true,
-  });
+  attachCanvasWebSocket(server, testAppConfig);
   return server;
 }
 
@@ -67,6 +59,7 @@ describe("AI generation preview and apply", () => {
     clearCanvasPersistenceTimers();
     clearCanvasDocs();
     resetJobRunner();
+    resetInferenceProvider();
     await new Promise((resolve) => setTimeout(resolve, 50));
   });
 
@@ -88,6 +81,12 @@ describe("AI generation preview and apply", () => {
       mode: "prompt",
       status: "generating",
     });
+
+    await request(app)
+      .get(`/api/projects/${response.body.id}/ai/previews`)
+      .set("Authorization", header)
+      .expect(200)
+      .expect([]);
 
     const generation = await prisma.aiGeneration.findFirst({
       where: { projectId: response.body.id },

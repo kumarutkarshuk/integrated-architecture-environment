@@ -21,6 +21,13 @@ export interface ApiAiPreview {
   createdAt: string;
 }
 
+export interface ApiAiActiveJob {
+  id: string;
+  status: string;
+  prompt: string | null;
+  createdAt: string;
+}
+
 export interface CreateProjectInput {
   name: string;
   mode: "blank" | "prompt";
@@ -105,6 +112,16 @@ export function fetchAiPreviews(
 ): Promise<ApiAiPreview[]> {
   return apiFetch<ApiAiPreview[]>(
     `/api/projects/${projectId}/ai/previews`,
+    token,
+  );
+}
+
+export function fetchAiActiveJob(
+  token: string,
+  projectId: string,
+): Promise<ApiAiActiveJob | null> {
+  return apiFetch<ApiAiActiveJob | null>(
+    `/api/projects/${projectId}/ai/active-job`,
     token,
   );
 }

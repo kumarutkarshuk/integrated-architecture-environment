@@ -14,4 +14,5 @@ export interface GenerateJobPayload {
 
 export interface GenerateResult {
   records: Record<string, unknown>;
+  tokensUsed?: number;
 }

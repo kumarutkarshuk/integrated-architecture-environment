@@ -1,5 +1,11 @@
 import { prisma } from "../src/db.js";
 import { clearCanvasPersistenceTimers } from "../src/canvas/persistence.js";
+import { configureGenerateService } from "../src/ai/generate-service.js";
+
+configureGenerateService({
+  groqModel: "openai/gpt-oss-20b",
+  isTest: true,
+});
 
 beforeEach(async () => {
   clearCanvasPersistenceTimers();

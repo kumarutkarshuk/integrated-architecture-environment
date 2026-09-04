@@ -133,10 +133,20 @@ export function WorkspaceShell() {
           {selectedProject &&
             selectedProject.status !== "ready" &&
             !previewRecords && (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted">
-                {selectedProject.status === "generating"
-                  ? "Generating preview..."
-                  : "Waiting for preview..."}
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm">
+                {ai.generationFailed ? (
+                  <>
+                    <p className="text-red-400">Preview generation failed.</p>
+                    <p className="text-muted">
+                      Check your Groq API key and model, then regenerate from
+                      the AI panel.
+                    </p>
+                  </>
+                ) : ai.isGenerating ? (
+                  <p className="text-muted">Generating preview...</p>
+                ) : (
+                  <p className="text-muted">Waiting for preview...</p>
+                )}
               </div>
             )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createProject,
   deleteProject,
@@ -15,6 +15,7 @@ export function useProjects(enabled: boolean) {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const loadProjects = useCallback(async () => {
     if (!enabled) {
@@ -22,6 +23,7 @@ export function useProjects(enabled: boolean) {
       return;
     }
 
+    const requestId = ++loadRequestIdRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -32,15 +34,25 @@ export function useProjects(enabled: boolean) {
       }
 
       const projectList = await fetchProjects(token);
-      setProjects(projectList);
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
+
+      setProjects((current) => mergeProjectLists(projectList, current));
     } catch (loadError) {
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
+
       setError(
         loadError instanceof Error
           ? loadError.message
           : "Failed to load projects",
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [enabled, getToken]);
 
@@ -55,8 +67,9 @@ export function useProjects(enabled: boolean) {
         throw new Error("Missing auth token");
       }
 
+      loadRequestIdRef.current += 1;
       const project = await createProject(token, { name, mode: "blank" });
-      setProjects((current) => [project, ...current]);
+      setProjects((current) => mergeProjectLists([project], current));
       return project;
     },
     [getToken],
@@ -69,12 +82,13 @@ export function useProjects(enabled: boolean) {
         throw new Error("Missing auth token");
       }
 
+      loadRequestIdRef.current += 1;
       const project = await createProject(token, {
         name,
         mode: "prompt",
         prompt,
       });
-      setProjects((current) => [project, ...current]);
+      setProjects((current) => mergeProjectLists([project], current));
       return project;
     },
     [getToken],
@@ -127,4 +141,24 @@ export function useProjects(enabled: boolean) {
     updateProjectInList,
     removeProject,
   };
+}
+
+function mergeProjectLists(
+  primary: ApiProject[],
+  secondary: ApiProject[],
+): ApiProject[] {
+  const merged = new Map<string, ApiProject>();
+
+  for (const project of secondary) {
+    merged.set(project.id, project);
+  }
+
+  for (const project of primary) {
+    merged.set(project.id, project);
+  }
+
+  return [...merged.values()].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
 }

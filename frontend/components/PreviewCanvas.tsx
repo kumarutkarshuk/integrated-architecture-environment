@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Tldraw,
   createTLStore,
+  defaultBindingUtils,
   defaultShapeUtils,
   type TLPageId,
   type TLRecord,
@@ -11,6 +12,7 @@ import {
 } from "tldraw";
 import {
   CANVAS_PAGE_ID,
+  frameCanvasContent,
   normalizeCanvasRecords,
   TLDRAW_OPTIONS,
 } from "../lib/canvas";
@@ -42,6 +44,7 @@ export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
     try {
       const store = createTLStore({
         shapeUtils: [...defaultShapeUtils],
+        bindingUtils: [...defaultBindingUtils],
       });
       store.put(recordList);
       setStoreWithStatus({ status: "synced-local", store });
@@ -85,7 +88,7 @@ export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
         onMount={(editor) => {
           editor.updateInstanceState({ isReadonly: true });
           editor.setCurrentPage(CANVAS_PAGE_ID as TLPageId);
-          editor.zoomToFit({ animation: { duration: 0 } });
+          frameCanvasContent(editor);
         }}
       />
     </div>

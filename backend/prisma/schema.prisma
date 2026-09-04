@@ -81,10 +81,11 @@ model AiGeneration {
   userId    String    @map("user_id") @db.Uuid
   type      String
   status    String
-  prompt    String?
-  result    Json?
-  appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  prompt     String?
+  result     Json?
+  tokensUsed Int?      @map("tokens_used")
+  appliedAt  DateTime? @map("applied_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -8,7 +8,8 @@ export interface JobRunner {
 export function createInProcessJobRunner(): JobRunner {
   return {
     async enqueueGenerate(payload) {
-      await runGenerateJob(payload.aiGenerationId);
+      // Return immediately so HTTP handlers are not blocked on Groq latency.
+      void runGenerateJob(payload.aiGenerationId);
     },
   };
 }
