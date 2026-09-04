@@ -12,7 +12,12 @@ export interface ApiProject {
   createdAt: string;
 }
 
-function getApiBaseUrl(): string {
+export interface CreateProjectInput {
+  name: string;
+  mode: "blank";
+}
+
+export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
 
@@ -34,6 +39,10 @@ async function apiFetch<T>(
     throw new Error(`API request failed: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -43,4 +52,23 @@ export function fetchCurrentUser(token: string): Promise<ApiUser> {
 
 export function fetchProjects(token: string): Promise<ApiProject[]> {
   return apiFetch<ApiProject[]>("/api/projects", token);
+}
+
+export function createProject(
+  token: string,
+  input: CreateProjectInput,
+): Promise<ApiProject> {
+  return apiFetch<ApiProject>("/api/projects", token, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteProject(
+  token: string,
+  projectId: string,
+): Promise<void> {
+  return apiFetch<void>(`/api/projects/${projectId}`, token, {
+    method: "DELETE",
+  });
 }

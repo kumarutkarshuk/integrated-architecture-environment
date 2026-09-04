@@ -11,7 +11,7 @@ export function createApp(config: AppConfig) {
   const app = express();
   const tokenVerifier = config.isTest
     ? createTestTokenVerifier()
-    : createClerkTokenVerifier(config.clerkSecretKey);
+    : createClerkTokenVerifier(config.clerkSecretKey, [config.corsOrigin]);
   const requireAuth = createAuthMiddleware(tokenVerifier);
 
   app.use(
