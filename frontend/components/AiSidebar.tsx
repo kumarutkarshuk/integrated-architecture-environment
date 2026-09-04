@@ -1,7 +1,7 @@
 "use client";
 
 import type { ApiProject } from "../lib/api";
-import { useAiGeneration } from "../hooks/useAiGeneration";
+import type { useAiGeneration } from "../hooks/useAiGeneration";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -14,21 +14,18 @@ import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Textarea } from "./ui/textarea";
 
+type AiGenerationState = ReturnType<typeof useAiGeneration>;
+
 interface AiSidebarProps {
   project: ApiProject | null;
-  refreshProject: (projectId: string) => Promise<ApiProject>;
-  updateProjectInList: (project: ApiProject) => void;
+  ai: AiGenerationState;
 }
 
 function formatPreviewTime(createdAt: string): string {
   return new Date(createdAt).toLocaleString();
 }
 
-export function AiSidebar({
-  project,
-  refreshProject,
-  updateProjectInList,
-}: AiSidebarProps) {
+export function AiSidebar({ project, ai }: AiSidebarProps) {
   const {
     prompt,
     setPrompt,
@@ -39,7 +36,7 @@ export function AiSidebar({
     error,
     regenerate,
     applySelectedPreview,
-  } = useAiGeneration(project, refreshProject, updateProjectInList);
+  } = ai;
 
   if (!project) {
     return (

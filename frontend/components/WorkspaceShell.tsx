@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
+import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 
@@ -22,10 +24,24 @@ export function WorkspaceShell() {
     removeProject,
   } = useProjects(Boolean(user));
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
+    Record<string, string>
+  >({});
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
+  );
+
+  const initialPrompt = selectedProject
+    ? (initialPromptByProjectId[selectedProject.id] ?? null)
+    : null;
+
+  const ai = useAiGeneration(
+    selectedProject,
+    refreshProject,
+    updateProjectInList,
+    initialPrompt,
   );
 
   const canvasEnabled =
@@ -35,6 +51,8 @@ export function WorkspaceShell() {
     canvasEnabled,
   );
 
+  const previewRecords = ai.selectedPreview?.result?.records ?? null;
+
   async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
     setSelectedProjectId(project.id);
@@ -42,11 +60,20 @@ export function WorkspaceShell() {
 
   async function handleCreatePromptProject(name: string, prompt: string) {
     const project = await createPromptProject(name, prompt);
+    setInitialPromptByProjectId((current) => ({
+      ...current,
+      [project.id]: prompt,
+    }));
     setSelectedProjectId(project.id);
   }
 
   async function handleDeleteProject(projectId: string) {
     await removeProject(projectId);
+    setInitialPromptByProjectId((current) => {
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
     if (selectedProjectId === projectId) {
       setSelectedProjectId(null);
     }
@@ -80,7 +107,9 @@ export function WorkspaceShell() {
 
         <main className="flex min-w-0 flex-1 flex-col bg-panel">
           <div className="flex h-9 items-center justify-between border-b border-sidebar-border px-3 text-xs">
-            <span className="text-muted">Canvas</span>
+            <span className="text-muted">
+              {selectedProject?.status === "ready" ? "Canvas" : "Preview"}
+            </span>
             {selectedProject?.status === "ready" && (
               <CanvasSaveStatusLabel status={saveStatus} />
             )}
@@ -92,11 +121,24 @@ export function WorkspaceShell() {
             </div>
           )}
 
-          {selectedProject && selectedProject.status !== "ready" && (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">
-              Canvas is locked while this project is {selectedProject.status}
-            </div>
-          )}
+          {selectedProject &&
+            selectedProject.status !== "ready" &&
+            previewRecords && (
+              <PreviewCanvas
+                records={previewRecords}
+                label={ai.selectedPreview?.prompt ?? selectedProject.name}
+              />
+            )}
+
+          {selectedProject &&
+            selectedProject.status !== "ready" &&
+            !previewRecords && (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted">
+                {selectedProject.status === "generating"
+                  ? "Generating preview..."
+                  : "Waiting for preview..."}
+              </div>
+            )}
 
           {selectedProject &&
             selectedProject.status === "ready" &&
@@ -112,11 +154,7 @@ export function WorkspaceShell() {
           <div className="border-b border-sidebar-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
             AI Assistant
           </div>
-          <AiSidebar
-            project={selectedProject}
-            refreshProject={refreshProject}
-            updateProjectInList={updateProjectInList}
-          />
+          <AiSidebar ai={ai} project={selectedProject} />
         </aside>
       </div>
     </div>

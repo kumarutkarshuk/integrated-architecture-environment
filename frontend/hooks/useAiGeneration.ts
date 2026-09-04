@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   applyAiPreview,
   fetchAiPreviews,
@@ -14,6 +14,7 @@ export function useAiGeneration(
   project: ApiProject | null,
   refreshProject: (projectId: string) => Promise<ApiProject>,
   updateProjectInList: (project: ApiProject) => void,
+  initialPrompt?: string | null,
 ) {
   const { getToken } = useAuth();
   const [prompt, setPrompt] = useState("");
@@ -27,6 +28,7 @@ export function useAiGeneration(
   const loadPreviews = useCallback(async () => {
     if (!project || project.mode !== "prompt" || project.status === "ready") {
       setPreviews([]);
+      setSelectedPreviewId(null);
       return;
     }
 
@@ -37,7 +39,12 @@ export function useAiGeneration(
 
     const nextPreviews = await fetchAiPreviews(token, project.id);
     setPreviews(nextPreviews);
-    setSelectedPreviewId((current) => current ?? nextPreviews[0]?.id ?? null);
+    setSelectedPreviewId((current) => {
+      if (current && nextPreviews.some((preview) => preview.id === current)) {
+        return current;
+      }
+      return nextPreviews[0]?.id ?? null;
+    });
 
     const latestPrompt = nextPreviews[0]?.prompt;
     if (latestPrompt) {
@@ -50,21 +57,26 @@ export function useAiGeneration(
       setPrompt("");
       setPreviews([]);
       setSelectedPreviewId(null);
+      return;
     }
-  }, [project?.id, project?.mode]);
+
+    setPreviews([]);
+    setSelectedPreviewId(null);
+    setError(null);
+
+    if (initialPrompt?.trim()) {
+      setPrompt(initialPrompt.trim());
+    }
+
+    void loadPreviews();
+  }, [project?.id, project?.mode, initialPrompt, loadPreviews]);
 
   useEffect(() => {
-    void loadPreviews().catch((loadError) => {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load previews",
-      );
-    });
-  }, [loadPreviews, project?.status]);
+    if (!project || project.status === "ready") {
+      return;
+    }
 
-  useEffect(() => {
-    if (!project || project.status !== "generating") {
+    if (project.status === "preview" && previews.length > 0) {
       return;
     }
 
@@ -75,10 +87,21 @@ export function useAiGeneration(
           return loadPreviews();
         })
         .catch(() => undefined);
-    }, 2000);
+    }, 1500);
 
     return () => window.clearInterval(interval);
-  }, [project, refreshProject, updateProjectInList, loadPreviews]);
+  }, [
+    project,
+    previews.length,
+    refreshProject,
+    updateProjectInList,
+    loadPreviews,
+  ]);
+
+  const selectedPreview = useMemo(
+    () => previews.find((preview) => preview.id === selectedPreviewId) ?? null,
+    [previews, selectedPreviewId],
+  );
 
   const regenerate = useCallback(async () => {
     if (!project || !prompt.trim()) {
@@ -146,11 +169,13 @@ export function useAiGeneration(
     prompt,
     setPrompt,
     previews,
+    selectedPreview,
     selectedPreviewId,
     setSelectedPreviewId,
     isBusy,
     error,
     regenerate,
     applySelectedPreview,
+    loadPreviews,
   };
 }
