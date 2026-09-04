@@ -66,7 +66,7 @@ ai_generation
 
 ### Invite redeem
 
-1. User opens `/invite/{token}` and signs in via Clerk (Google or magic link).
+1. User opens `/invite/{token}` and signs in via Clerk (Google or email + OTP).
 2. Backend verifies Clerk email matches `project_invite.email`.
 3. Set `redeemed_at`, insert `collaborator(project_id, user_id, role)`.
 

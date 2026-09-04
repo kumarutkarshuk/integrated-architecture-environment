@@ -14,7 +14,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 
 | In | Out (v2+) |
 | --- | --- |
-| Clerk auth (Google + email magic link) | Live cursors |
+| Clerk auth (Google + email + OTP) | Live cursors |
 | Project CRUD (`prompt` + `blank` modes) | User chat |
 | Multi-user canvas (owner + editor) | Canvas comments |
 | Email-bound invites via Resend | AI modify selection |
@@ -31,7 +31,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 
 ## Auth and users
 
-- Clerk: Google + magic link only (email always present)
+- Clerk: Google + email + OTP (no magic link; email always present for email sign-in)
 - Lazy user upsert in backend auth middleware on first authenticated request
 - Frontend calls `GET /api/users/me` when Clerk session becomes active
 

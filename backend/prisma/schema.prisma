@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  clerkId      String   @unique @map("clerk_id")
+  email        String
+  displayName  String?  @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ownedProjects Project[]      @relation("ProjectOwner")
+  collaborations Collaborator[]
+  aiGenerations AiGeneration[]
+
+  @@map("user")
+}
+
+model Project {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  ownerId   String   @map("owner_id") @db.Uuid
+  mode      String
+  status    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  owner          User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  collaborators  Collaborator[]
+  invites        ProjectInvite[]
+  canvasSnapshot CanvasSnapshot?
+  aiGenerations  AiGeneration[]
+
+  @@map("project")
+}
+
+model Collaborator {
+  projectId String @map("project_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  role      String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@map("collaborator")
+}
+
+model ProjectInvite {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @map("project_id") @db.Uuid
+  email      String
+  token      String    @unique
+  role       String    @default("editor")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_invite")
+}
+
+model CanvasSnapshot {
+  projectId  String   @id @map("project_id") @db.Uuid
+  tldrawJson Json     @map("tldraw_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("canvas_snapshot")
+}
+
+model AiGeneration {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  status    String
+  prompt    String?
+  result    Json?
+  appliedAt DateTime? @map("applied_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_generation")
+}
