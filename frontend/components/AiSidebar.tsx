@@ -80,12 +80,10 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
           <Button
             type="button"
             className="w-full"
-            disabled={isBusy || !prompt.trim() || (isGenerating && !generationFailed)}
+            disabled={isBusy || !prompt.trim() || isGenerating}
             onClick={() => void regenerate()}
           >
-            {isGenerating && !generationFailed
-              ? "Generating..."
-              : "Regenerate preview"}
+            {isGenerating ? "Generating..." : "Regenerate preview"}
           </Button>
         </CardContent>
       </Card>

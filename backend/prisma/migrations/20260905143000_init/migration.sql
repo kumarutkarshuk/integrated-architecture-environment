@@ -8,6 +8,7 @@ CREATE TABLE "user" (
     "email" TEXT NOT NULL,
     "display_name" TEXT,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "user_pkey" PRIMARY KEY ("id")
 );
@@ -20,6 +21,7 @@ CREATE TABLE "project" (
     "mode" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "project_pkey" PRIMARY KEY ("id")
 );
@@ -29,6 +31,7 @@ CREATE TABLE "collaborator" (
     "project_id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "role" TEXT NOT NULL,
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "collaborator_pkey" PRIMARY KEY ("project_id","user_id")
 );
@@ -42,6 +45,7 @@ CREATE TABLE "project_invite" (
     "role" TEXT NOT NULL DEFAULT 'editor',
     "expires_at" TIMESTAMPTZ(6) NOT NULL,
     "redeemed_at" TIMESTAMPTZ(6),
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "project_invite_pkey" PRIMARY KEY ("id")
 );
@@ -52,6 +56,7 @@ CREATE TABLE "canvas_snapshot" (
     "tldraw_json" JSONB NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL,
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "canvas_snapshot_pkey" PRIMARY KEY ("project_id")
 );
@@ -65,8 +70,11 @@ CREATE TABLE "ai_generation" (
     "status" TEXT NOT NULL,
     "prompt" TEXT,
     "result" JSONB,
+    "model" TEXT,
+    "tokens_used" INTEGER,
     "applied_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "ai_generation_pkey" PRIMARY KEY ("id")
 );
@@ -93,7 +101,7 @@ ALTER TABLE "project_invite" ADD CONSTRAINT "project_invite_project_id_fkey" FOR
 ALTER TABLE "canvas_snapshot" ADD CONSTRAINT "canvas_snapshot_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ai_generation" ADD CONSTRAINT "ai_generation_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ai_generation" ADD CONSTRAINT "ai_generation_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ai_generation" ADD CONSTRAINT "ai_generation_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ai_generation" ADD CONSTRAINT "ai_generation_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

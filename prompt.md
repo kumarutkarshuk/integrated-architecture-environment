@@ -14,15 +14,12 @@
 - AI can generate and modify diagrams (AI collaboration needs more architecture discussion)
 - User has to be authenticated
 - Users can generate specs markdown from diagrams using AI
-- User can see other's cursors in real-time (can be done in v2)
-- Users can chat (can be done in v2)
-- Users can leave comments on canvas (can be done in v2)
-- Common system design templates (can be done in v2)
 
 # Tech Stack
 
 - Typescript
 - Next frontend with Tailwind in ./frontend/
+- UI library like shadcn to prevent reinventing the wheel
 - Express backend in ./backend/
 - Clerk auth (Google + email + OTP for sign-in and sign-up)
 - Yjs for real-time collaboration on the backend
@@ -57,7 +54,17 @@
 - Handle retries on the frontend after connection drops
 - Handle bottlenecks like:
     - High write throughput
+    - User upsert on every authenticated request
 - Handle inconsistencies like guessing "saved" status
-- Use zustand and axios instead of fetch
-- backend logging, monitoring, retries
+- backend logging, monitoring
 - make AI layer reliable
+    - retries
+- Modal instead of alert inputs
+- User can see other's cursors in real-time
+- Users can chat 
+- Users can leave comments on canvas 
+- Common system design templates
+- Testing automation
+- Node.js version
+- Transactions wherever needed
+- Handle race conditions

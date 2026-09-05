@@ -62,16 +62,17 @@ Build **Integrated Architecture Environment (IAE) v1**: a VS Code–inspired web
 Entities (see `docs/schema-api.md`):
 
 - `user` — lazy-created from Clerk claims
-- `project` — `mode`: `prompt` | `blank`; `status`: `generating` | `preview` | `ready`
+- `project` — `mode`: `prompt` | `blank`; `status`: `generating` | `preview` | `failed` | `ready`
 - `collaborator` — `role`: `owner` | `editor`; owner row on create; editor row on invite redeem
 - `project_invite` — email-bound token with expiry and `redeemed_at`
 - `canvas_snapshot` — one row per project, upserted (not append-only in v1)
-- `ai_generation` — tracks `generate` and `export_spec` jobs; stores `prompt`, `result`, `applied_at`
+- `ai_generation` — tracks `generate` and `export_spec` jobs; stores `prompt`, `model`, `result`, `applied_at`
 
 Project status lifecycle:
 
 ```
 prompt mode:  generating → preview → ready
+              generating → failed
 blank mode:   ready (immediate)
 ```
 
@@ -107,8 +108,9 @@ Prompt-mode flow:
 
 1. Create project with prompt → status `generating`, enqueue generate job.
 2. Job completes → status `preview`; preview available in picker.
-3. User tweaks prompt → new generate job (new `ai_generation` row with new `prompt`).
-4. User selects preview → apply → writes to Yjs canvas, sets `applied_at`, status `ready`.
+3. First job fails with no completed unapplied preview → status `failed`.
+4. User tweaks prompt → new generate job (new `ai_generation` row with new `prompt`).
+5. User selects preview → apply → writes to Yjs canvas, sets `applied_at`, status `ready`.
 
 Apply validates: job belongs to project, type is `generate`, status is `completed`, not yet applied.
 

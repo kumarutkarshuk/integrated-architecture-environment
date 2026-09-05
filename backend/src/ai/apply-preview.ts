@@ -74,8 +74,8 @@ export async function applyPreviewToCanvas(
       where: { id: aiGenerationId },
       data: { appliedAt: new Date() },
     }),
-    prisma.project.update({
-      where: { id: projectId },
+    prisma.project.updateMany({
+      where: { id: projectId, deletedAt: null },
       data: { status: "ready" },
     }),
   ]);

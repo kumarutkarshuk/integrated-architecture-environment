@@ -152,6 +152,7 @@ describe("generateDiagramPlanWithGroq", () => {
         connections: [],
       },
       tokensUsed: 128,
+      model: "openai/gpt-oss-20b",
     });
     expect(fetch).toHaveBeenCalledWith(
       "https://api.groq.com/openai/v1/chat/completions",

@@ -11,19 +11,22 @@ user
   email         text NOT NULL
   display_name  text
   created_at    timestamptz NOT NULL
+  deleted_at    timestamptz
 
 project
   id            uuid PK
   name          text NOT NULL
   owner_id      uuid FK → user.id NOT NULL
   mode          text NOT NULL  -- 'prompt' | 'blank'
-  status        text NOT NULL  -- 'generating' | 'preview' | 'ready'
+  status        text NOT NULL  -- 'generating' | 'preview' | 'failed' | 'ready'
   created_at    timestamptz NOT NULL
+  deleted_at    timestamptz
 
 collaborator
   project_id    uuid FK → project.id
   user_id       uuid FK → user.id
   role          text NOT NULL  -- 'owner' | 'editor'
+  deleted_at    timestamptz
   PRIMARY KEY (project_id, user_id)
   -- owner row inserted on project create
   -- editor row inserted when project_invite is redeemed
@@ -36,25 +39,32 @@ project_invite
   role          text NOT NULL DEFAULT 'editor'
   expires_at    timestamptz NOT NULL
   redeemed_at   timestamptz
+  deleted_at    timestamptz
 
 canvas_snapshot
   project_id    uuid PK FK → project.id
   tldraw_json   jsonb NOT NULL
   created_at    timestamptz NOT NULL
   updated_at    timestamptz NOT NULL
+  deleted_at    timestamptz
   -- one row per project, upserted on debounced save (not append-only in v1)
 
 ai_generation
   id            uuid PK
-  project_id    uuid FK → project.id NOT NULL
-  user_id       uuid FK → user.id NOT NULL
+  project_id    uuid FK → project.id NOT NULL  -- Restrict (not cascade)
+  user_id       uuid FK → user.id NOT NULL     -- Restrict (not cascade)
   type          text NOT NULL  -- 'generate' | 'export_spec'
   status        text NOT NULL  -- 'pending' | 'running' | 'completed' | 'failed'
   prompt        text           -- set for type=generate; stores prompt used (supports tweak + regenerate)
   result        jsonb          -- tldraw shapes (generate) or { markdown, gaps_summary } (export_spec)
+  model         text           -- LLM id used for the job
+  tokens_used   integer
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
   created_at    timestamptz NOT NULL
+  deleted_at    timestamptz
 ```
+
+Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited.
 
 ### Project status lifecycle
 
@@ -62,6 +72,7 @@ ai_generation
 | --- | --- | --- |
 | `generating` | Generate job running (prompt mode) | No |
 | `preview` | One or more completed previews; user picking / tweaking prompt | No |
+| `failed` | Latest generate failed and there is no completed unapplied preview | No |
 | `ready` | Blank project at create, or after user applies a preview | Yes |
 
 ### Invite redeem
@@ -90,7 +101,7 @@ POST   /api/invites/:token/redeem
 POST   /api/projects/:id/ai/generate     -- { prompt }; sets status → generating
 GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs
 POST   /api/projects/:id/ai/apply        -- { aiGenerationId }; sets status → ready
-GET    /api/projects/:id/ai/:jobId       -- poll job status + result
+GET    /api/projects/:id/ai/:jobId       -- job status + result
 POST   /api/projects/:id/ai/export-spec  -- starts spec export job
 
 WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
@@ -99,10 +110,11 @@ WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
 ### Prompt-mode creation flow
 
 1. `POST /api/projects` with `{ name, mode: "prompt", prompt }` → status `generating`.
-2. Trigger.dev runs generate job; stores `prompt` on `ai_generation` row.
+2. Trigger.dev runs generate job; stores `prompt` and `model` on `ai_generation` row.
 3. On complete → project status `preview`; preview appears in picker.
-4. User tweaks prompt → `POST .../ai/generate` again (new row, new prompt).
-5. User picks preview → `POST .../ai/apply { aiGenerationId }` → status `ready`, canvas unlocked.
+4. On first-job fail (no completed unapplied preview) → project status `failed`.
+5. User tweaks prompt → `POST .../ai/generate` again (new row, new prompt). If a later job fails but a completed unapplied preview still exists, status stays `preview`.
+6. User picks preview → `POST .../ai/apply { aiGenerationId }` → status `ready`, canvas unlocked.
 
 ## Rate limiting
 

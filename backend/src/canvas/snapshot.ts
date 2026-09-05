@@ -1,7 +1,7 @@
 import type * as Y from "yjs";
 import type { Prisma } from "@prisma/client";
 import { normalizeCanvasRecords } from "./records.js";
-import { prisma } from "../db.js";
+import { notDeleted, prisma } from "../db.js";
 
 export const CANVAS_YARRAY_PREFIX = "tl_";
 
@@ -74,8 +74,8 @@ export function replaceRecordsInDoc(
 export async function loadCanvasSnapshot(
   projectId: string,
 ): Promise<CanvasSnapshotJson | null> {
-  const snapshot = await prisma.canvasSnapshot.findUnique({
-    where: { projectId },
+  const snapshot = await prisma.canvasSnapshot.findFirst({
+    where: { projectId, ...notDeleted },
   });
 
   if (!snapshot) {
@@ -101,8 +101,8 @@ export async function upsertCanvasSnapshot(
   projectId: string,
   records: Record<string, unknown>,
 ): Promise<boolean> {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ...notDeleted },
     select: { id: true },
   });
 

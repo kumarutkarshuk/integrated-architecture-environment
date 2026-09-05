@@ -21,10 +21,11 @@ export function createFixtureInferenceProvider(): InferenceProvider {
 export function createGroqInferenceProvider(config: GroqConfig): InferenceProvider {
   return {
     async generate(prompt) {
-      const { plan, tokensUsed } = await generateDiagramPlanWithGroq(prompt, config);
+      const { plan, tokensUsed, model } = await generateDiagramPlanWithGroq(prompt, config);
       return {
         ...buildRecordsFromDiagramPlan(plan),
         tokensUsed,
+        model,
       };
     },
   };
