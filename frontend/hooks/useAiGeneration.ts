@@ -4,10 +4,8 @@ import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyAiPreview,
-  fetchAiActiveJob,
   fetchAiPreviews,
   regenerateAiPreview,
-  type ApiAiActiveJob,
   type ApiAiPreview,
   type ApiProject,
 } from "../lib/api";
@@ -25,27 +23,32 @@ export function useAiGeneration(
   const { getToken } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [previews, setPreviews] = useState<ApiAiPreview[]>([]);
-  const [activeJob, setActiveJob] = useState<ApiAiActiveJob | null>(null);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(
     null,
   );
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
+  const projectRef = useRef(project);
+  const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     activeProjectIdRef.current = project?.id ?? null;
   }, [project?.id]);
 
+  projectRef.current = project;
+
   const loadPreviews = useCallback(async () => {
-    if (!project || project.mode !== "prompt" || project.status === "ready") {
-      setPreviews([]);
-      setSelectedPreviewId(null);
-      setActiveJob(null);
+    const currentProject = projectRef.current;
+    if (
+      !currentProject ||
+      currentProject.mode !== "prompt" ||
+      currentProject.status !== "preview"
+    ) {
       return;
     }
 
-    const projectId = project.id;
+    const projectId = currentProject.id;
 
     try {
       const token = await getToken();
@@ -53,16 +56,12 @@ export function useAiGeneration(
         return;
       }
 
-      const [nextPreviews, nextActiveJob] = await Promise.all([
-        fetchAiPreviews(token, projectId),
-        fetchAiActiveJob(token, projectId),
-      ]);
+      const nextPreviews = await fetchAiPreviews(token, projectId);
       if (activeProjectIdRef.current !== projectId) {
         return;
       }
 
       setPreviews(nextPreviews);
-      setActiveJob(nextActiveJob);
       setSelectedPreviewId((current) => {
         if (current && nextPreviews.some((preview) => preview.id === current)) {
           return current;
@@ -82,7 +81,6 @@ export function useAiGeneration(
       if (isProjectNotFoundError(loadError)) {
         setPreviews([]);
         setSelectedPreviewId(null);
-        setActiveJob(null);
         return;
       }
 
@@ -92,54 +90,48 @@ export function useAiGeneration(
           : "Failed to load previews",
       );
     }
-  }, [getToken, project]);
+  }, [getToken]);
+
+  loadPreviewsRef.current = loadPreviews;
 
   useEffect(() => {
     if (!project || project.mode !== "prompt") {
       setPrompt("");
       setPreviews([]);
       setSelectedPreviewId(null);
-      setActiveJob(null);
       return;
     }
 
     setPreviews([]);
     setSelectedPreviewId(null);
-    setActiveJob(null);
     setError(null);
 
     if (initialPrompt?.trim()) {
       setPrompt(initialPrompt.trim());
     }
 
-    void loadPreviews();
-  }, [project?.id, project?.mode, initialPrompt, loadPreviews]);
+    if (project.status === "preview") {
+      void loadPreviewsRef.current();
+    }
+  }, [project?.id, project?.mode, initialPrompt]);
 
   useEffect(() => {
-    if (!project || project.status === "ready") {
+    if (!project || project.mode !== "prompt" || project.status !== "generating") {
       return;
     }
 
-    const activeJobStatus = activeJob?.status;
-    const isJobInFlight =
-      activeJobStatus === "pending" || activeJobStatus === "running";
-
-    if (project.status === "preview" && previews.length > 0) {
-      return;
-    }
-
-    if (!isJobInFlight && activeJobStatus === "failed" && previews.length === 0) {
-      return;
-    }
-
+    const projectId = project.id;
     const interval = window.setInterval(() => {
-      void refreshProject(project.id)
+      void refreshProject(projectId)
         .then((updated) => {
-          if (activeProjectIdRef.current !== project.id) {
+          if (activeProjectIdRef.current !== projectId) {
             return;
           }
           updateProjectInList(updated);
-          return loadPreviews();
+          if (updated.status === "preview") {
+            projectRef.current = updated;
+            return loadPreviewsRef.current();
+          }
         })
         .catch((pollError) => {
           if (isProjectNotFoundError(pollError)) {
@@ -149,22 +141,10 @@ export function useAiGeneration(
     }, 1500);
 
     return () => window.clearInterval(interval);
-  }, [
-    project,
-    previews.length,
-    activeJob?.status,
-    refreshProject,
-    updateProjectInList,
-    loadPreviews,
-  ]);
+  }, [project?.id, project?.status, refreshProject, updateProjectInList]);
 
-  const generationFailed =
-    activeJob?.status === "failed" && previews.length === 0;
-  const isGenerating =
-    project?.status === "generating" &&
-    (activeJob?.status === "pending" ||
-      activeJob?.status === "running" ||
-      !activeJob);
+  const generationFailed = project?.status === "failed";
+  const isGenerating = project?.status === "generating";
 
   const selectedPreview = useMemo(
     () => previews.find((preview) => preview.id === selectedPreviewId) ?? null,
@@ -188,7 +168,10 @@ export function useAiGeneration(
       await regenerateAiPreview(token, project.id, prompt.trim());
       const updated = await refreshProject(project.id);
       updateProjectInList(updated);
-      await loadPreviews();
+      if (updated.status === "preview") {
+        projectRef.current = updated;
+        await loadPreviews();
+      }
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -237,7 +220,6 @@ export function useAiGeneration(
     prompt,
     setPrompt,
     previews,
-    activeJob,
     selectedPreview,
     selectedPreviewId,
     setSelectedPreviewId,

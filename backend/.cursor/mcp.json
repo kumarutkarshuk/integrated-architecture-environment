@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "trigger": {
+      "args": [
+        "trigger.dev@4.5.16",
+        "mcp",
+        "--dev-only"
+      ],
+      "command": "npx"
+    }
+  }
+}

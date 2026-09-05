@@ -24,9 +24,13 @@ interface PreviewCanvasProps {
 }
 
 export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
+  const recordsKey = JSON.stringify(records);
   const normalizedRecords = useMemo(
-    () => normalizeCanvasRecords(records),
-    [records],
+    () =>
+      normalizeCanvasRecords(
+        JSON.parse(recordsKey) as Record<string, unknown>,
+      ),
+    [recordsKey],
   );
   const recordList = useMemo(
     () => Object.values(normalizedRecords) as TLRecord[],

@@ -12,9 +12,11 @@ export interface GroqConfig {
 export interface GroqInferenceResult {
   plan: DiagramPlan;
   tokensUsed?: number;
+  model: string;
 }
 
 interface GroqChatCompletionResponse {
+  model?: string;
   choices?: Array<{
     message?: {
       content?: string | null;
@@ -86,6 +88,7 @@ async function requestDiagramPlanWithGroq(
   return {
     plan: parseDiagramPlan(parsed),
     tokensUsed: body.usage?.total_tokens,
+    model: body.model ?? config.model,
   };
 }
 

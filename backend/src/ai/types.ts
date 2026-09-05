@@ -1,3 +1,5 @@
+export const GENERATE_TASK_ID = "generate";
+
 export type AiGenerationType = "generate" | "export_spec";
 
 export type AiGenerationStatus =
@@ -15,4 +17,5 @@ export interface GenerateJobPayload {
 export interface GenerateResult {
   records: Record<string, unknown>;
   tokensUsed?: number;
+  model?: string;
 }

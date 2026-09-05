@@ -122,7 +122,20 @@ describe("Project CRUD", () => {
     const stored = await prisma.project.findUnique({
       where: { id: created.body.id },
     });
-    expect(stored).toBeNull();
+    expect(stored).not.toBeNull();
+    expect(stored?.deletedAt).not.toBeNull();
+
+    const listed = await request(app)
+      .get("/api/projects")
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(listed.body).toHaveLength(0);
+
+    await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(404);
   });
 
   it("rejects delete from a non-owner Collaborator", async () => {

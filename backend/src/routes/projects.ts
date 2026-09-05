@@ -3,8 +3,9 @@ import { startGenerateJob } from "../ai/start-generate-job.js";
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
-import { prisma } from "../db.js";
+import { notDeleted, prisma } from "../db.js";
 import { requireOwner } from "../projects/access.js";
+import { softDeleteProject } from "../projects/soft-delete.js";
 
 export const projectsRouter = Router();
 
@@ -26,8 +27,9 @@ projectsRouter.get("/", async (req, res) => {
 
   const projects = await prisma.project.findMany({
     where: {
+      ...notDeleted,
       collaborators: {
-        some: { userId: user.id },
+        some: { userId: user.id, ...notDeleted },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -85,8 +87,8 @@ projectsRouter.post("/", async (req, res) => {
 
     await startGenerateJob(project.id, user.id, prompt);
 
-    const refreshed = await prisma.project.findUnique({
-      where: { id: project.id },
+    const refreshed = await prisma.project.findFirst({
+      where: { id: project.id, ...notDeleted },
       select: projectSelect,
     });
 
@@ -124,8 +126,9 @@ projectsRouter.get("/:id", async (req, res) => {
   const project = await prisma.project.findFirst({
     where: {
       id: req.params.id,
+      ...notDeleted,
       collaborators: {
-        some: { userId: user.id },
+        some: { userId: user.id, ...notDeleted },
       },
     },
     select: projectSelect,
@@ -159,6 +162,6 @@ projectsRouter.delete("/:id", async (req, res) => {
   clearCanvasPersistenceTimer(projectId);
   teardownCanvasDoc(projectId);
 
-  await prisma.project.delete({ where: { id: projectId } });
+  await softDeleteProject(projectId);
   res.status(204).send();
 });

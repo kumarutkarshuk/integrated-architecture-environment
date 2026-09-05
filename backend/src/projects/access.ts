@@ -1,12 +1,13 @@
 import type { User } from "@prisma/client";
-import { prisma } from "../db.js";
+import { notDeleted, prisma } from "../db.js";
 
 export async function findAccessibleProject(projectId: string, userId: string) {
   return prisma.project.findFirst({
     where: {
       id: projectId,
+      ...notDeleted,
       collaborators: {
-        some: { userId },
+        some: { userId, ...notDeleted },
       },
     },
   });
@@ -17,6 +18,7 @@ export async function findOwnedProject(projectId: string, userId: string) {
     where: {
       id: projectId,
       ownerId: userId,
+      ...notDeleted,
     },
   });
 }
@@ -28,7 +30,9 @@ export async function requireOwner(
   const project = await findOwnedProject(projectId, user.id);
 
   if (!project) {
-    const exists = await prisma.project.findUnique({ where: { id: projectId } });
+    const exists = await prisma.project.findFirst({
+      where: { id: projectId, ...notDeleted },
+    });
     return { ok: false, status: exists ? 403 : 404 };
   }
 

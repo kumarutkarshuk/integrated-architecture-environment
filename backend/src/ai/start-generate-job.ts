@@ -10,8 +10,8 @@ export async function startGenerateJob(
   const trimmedPrompt = prompt.trim();
   const job = await createGenerateJob(projectId, userId, trimmedPrompt);
 
-  await prisma.project.update({
-    where: { id: projectId },
+  await prisma.project.updateMany({
+    where: { id: projectId, deletedAt: null },
     data: { status: "generating" },
   });
 

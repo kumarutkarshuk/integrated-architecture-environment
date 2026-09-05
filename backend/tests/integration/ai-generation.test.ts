@@ -6,13 +6,16 @@ import { clearCanvasDocs, docs, getYDoc } from "../../src/canvas/yjs-ws-utils.js
 import { clearCanvasPersistenceTimers, configureCanvasPersistence } from "../../src/canvas/persistence.js";
 import { readRecordsFromDoc } from "../../src/canvas/snapshot.js";
 import { createApp } from "../../src/app.js";
-import { runGenerateJob } from "../../src/ai/generate-service.js";
+import { runGenerateJob, failGenerateJob } from "../../src/ai/generate-service.js";
 import {
   createTestJobRunner,
   resetJobRunner,
   setJobRunner,
 } from "../../src/ai/job-runner.js";
-import { resetInferenceProvider } from "../../src/ai/inference-provider.js";
+import {
+  resetInferenceProvider,
+  setInferenceProvider,
+} from "../../src/ai/inference-provider.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
 import { attachCanvasWebSocket } from "../../src/canvas/ws.js";
 import { prisma } from "../../src/db.js";
@@ -96,6 +99,7 @@ describe("AI generation preview and apply", () => {
       type: "generate",
       status: "pending",
       prompt: "Design a todo API",
+      model: "openai/gpt-oss-20b",
     });
 
     expect(testJobRunner.getEnqueued()).toEqual([
@@ -105,6 +109,43 @@ describe("AI generation preview and apply", () => {
         prompt: "Design a todo API",
       },
     ]);
+  });
+
+  it("keeps AI Generation rows when a Project is deleted", async () => {
+    const header = authHeader("clerk_del_audit", "delaudit@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Audit Me",
+        mode: "prompt",
+        prompt: "Design a queue",
+      })
+      .expect(201);
+
+    const before = await prisma.aiGeneration.findMany({
+      where: { projectId: created.body.id },
+    });
+    expect(before).toHaveLength(1);
+
+    await request(app)
+      .delete(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(204);
+
+    const generations = await prisma.aiGeneration.findMany({
+      where: { projectId: created.body.id },
+    });
+    expect(generations).toHaveLength(1);
+    expect(generations[0]?.deletedAt).toBeNull();
+    expect(generations[0]?.prompt).toBe("Design a queue");
+    expect(generations[0]?.model).toBe("openai/gpt-oss-20b");
+
+    const project = await prisma.project.findUnique({
+      where: { id: created.body.id },
+    });
+    expect(project?.deletedAt).not.toBeNull();
   });
 
   it("moves a Project to preview when a generate job completes", async () => {
@@ -467,5 +508,123 @@ describe("AI generation preview and apply", () => {
     } finally {
       await close();
     }
+  });
+
+  it("leaves an AI Generation running when inference fails so the worker can retry", async () => {
+    const header = authHeader("clerk_retry_job", "retryjob@example.com");
+
+    setInferenceProvider({
+      async generate() {
+        throw new Error("Groq timeout");
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Retry Project",
+        mode: "prompt",
+        prompt: "Retry this generate",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+
+    await expect(runGenerateJob(jobId)).rejects.toThrow("Groq timeout");
+
+    const running = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(running.body.status).toBe("running");
+
+    const stillGenerating = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(stillGenerating.body.status).toBe("generating");
+
+    resetInferenceProvider();
+    await runGenerateJob(jobId);
+
+    const completed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(completed.body.status).toBe("completed");
+
+    const preview = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(preview.body.status).toBe("preview");
+  });
+
+  it("marks an AI Generation failed after the worker reports exhaustion", async () => {
+    const header = authHeader("clerk_fail_job", "failjob@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Fail Project",
+        mode: "prompt",
+        prompt: "Fail this generate",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+
+    await failGenerateJob(jobId);
+
+    const failed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(failed.body.status).toBe("failed");
+
+    const project = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(project.body.status).toBe("failed");
+  });
+
+  it("keeps Project status preview when a later generate job fails", async () => {
+    const header = authHeader("clerk_fail_keep_preview", "failkeep@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Keep Preview Project",
+        mode: "prompt",
+        prompt: "Design v1",
+      })
+      .expect(201);
+
+    await runGenerateJob(testJobRunner.getEnqueued()[0]!.aiGenerationId);
+
+    const regenerate = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/generate`)
+      .set("Authorization", header)
+      .send({ prompt: "Design v2" })
+      .expect(201);
+
+    await failGenerateJob(regenerate.body.id);
+
+    const project = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(project.body.status).toBe("preview");
   });
 });

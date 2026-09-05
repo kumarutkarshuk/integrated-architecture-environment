@@ -1,9 +1,8 @@
 import { Router } from "express";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
-import { runGenerateJob } from "../ai/generate-service.js";
 import { startGenerateJob } from "../ai/start-generate-job.js";
-import { prisma } from "../db.js";
+import { notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
 export const aiRouter = Router({ mergeParams: true });
@@ -25,6 +24,7 @@ const previewSelect = {
   prompt: true,
   status: true,
   result: true,
+  model: true,
   appliedAt: true,
   createdAt: true,
 } as const;
@@ -72,43 +72,6 @@ aiRouter.post("/generate", async (req, res) => {
   });
 
   res.status(201).json(latestJob);
-});
-
-aiRouter.get("/active-job", async (req, res) => {
-  const user = (req as AuthenticatedRequest).user;
-
-  if (!user) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
-  const projectId = readProjectId(req, res);
-  if (!projectId) {
-    return;
-  }
-
-  const project = await findAccessibleProject(projectId, user.id);
-
-  if (!project) {
-    res.status(404).json({ error: "Project not found" });
-    return;
-  }
-
-  const job = await prisma.aiGeneration.findFirst({
-    where: {
-      projectId,
-      type: "generate",
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      status: true,
-      prompt: true,
-      createdAt: true,
-    },
-  });
-
-  res.json(job);
 });
 
 aiRouter.get("/previews", async (req, res) => {
@@ -181,8 +144,8 @@ aiRouter.post("/apply", async (req, res) => {
     return;
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ...notDeleted },
     select: { id: true, name: true, mode: true, status: true, createdAt: true },
   });
 
@@ -224,5 +187,3 @@ aiRouter.get("/:jobId", async (req, res) => {
 
   res.json(job);
 });
-
-export { runGenerateJob };
