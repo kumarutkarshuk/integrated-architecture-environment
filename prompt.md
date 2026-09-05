@@ -59,9 +59,6 @@
 - backend logging, monitoring
 - make AI layer reliable
     - retries
-- rows from ai_generation table not to be cascade deleted for auditing
-- Soft delete
-- Store model in ai_generation table
 - Modal instead of alert inputs
 - User can see other's cursors in real-time
 - Users can chat 
@@ -70,3 +67,4 @@
 - Testing automation
 - Node.js version
 - Transactions wherever needed
+- Handle race conditions
