@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { startGenerateJob } from "../ai/start-generate-job.js";
+import { AiRateLimitError, consumeAiQuota } from "../ai/rate-limit.js";
+import { createAndEnqueueGenerateJob } from "../ai/start-generate-job.js";
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
@@ -71,6 +72,16 @@ projectsRouter.post("/", async (req, res) => {
       return;
     }
 
+    try {
+      await consumeAiQuota(user.id, "generate");
+    } catch (error) {
+      if (error instanceof AiRateLimitError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
+
     const project = await prisma.project.create({
       data: {
         name: name.trim(),
@@ -87,7 +98,7 @@ projectsRouter.post("/", async (req, res) => {
       select: projectSelect,
     });
 
-    await startGenerateJob(project.id, user.id, prompt);
+    await createAndEnqueueGenerateJob(project.id, user.id, prompt);
 
     const refreshed = await prisma.project.findFirst({
       where: { id: project.id, ...notDeleted },

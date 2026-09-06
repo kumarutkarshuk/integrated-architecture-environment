@@ -1,8 +1,9 @@
 import { enqueueGenerateJob } from "./job-runner.js";
 import { createGenerateJob } from "./generate-service.js";
+import { consumeAiQuota } from "./rate-limit.js";
 import { prisma } from "../db.js";
 
-export async function startGenerateJob(
+export async function createAndEnqueueGenerateJob(
   projectId: string,
   userId: string,
   prompt: string,
@@ -22,4 +23,13 @@ export async function startGenerateJob(
   });
 
   return job;
+}
+
+export async function startGenerateJob(
+  projectId: string,
+  userId: string,
+  prompt: string,
+) {
+  await consumeAiQuota(userId, "generate");
+  return createAndEnqueueGenerateJob(projectId, userId, prompt);
 }
