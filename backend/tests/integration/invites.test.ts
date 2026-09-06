@@ -13,10 +13,18 @@ import {
   resetMailer,
   setMailer,
 } from "../../src/invites/mailer.js";
+import { RESEND_COOLDOWN_MS } from "../../src/invites/service.js";
 import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
+
+async function allowResend(inviteId: string) {
+  await prisma.projectInvite.update({
+    where: { id: inviteId },
+    data: { lastSentAt: new Date(Date.now() - RESEND_COOLDOWN_MS) },
+  });
+}
 
 function authHeader(clerkId: string, email: string, displayName?: string) {
   return createTestAuthHeader({ clerkId, email, displayName });
@@ -359,5 +367,264 @@ describe("Invite create and redeem", () => {
       clearCanvasDocs();
       await close();
     }
+  });
+
+  it("rejects a second Invite to the same email while one is pending", async () => {
+    const header = authHeader("clerk_dup_owner", "dupowner@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "editor@example.com" })
+      .expect(201);
+
+    const duplicate = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "Editor@example.com" })
+      .expect(409);
+
+    expect(duplicate.body).toEqual({
+      error: "An Invite was already sent to this email",
+    });
+    expect(testMailer.getSent()).toHaveLength(1);
+  });
+
+  it("rejects an Invite to a User who is already a Collaborator", async () => {
+    const { projectId, ownerHeader, inviteToken } = await createProjectAndInvite({
+      ownerClerkId: "clerk_joined_owner",
+      ownerEmail: "joinedowner@example.com",
+      inviteEmail: "joinededitor@example.com",
+    });
+
+    await request(app)
+      .post(`/api/invites/${inviteToken}/redeem`)
+      .set(
+        "Authorization",
+        authHeader("clerk_joined_editor", "joinededitor@example.com"),
+      )
+      .expect(200);
+
+    const duplicate = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set("Authorization", ownerHeader)
+      .send({ email: "joinededitor@example.com" })
+      .expect(409);
+
+    expect(duplicate.body).toEqual({
+      error: "This User is already a Collaborator",
+    });
+  });
+
+  it("lists joined Collaborators and pending Invites for the owner", async () => {
+    const header = authHeader(
+      "clerk_list_owner",
+      "listowner@example.com",
+      "Owner",
+    );
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    const invited = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "pending@example.com" })
+      .expect(201);
+
+    const listed = await request(app)
+      .get(`/api/projects/${created.body.id}/collaborators`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(listed.body).toEqual([
+      expect.objectContaining({
+        email: "listowner@example.com",
+        displayName: "Owner",
+        role: "owner",
+        status: "joined",
+      }),
+      {
+        email: "pending@example.com",
+        displayName: null,
+        role: "editor",
+        status: "pending",
+        inviteId: invited.body.id,
+        sendCount: 1,
+        canResend: false,
+        resendAvailableAt: expect.any(String),
+      },
+    ]);
+  });
+
+  it("rejects a resend before 5 minutes have passed", async () => {
+    const header = authHeader("clerk_wait_owner", "waitowner@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    const invited = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "pending@example.com" })
+      .expect(201);
+
+    const tooSoon = await request(app)
+      .post(
+        `/api/projects/${created.body.id}/invites/${invited.body.id}/resend`,
+      )
+      .set("Authorization", header)
+      .expect(429);
+
+    expect(tooSoon.body).toEqual({
+      error: "Wait 5 minutes before resending this Invite",
+    });
+    expect(testMailer.getSent()).toHaveLength(1);
+  });
+
+  it("lets the owner resend a pending Invite up to the send limit", async () => {
+    const header = authHeader("clerk_resend_owner", "resendowner@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    const invited = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "pending@example.com" })
+      .expect(201);
+
+    await allowResend(invited.body.id);
+    await request(app)
+      .post(
+        `/api/projects/${created.body.id}/invites/${invited.body.id}/resend`,
+      )
+      .set("Authorization", header)
+      .expect(200);
+
+    await allowResend(invited.body.id);
+    await request(app)
+      .post(
+        `/api/projects/${created.body.id}/invites/${invited.body.id}/resend`,
+      )
+      .set("Authorization", header)
+      .expect(200);
+
+    const blocked = await request(app)
+      .post(
+        `/api/projects/${created.body.id}/invites/${invited.body.id}/resend`,
+      )
+      .set("Authorization", header)
+      .expect(429);
+
+    expect(blocked.body).toEqual({
+      error: "Invite resend limit reached (3 sends)",
+    });
+    expect(testMailer.getSent()).toHaveLength(3);
+
+    const oldToken = tokenFromInviteUrl(testMailer.getSent()[0].inviteUrl);
+    const stale = await request(app)
+      .post(`/api/invites/${oldToken}/redeem`)
+      .set(
+        "Authorization",
+        authHeader("clerk_resend_editor", "pending@example.com"),
+      )
+      .expect(404);
+
+    expect(stale.body).toEqual({
+      error: "This Invite is no longer valid",
+    });
+
+    const listed = await request(app)
+      .get(`/api/projects/${created.body.id}/collaborators`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(listed.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: "pending@example.com",
+          status: "pending",
+          sendCount: 3,
+          canResend: false,
+        }),
+      ]),
+    );
+  });
+
+  it("rejects redeem of an expired Invite", async () => {
+    const { inviteToken } = await createProjectAndInvite({
+      ownerClerkId: "clerk_expired_owner",
+      ownerEmail: "expiredowner@example.com",
+      inviteEmail: "expirededitor@example.com",
+    });
+
+    await prisma.projectInvite.update({
+      where: { token: inviteToken },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const response = await request(app)
+      .post(`/api/invites/${inviteToken}/redeem`)
+      .set(
+        "Authorization",
+        authHeader("clerk_expired_editor", "expirededitor@example.com"),
+      )
+      .expect(410);
+
+    expect(response.body).toEqual({
+      error: "This Invite is no longer valid",
+    });
+  });
+
+  it("hides Collaborator listing from a non-owner", async () => {
+    const ownerHeader = authHeader("clerk_hide_owner", "hideowner@example.com");
+    const editorHeader = authHeader(
+      "clerk_hide_editor",
+      "hideeditor@example.com",
+    );
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", ownerHeader)
+      .send({ name: "Owner Only", mode: "blank" })
+      .expect(201);
+
+    await request(app)
+      .get("/api/users/me")
+      .set("Authorization", editorHeader)
+      .expect(200);
+
+    const editor = await prisma.user.findUnique({
+      where: { clerkId: "clerk_hide_editor" },
+    });
+
+    await prisma.collaborator.create({
+      data: {
+        projectId: created.body.id,
+        userId: editor!.id,
+        role: "editor",
+      },
+    });
+
+    await request(app)
+      .get(`/api/projects/${created.body.id}/collaborators`)
+      .set("Authorization", editorHeader)
+      .expect(403);
   });
 });

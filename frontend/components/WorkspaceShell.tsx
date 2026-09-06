@@ -136,9 +136,14 @@ export function WorkspaceShell() {
               <InviteToolbar
                 canInvite={invite.canInvite}
                 isSending={invite.isSending}
-                sentTo={invite.sentTo}
+                collaborators={invite.collaborators}
+                isLoadingCollaborators={invite.isLoadingCollaborators}
+                resendingInviteId={invite.resendingInviteId}
                 onInvite={(email) => {
                   void invite.invite(email);
+                }}
+                onResend={(inviteId) => {
+                  void invite.resend(inviteId);
                 }}
               />
               <ExportSpecToolbar

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ApiCollaborator } from "../lib/api";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -16,18 +17,63 @@ import { Label } from "./ui/label";
 interface InviteToolbarProps {
   canInvite: boolean;
   isSending: boolean;
-  sentTo: string | null;
+  collaborators: ApiCollaborator[];
+  isLoadingCollaborators: boolean;
+  resendingInviteId: string | null;
   onInvite: (email: string) => void;
+  onResend: (inviteId: string) => void;
+}
+
+function statusLabel(status: ApiCollaborator["status"]): string {
+  return status === "joined" ? "Joined" : "Pending";
+}
+
+function resendWaitLabel(resendAvailableAt: string, now: number): string | null {
+  const remainingMs = Date.parse(resendAvailableAt) - now;
+  if (remainingMs <= 0) {
+    return null;
+  }
+
+  const totalSec = Math.ceil(remainingMs / 1000);
+  if (totalSec < 60) {
+    return `Resend in ${totalSec}s`;
+  }
+
+  return `Resend in ${Math.ceil(totalSec / 60)} min`;
 }
 
 export function InviteToolbar({
   canInvite,
   isSending,
-  sentTo,
+  collaborators,
+  isLoadingCollaborators,
+  resendingInviteId,
   onInvite,
+  onResend,
 }: InviteToolbarProps) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const waitingToResend = collaborators.some(
+    (person) =>
+      person.status === "pending" &&
+      !person.canResend &&
+      person.resendAvailableAt !== null,
+  );
+
+  useEffect(() => {
+    if (!open || !waitingToResend) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [open, waitingToResend]);
 
   if (!canInvite) {
     return null;
@@ -47,6 +93,7 @@ export function InviteToolbar({
       return;
     }
     onInvite(trimmed);
+    setEmail("");
   }
 
   return (
@@ -82,11 +129,76 @@ export function InviteToolbar({
               />
             </div>
 
-            {sentTo && (
-              <p className="text-sm text-foreground">
-                Invite sent to {sentTo}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Collaborators
               </p>
-            )}
+              {isLoadingCollaborators && collaborators.length === 0 ? (
+                <p className="text-sm text-muted">Loading...</p>
+              ) : (
+                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                  {collaborators.map((person) => {
+                    const waitLabel =
+                      person.status === "pending" && person.resendAvailableAt
+                        ? resendWaitLabel(person.resendAvailableAt, now)
+                        : null;
+                    const showResend =
+                      person.status === "pending" &&
+                      (person.canResend ||
+                        (person.resendAvailableAt !== null && !waitLabel));
+
+                    return (
+                      <li
+                        key={
+                          person.status === "pending"
+                            ? person.inviteId
+                            : `${person.role}:${person.email}`
+                        }
+                        className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border px-2 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-foreground">
+                            {person.displayName ?? person.email}
+                          </p>
+                          <p className="text-xs text-muted">
+                            {person.displayName ? `${person.email} · ` : ""}
+                            {statusLabel(person.status)}
+                            {person.role === "owner" ? " · Owner" : ""}
+                          </p>
+                        </div>
+                        {showResend && person.status === "pending" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={resendingInviteId === person.inviteId}
+                            onClick={() => onResend(person.inviteId)}
+                          >
+                            {resendingInviteId === person.inviteId
+                              ? "Sending..."
+                              : "Resend"}
+                          </Button>
+                        )}
+                        {person.status === "pending" &&
+                          !showResend &&
+                          waitLabel && (
+                            <span className="shrink-0 text-xs text-muted">
+                              {waitLabel}
+                            </span>
+                          )}
+                        {person.status === "pending" &&
+                          !showResend &&
+                          !waitLabel && (
+                            <span className="shrink-0 text-xs text-muted">
+                              Resend limit reached
+                            </span>
+                          )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
 
             <DialogFooter>
               <Button

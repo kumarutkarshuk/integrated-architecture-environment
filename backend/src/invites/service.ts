@@ -1,22 +1,44 @@
 import { randomBytes } from "node:crypto";
-import type { User } from "@prisma/client";
+import { Prisma, type User } from "@prisma/client";
 import { notDeleted, prisma } from "../db.js";
 import { requireOwner } from "../projects/access.js";
 import { getMailer } from "./mailer.js";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MAX_INVITE_SENDS = 3;
+export const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
 
 const inviteSelect = {
   id: true,
   email: true,
   role: true,
+  sendCount: true,
+  lastSentAt: true,
   expiresAt: true,
 } as const;
 
 export type InviteResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: number; error: string };
+
+export type CollaboratorListItem =
+  | {
+      email: string;
+      displayName: string | null;
+      role: string;
+      status: "joined";
+    }
+  | {
+      email: string;
+      displayName: string | null;
+      role: string;
+      status: "pending";
+      inviteId: string;
+      sendCount: number;
+      canResend: boolean;
+      resendAvailableAt: string | null;
+    };
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -28,6 +50,115 @@ function isValidEmail(email: string): boolean {
 
 function inviteOrigin(): string {
   return process.env.CORS_ORIGIN ?? "http://localhost:3000";
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
+function resendAvailableAt(lastSentAt: Date): Date {
+  return new Date(lastSentAt.getTime() + RESEND_COOLDOWN_MS);
+}
+
+function resendGate(invite: { sendCount: number; lastSentAt: Date }): InviteResult<void> {
+  if (invite.sendCount >= MAX_INVITE_SENDS) {
+    return {
+      ok: false,
+      status: 429,
+      error: `Invite resend limit reached (${MAX_INVITE_SENDS} sends)`,
+    };
+  }
+
+  if (resendAvailableAt(invite.lastSentAt).getTime() > Date.now()) {
+    return {
+      ok: false,
+      status: 429,
+      error: "Wait 5 minutes before resending this Invite",
+    };
+  }
+
+  return { ok: true, value: undefined };
+}
+
+async function sendInviteEmail(
+  email: string,
+  projectName: string,
+  token: string,
+): Promise<void> {
+  await getMailer().sendInvite({
+    to: email,
+    projectName,
+    inviteUrl: `${inviteOrigin()}/invite/${token}`,
+  });
+}
+
+export async function listProjectCollaborators(
+  projectId: string,
+  user: User,
+): Promise<InviteResult<CollaboratorListItem[]>> {
+  const access = await requireOwner(projectId, user);
+  if (!access.ok) {
+    return { ok: false, status: access.status, error: "Project not found" };
+  }
+
+  const [collaborators, pendingInvites] = await Promise.all([
+    prisma.collaborator.findMany({
+      where: { projectId, ...notDeleted },
+      include: {
+        user: { select: { email: true, displayName: true } },
+      },
+    }),
+    prisma.projectInvite.findMany({
+      where: { projectId, redeemedAt: null, ...notDeleted },
+    }),
+  ]);
+
+  const joinedEmails = new Set(
+    collaborators.map((row) => normalizeEmail(row.user.email)),
+  );
+
+  const joined: CollaboratorListItem[] = collaborators
+    .map((row) => ({
+      email: row.user.email,
+      displayName: row.user.displayName,
+      role: row.role,
+      status: "joined" as const,
+    }))
+    .sort((left, right) => {
+      if (left.role === "owner" && right.role !== "owner") {
+        return -1;
+      }
+      if (right.role === "owner" && left.role !== "owner") {
+        return 1;
+      }
+      return left.email.localeCompare(right.email);
+    });
+
+  const pending: CollaboratorListItem[] = pendingInvites
+    .filter((invite) => !joinedEmails.has(normalizeEmail(invite.email)))
+    .map((invite) => {
+      const underLimit = invite.sendCount < MAX_INVITE_SENDS;
+      const availableAt = resendAvailableAt(invite.lastSentAt);
+      const cooldownDone = availableAt.getTime() <= Date.now();
+
+      return {
+        email: invite.email,
+        displayName: null,
+        role: invite.role,
+        status: "pending" as const,
+        inviteId: invite.id,
+        sendCount: invite.sendCount,
+        canResend: underLimit && cooldownDone,
+        resendAvailableAt:
+          underLimit && !cooldownDone ? availableAt.toISOString() : null,
+      };
+    })
+    .sort((left, right) => left.email.localeCompare(right.email));
+
+  return { ok: true, value: [...joined, ...pending] };
 }
 
 export async function createProjectInvite(
@@ -54,24 +185,66 @@ export async function createProjectInvite(
     return { ok: false, status: 404, error: "Project not found" };
   }
 
-  const token = randomBytes(32).toString("hex");
-  const invite = await prisma.projectInvite.create({
-    data: {
+  const existingCollaborator = await prisma.collaborator.findFirst({
+    where: {
       projectId,
-      email,
-      token,
-      role: "editor",
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      ...notDeleted,
+      user: {
+        email: { equals: email, mode: "insensitive" },
+        ...notDeleted,
+      },
     },
-    select: { ...inviteSelect, token: true },
   });
 
+  if (existingCollaborator) {
+    return {
+      ok: false,
+      status: 409,
+      error: "This User is already a Collaborator",
+    };
+  }
+
+  const pendingInvite = await prisma.projectInvite.findFirst({
+    where: { projectId, email, redeemedAt: null, ...notDeleted },
+  });
+
+  if (pendingInvite) {
+    return {
+      ok: false,
+      status: 409,
+      error: "An Invite was already sent to this email",
+    };
+  }
+
+  const token = randomBytes(32).toString("hex");
+  let invite;
+
   try {
-    await getMailer().sendInvite({
-      to: email,
-      projectName: project.name,
-      inviteUrl: `${inviteOrigin()}/invite/${invite.token}`,
+    invite = await prisma.projectInvite.create({
+      data: {
+        projectId,
+        email,
+        token,
+        role: "editor",
+        sendCount: 1,
+        lastSentAt: new Date(),
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+      select: { ...inviteSelect, token: true },
     });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return {
+        ok: false,
+        status: 409,
+        error: "An Invite was already sent to this email",
+      };
+    }
+    throw error;
+  }
+
+  try {
+    await sendInviteEmail(email, project.name, invite.token);
   } catch (error) {
     await prisma.projectInvite.delete({ where: { id: invite.id } });
     const message =
@@ -90,6 +263,122 @@ export async function createProjectInvite(
   };
 }
 
+export async function resendProjectInvite(
+  projectId: string,
+  inviteId: string,
+  user: User,
+): Promise<InviteResult<{ id: string; email: string; role: string; expiresAt: Date }>> {
+  const access = await requireOwner(projectId, user);
+  if (!access.ok) {
+    return { ok: false, status: access.status, error: "Project not found" };
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ...notDeleted },
+    select: { name: true },
+  });
+
+  if (!project) {
+    return { ok: false, status: 404, error: "Project not found" };
+  }
+
+  const invite = await prisma.projectInvite.findFirst({
+    where: { id: inviteId, projectId, ...notDeleted },
+  });
+
+  if (!invite) {
+    return { ok: false, status: 404, error: "Invite not found" };
+  }
+
+  if (invite.redeemedAt) {
+    return { ok: false, status: 409, error: "Invite has already been redeemed" };
+  }
+
+  const gate = resendGate(invite);
+  if (!gate.ok) {
+    return gate;
+  }
+
+  const previousToken = invite.token;
+  const previousExpiresAt = invite.expiresAt;
+  const previousLastSentAt = invite.lastSentAt;
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+  const lastSentAt = new Date();
+  const cooldownCutoff = new Date(Date.now() - RESEND_COOLDOWN_MS);
+
+  const updated = await prisma.projectInvite.updateMany({
+    where: {
+      id: invite.id,
+      projectId,
+      redeemedAt: null,
+      deletedAt: null,
+      sendCount: { lt: MAX_INVITE_SENDS },
+      lastSentAt: { lte: cooldownCutoff },
+    },
+    data: {
+      token,
+      expiresAt,
+      lastSentAt,
+      sendCount: { increment: 1 },
+    },
+  });
+
+  if (updated.count === 0) {
+    const current = await prisma.projectInvite.findFirst({
+      where: { id: invite.id, projectId, ...notDeleted },
+    });
+    if (!current) {
+      return { ok: false, status: 404, error: "Invite not found" };
+    }
+    const again = resendGate(current);
+    if (!again.ok) {
+      return again;
+    }
+    return {
+      ok: false,
+      status: 429,
+      error: "Wait 5 minutes before resending this Invite",
+    };
+  }
+
+  try {
+    await sendInviteEmail(invite.email, project.name, token);
+  } catch (error) {
+    await prisma.projectInvite.update({
+      where: { id: invite.id },
+      data: {
+        token: previousToken,
+        expiresAt: previousExpiresAt,
+        lastSentAt: previousLastSentAt,
+        sendCount: invite.sendCount,
+      },
+    });
+    const message =
+      error instanceof Error ? error.message : "Failed to send Invite email";
+    return { ok: false, status: 502, error: message };
+  }
+
+  const current = await prisma.projectInvite.findFirst({
+    where: { id: invite.id },
+    select: inviteSelect,
+  });
+
+  if (!current) {
+    return { ok: false, status: 404, error: "Invite not found" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      id: current.id,
+      email: current.email,
+      role: current.role,
+      expiresAt: current.expiresAt,
+    },
+  };
+}
+
 export async function redeemProjectInvite(
   token: string,
   user: User,
@@ -100,11 +389,11 @@ export async function redeemProjectInvite(
   });
 
   if (!invite || invite.project.deletedAt) {
-    return { ok: false, status: 404, error: "Invite not found" };
+    return { ok: false, status: 404, error: "This Invite is no longer valid" };
   }
 
   if (invite.expiresAt.getTime() <= Date.now()) {
-    return { ok: false, status: 410, error: "Invite has expired" };
+    return { ok: false, status: 410, error: "This Invite is no longer valid" };
   }
 
   if (normalizeEmail(user.email) !== normalizeEmail(invite.email)) {

@@ -5,7 +5,11 @@ import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { notDeleted, prisma } from "../db.js";
-import { createProjectInvite } from "../invites/service.js";
+import {
+  createProjectInvite,
+  listProjectCollaborators,
+  resendProjectInvite,
+} from "../invites/service.js";
 import { requireOwner } from "../projects/access.js";
 import { softDeleteProject } from "../projects/soft-delete.js";
 
@@ -128,6 +132,23 @@ projectsRouter.post("/", async (req, res) => {
   res.status(201).json(project);
 });
 
+projectsRouter.get("/:id/collaborators", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const result = await listProjectCollaborators(req.params.id, user);
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.json(result.value);
+});
+
 projectsRouter.post("/:id/invites", async (req, res) => {
   const user = (req as AuthenticatedRequest).user;
 
@@ -148,6 +169,28 @@ projectsRouter.post("/:id/invites", async (req, res) => {
   }
 
   res.status(201).json(result.value);
+});
+
+projectsRouter.post("/:id/invites/:inviteId/resend", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const result = await resendProjectInvite(
+    req.params.id,
+    req.params.inviteId,
+    user,
+  );
+
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.json(result.value);
 });
 
 projectsRouter.get("/:id", async (req, res) => {

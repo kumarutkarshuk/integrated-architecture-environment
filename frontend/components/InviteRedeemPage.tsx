@@ -9,6 +9,8 @@ interface InviteRedeemPageProps {
   token: string;
 }
 
+const EMAIL_MISMATCH_ERROR = "Email does not match this Invite";
+
 export function InviteRedeemPage({ token }: InviteRedeemPageProps) {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
@@ -37,12 +39,16 @@ export function InviteRedeemPage({ token }: InviteRedeemPageProps) {
   }
 
   if (redeem.error) {
+    const isEmailMismatch = redeem.error === EMAIL_MISMATCH_ERROR;
+
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-2 bg-background p-6 text-center text-foreground">
         <p className="text-red-400">{redeem.error}</p>
-        <p className="text-sm text-muted">
-          Sign in with the email this Invite was sent to.
-        </p>
+        {isEmailMismatch && (
+          <p className="text-sm text-muted">
+            Sign in with the email this Invite was sent to.
+          </p>
+        )}
       </div>
     );
   }

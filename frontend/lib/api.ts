@@ -20,6 +20,24 @@ export interface ApiInvite {
   expiresAt: string;
 }
 
+export type ApiCollaborator =
+  | {
+      email: string;
+      displayName: string | null;
+      role: string;
+      status: "joined";
+    }
+  | {
+      email: string;
+      displayName: string | null;
+      role: string;
+      status: "pending";
+      inviteId: string;
+      sendCount: number;
+      canResend: boolean;
+      resendAvailableAt: string | null;
+    };
+
 export interface ApiAiPreview {
   id: string;
   type?: string;
@@ -172,6 +190,28 @@ export function createInvite(
     method: "POST",
     body: JSON.stringify({ email }),
   });
+}
+
+export function fetchCollaborators(
+  token: string,
+  projectId: string,
+): Promise<ApiCollaborator[]> {
+  return apiFetch<ApiCollaborator[]>(
+    `/api/projects/${projectId}/collaborators`,
+    token,
+  );
+}
+
+export function resendInvite(
+  token: string,
+  projectId: string,
+  inviteId: string,
+): Promise<ApiInvite> {
+  return apiFetch<ApiInvite>(
+    `/api/projects/${projectId}/invites/${inviteId}/resend`,
+    token,
+    { method: "POST" },
+  );
 }
 
 export function redeemInvite(
