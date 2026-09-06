@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useAiGeneration } from "../hooks/useAiGeneration";
+import { useExportSpec } from "../hooks/useExportSpec";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
+import { ExportSpecToolbar } from "./ExportSpecToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
@@ -43,6 +45,7 @@ export function WorkspaceShell() {
     updateProjectInList,
     initialPrompt,
   );
+  const exportSpec = useExportSpec(selectedProject);
 
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
@@ -110,9 +113,23 @@ export function WorkspaceShell() {
             <span className="text-muted">
               {selectedProject?.status === "ready" ? "Canvas" : "Preview"}
             </span>
-            {selectedProject?.status === "ready" && (
-              <CanvasSaveStatusLabel status={saveStatus} />
-            )}
+            <div className="flex items-center gap-3">
+              <ExportSpecToolbar
+                canExport={exportSpec.canExport}
+                isExporting={exportSpec.isExporting}
+                spec={exportSpec.spec}
+                error={exportSpec.error}
+                downloadFileName={exportSpec.downloadFileName}
+                onExport={() => {
+                  void exportSpec.exportSpec();
+                }}
+                onClear={exportSpec.clearSpec}
+                onDownload={exportSpec.downloadSpec}
+              />
+              {selectedProject?.status === "ready" && (
+                <CanvasSaveStatusLabel status={saveStatus} />
+              )}
+            </div>
           </div>
 
           {!selectedProject && (

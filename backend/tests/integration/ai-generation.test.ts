@@ -517,6 +517,9 @@ describe("AI generation preview and apply", () => {
       async generate() {
         throw new Error("Groq timeout");
       },
+      async exportSpec() {
+        throw new Error("export_spec should not run for generate");
+      },
     });
 
     const created = await request(app)

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
+import { startExportSpecJob } from "../ai/start-export-spec-job.js";
 import { startGenerateJob } from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
@@ -19,8 +20,9 @@ function readProjectId(
   return projectId;
 }
 
-const previewSelect = {
+const jobSelect = {
   id: true,
+  type: true,
   prompt: true,
   status: true,
   result: true,
@@ -68,7 +70,7 @@ aiRouter.post("/generate", async (req, res) => {
   const latestJob = await prisma.aiGeneration.findFirst({
     where: { projectId, type: "generate" },
     orderBy: { createdAt: "desc" },
-    select: previewSelect,
+    select: jobSelect,
   });
 
   res.status(201).json(latestJob);
@@ -102,10 +104,45 @@ aiRouter.get("/previews", async (req, res) => {
       appliedAt: null,
     },
     orderBy: { createdAt: "desc" },
-    select: previewSelect,
+    select: jobSelect,
   });
 
   res.json(previews);
+});
+
+aiRouter.post("/export-spec", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  if (project.status !== "ready") {
+    res.status(400).json({ error: "Export Spec is only available on a ready Project" });
+    return;
+  }
+
+  const job = await startExportSpecJob(projectId, user.id);
+
+  const createdJob = await prisma.aiGeneration.findFirst({
+    where: { id: job.id, projectId, type: "export_spec" },
+    select: jobSelect,
+  });
+
+  res.status(201).json(createdJob);
 });
 
 aiRouter.post("/apply", async (req, res) => {
@@ -177,7 +214,7 @@ aiRouter.get("/:jobId", async (req, res) => {
       id: req.params.jobId,
       projectId,
     },
-    select: previewSelect,
+    select: jobSelect,
   });
 
   if (!job) {
