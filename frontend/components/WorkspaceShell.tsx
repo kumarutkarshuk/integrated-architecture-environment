@@ -120,6 +120,7 @@ export function WorkspaceShell() {
           selectedProjectId={selectedProjectId}
           isLoading={isUserLoading || isProjectsLoading}
           error={userError ?? projectsError}
+          currentUserId={user?.id ?? null}
           onSelectProject={setSelectedProjectId}
           onCreateBlankProject={handleCreateBlankProject}
           onCreatePromptProject={handleCreatePromptProject}
