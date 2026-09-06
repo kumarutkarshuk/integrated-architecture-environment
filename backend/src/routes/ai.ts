@@ -1,10 +1,23 @@
 import { Router } from "express";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
+import { AiRateLimitError } from "../ai/rate-limit.js";
 import { startExportSpecJob } from "../ai/start-export-spec-job.js";
 import { startGenerateJob } from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
+
+function sendAiRateLimitError(
+  res: { status: (code: number) => { json: (body: object) => void } },
+  error: unknown,
+): boolean {
+  if (!(error instanceof AiRateLimitError)) {
+    return false;
+  }
+
+  res.status(error.status).json({ error: error.message });
+  return true;
+}
 
 export const aiRouter = Router({ mergeParams: true });
 
@@ -65,7 +78,14 @@ aiRouter.post("/generate", async (req, res) => {
     return;
   }
 
-  await startGenerateJob(projectId, user.id, prompt);
+  try {
+    await startGenerateJob(projectId, user.id, prompt);
+  } catch (error) {
+    if (sendAiRateLimitError(res, error)) {
+      return;
+    }
+    throw error;
+  }
 
   const latestJob = await prisma.aiGeneration.findFirst({
     where: { projectId, type: "generate" },
@@ -135,14 +155,21 @@ aiRouter.post("/export-spec", async (req, res) => {
     return;
   }
 
-  const job = await startExportSpecJob(projectId, user.id);
+  try {
+    const job = await startExportSpecJob(projectId, user.id);
 
-  const createdJob = await prisma.aiGeneration.findFirst({
-    where: { id: job.id, projectId, type: "export_spec" },
-    select: jobSelect,
-  });
+    const createdJob = await prisma.aiGeneration.findFirst({
+      where: { id: job.id, projectId, type: "export_spec" },
+      select: jobSelect,
+    });
 
-  res.status(201).json(createdJob);
+    res.status(201).json(createdJob);
+  } catch (error) {
+    if (sendAiRateLimitError(res, error)) {
+      return;
+    }
+    throw error;
+  }
 });
 
 aiRouter.post("/apply", async (req, res) => {

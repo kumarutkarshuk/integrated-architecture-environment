@@ -17,7 +17,6 @@ interface InviteToolbarProps {
   canInvite: boolean;
   isSending: boolean;
   sentTo: string | null;
-  error: string | null;
   onInvite: (email: string) => void;
 }
 
@@ -25,7 +24,6 @@ export function InviteToolbar({
   canInvite,
   isSending,
   sentTo,
-  error,
   onInvite,
 }: InviteToolbarProps) {
   const [open, setOpen] = useState(false);
@@ -61,7 +59,6 @@ export function InviteToolbar({
       >
         Invite
       </Button>
-      {error && <span className="text-red-400">{error}</span>}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent>

@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   createInvite,
   type ApiProject,
@@ -15,7 +16,6 @@ export function useCreateInvite(
   const { getToken } = useAuth();
   const [isSending, setIsSending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const canInvite = Boolean(
     project && user && project.ownerId === user.id,
@@ -24,7 +24,6 @@ export function useCreateInvite(
   useEffect(() => {
     setIsSending(false);
     setSentTo(null);
-    setError(null);
   }, [project?.id]);
 
   const invite = useCallback(
@@ -34,7 +33,6 @@ export function useCreateInvite(
       }
 
       setIsSending(true);
-      setError(null);
       setSentTo(null);
 
       try {
@@ -46,7 +44,7 @@ export function useCreateInvite(
         const created = await createInvite(token, project.id, email);
         setSentTo(created.email);
       } catch (inviteError) {
-        setError(
+        toast.error(
           inviteError instanceof Error
             ? inviteError.message
             : "Failed to send Invite",
@@ -62,7 +60,6 @@ export function useCreateInvite(
     canInvite,
     isSending,
     sentTo,
-    error,
     invite,
   };
 }

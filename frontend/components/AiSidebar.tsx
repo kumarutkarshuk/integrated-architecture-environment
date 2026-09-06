@@ -35,7 +35,6 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
     isBusy,
     isGenerating,
     generationFailed,
-    error,
     regenerate,
     applySelectedPreview,
   } = ai;
@@ -146,8 +145,6 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
           </Button>
         </CardContent>
       </Card>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
 }
