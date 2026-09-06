@@ -67,9 +67,20 @@ export function WorkspaceShell() {
 
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
+  const presenceIdentity = useMemo(() => {
+    if (!user) {
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      name: user.displayName ?? user.email,
+    };
+  }, [user]);
   const { storeWithStatus, saveStatus, onEditorReady } = useYjsTldrawStore(
     selectedProject?.id ?? null,
     canvasEnabled,
+    presenceIdentity,
   );
 
   const previewRecords = ai.selectedPreview?.result?.records ?? null;
