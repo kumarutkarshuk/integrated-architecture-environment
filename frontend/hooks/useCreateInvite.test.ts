@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiProject, ApiUser } from "../lib/api";
 import { useCreateInvite } from "./useCreateInvite";
@@ -22,13 +22,21 @@ vi.mock("../lib/api", async () => {
   return {
     ...actual,
     createInvite: vi.fn(),
+    fetchCollaborators: vi.fn(),
+    resendInvite: vi.fn(),
   };
 });
 
-import { createInvite } from "../lib/api";
+import {
+  createInvite,
+  fetchCollaborators,
+  resendInvite,
+} from "../lib/api";
 import { toast } from "sonner";
 
 const createInviteMock = vi.mocked(createInvite);
+const fetchCollaboratorsMock = vi.mocked(fetchCollaborators);
+const resendInviteMock = vi.mocked(resendInvite);
 const toastErrorMock = vi.mocked(toast.error);
 
 const owner: ApiUser = {
@@ -53,7 +61,17 @@ describe("useCreateInvite", () => {
     getToken.mockClear();
     getToken.mockResolvedValue("test-token");
     createInviteMock.mockReset();
+    fetchCollaboratorsMock.mockReset();
+    resendInviteMock.mockReset();
     toastErrorMock.mockReset();
+    fetchCollaboratorsMock.mockResolvedValue([
+      {
+        email: "owner@example.com",
+        displayName: "Owner",
+        role: "owner",
+        status: "joined",
+      },
+    ]);
   });
 
   it("allows the owner to send an Invite", async () => {
@@ -70,6 +88,13 @@ describe("useCreateInvite", () => {
 
     expect(result.current.canInvite).toBe(true);
 
+    await waitFor(() => {
+      expect(fetchCollaboratorsMock).toHaveBeenCalledWith(
+        "test-token",
+        "project-1",
+      );
+    });
+
     await act(async () => {
       await result.current.invite("editor@example.com");
     });
@@ -79,7 +104,30 @@ describe("useCreateInvite", () => {
       "project-1",
       "editor@example.com",
     );
-    expect(result.current.sentTo).toBe("editor@example.com");
+    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("resends a pending Invite", async () => {
+    resendInviteMock.mockResolvedValue({
+      id: "invite-1",
+      email: "pending@example.com",
+      role: "editor",
+      expiresAt: "2026-09-13T00:00:00.000Z",
+    });
+
+    const { result } = renderHook(() =>
+      useCreateInvite(projectWith("user-owner"), owner),
+    );
+
+    await act(async () => {
+      await result.current.resend("invite-1");
+    });
+
+    expect(resendInviteMock).toHaveBeenCalledWith(
+      "test-token",
+      "project-1",
+      "invite-1",
+    );
   });
 
   it("hides Invite for a non-owner Collaborator", () => {
@@ -88,6 +136,7 @@ describe("useCreateInvite", () => {
     );
 
     expect(result.current.canInvite).toBe(false);
+    expect(fetchCollaboratorsMock).not.toHaveBeenCalled();
   });
 
   it("shows a toast when sending an Invite fails", async () => {
@@ -101,7 +150,6 @@ describe("useCreateInvite", () => {
       await result.current.invite("editor@example.com");
     });
 
-    expect(result.current.sentTo).toBeNull();
     expect(toastErrorMock).toHaveBeenCalledWith("Failed to send Invite email");
   });
 });

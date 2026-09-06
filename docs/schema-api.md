@@ -37,9 +37,13 @@ project_invite
   email         text NOT NULL
   token         text UNIQUE NOT NULL
   role          text NOT NULL DEFAULT 'editor'
+  send_count    integer NOT NULL DEFAULT 1
+  created_at    timestamptz NOT NULL
+  last_sent_at  timestamptz NOT NULL
   expires_at    timestamptz NOT NULL
   redeemed_at   timestamptz
   deleted_at    timestamptz
+  -- one pending invite per (project_id, email); max 3 emails; 5 minute wait between sends
 
 canvas_snapshot
   project_id    uuid PK FK → project.id
@@ -94,7 +98,9 @@ POST   /api/projects              -- { name, mode, prompt? }
 GET    /api/projects/:id
 DELETE /api/projects/:id          -- owner only
 
-POST   /api/projects/:id/invites  -- { email }; sends link via Resend
+GET    /api/projects/:id/collaborators  -- owner only; joined + pending Invite status
+POST   /api/projects/:id/invites        -- { email }; rejects duplicate pending / joined
+POST   /api/projects/:id/invites/:inviteId/resend  -- owner only; max 3 sends; 5 minute wait
 
 POST   /api/invites/:token/redeem
 

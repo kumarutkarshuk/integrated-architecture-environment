@@ -59,12 +59,16 @@ model ProjectInvite {
   email      String
   token      String    @unique
   role       String    @default("editor")
+  sendCount  Int       @default(1) @map("send_count")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSentAt DateTime  @default(now()) @map("last_sent_at") @db.Timestamptz(6)
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(6)
   deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([projectId, email])
   @@map("project_invite")
 }
 
