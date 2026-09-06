@@ -14,12 +14,19 @@ export interface ApiProject {
 
 export interface ApiAiPreview {
   id: string;
+  type?: string;
   prompt: string | null;
   status: string;
-  result: { records?: Record<string, unknown> } | null;
+  result: {
+    records?: Record<string, unknown>;
+    markdown?: string;
+    gaps_summary?: string;
+  } | null;
   appliedAt: string | null;
   createdAt: string;
 }
+
+export type ApiAiJob = ApiAiPreview;
 
 export interface CreateProjectInput {
   name: string;
@@ -129,4 +136,21 @@ export function applyAiPreview(
     method: "POST",
     body: JSON.stringify({ aiGenerationId }),
   });
+}
+
+export function startExportSpec(
+  token: string,
+  projectId: string,
+): Promise<ApiAiJob> {
+  return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/export-spec`, token, {
+    method: "POST",
+  });
+}
+
+export function fetchAiJob(
+  token: string,
+  projectId: string,
+  jobId: string,
+): Promise<ApiAiJob> {
+  return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/${jobId}`, token);
 }

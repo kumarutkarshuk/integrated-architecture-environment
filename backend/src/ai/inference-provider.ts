@@ -1,19 +1,24 @@
 import { buildRecordsFromDiagramPlan } from "./diagram-records.js";
-import { buildFixtureGenerateResult } from "./fixture.js";
+import { buildFixtureExportSpecResult, buildFixtureGenerateResult } from "./fixture.js";
 import {
   generateDiagramPlanWithGroq,
+  generateExportSpecWithGroq,
   type GroqConfig,
 } from "./groq-client.js";
-import type { GenerateResult } from "./types.js";
+import type { ExportSpecResult, GenerateResult } from "./types.js";
 
 export interface InferenceProvider {
   generate(prompt: string): Promise<GenerateResult>;
+  exportSpec(canvasSummary: string): Promise<ExportSpecResult>;
 }
 
 export function createFixtureInferenceProvider(): InferenceProvider {
   return {
     async generate(prompt) {
       return buildFixtureGenerateResult(prompt);
+    },
+    async exportSpec(canvasSummary) {
+      return buildFixtureExportSpecResult(canvasSummary);
     },
   };
 }
@@ -27,6 +32,9 @@ export function createGroqInferenceProvider(config: GroqConfig): InferenceProvid
         tokensUsed,
         model,
       };
+    },
+    async exportSpec(canvasSummary) {
+      return generateExportSpecWithGroq(canvasSummary, config);
     },
   };
 }

@@ -1,5 +1,5 @@
 import { buildGeoShape } from "./diagram-records.js";
-import type { GenerateResult } from "./types.js";
+import type { ExportSpecResult, GenerateResult } from "./types.js";
 
 export const PREVIEW_SHAPE_ID = "shape:preview-box";
 
@@ -20,5 +20,21 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
         meta: { generatedFrom: slug },
       }),
     },
+  };
+}
+
+export function buildFixtureExportSpecResult(canvasSummary: string): ExportSpecResult {
+  const trimmed = canvasSummary.trim();
+
+  if (!trimmed) {
+    return {
+      markdown: "# Spec\n\nThe canvas is empty.",
+      gaps_summary: "The canvas has no shapes, so nothing can be confirmed from the diagram.",
+    };
+  }
+
+  return {
+    markdown: `# Spec\n\n${trimmed}`,
+    gaps_summary: "Fixture export noted no extra gaps.",
   };
 }

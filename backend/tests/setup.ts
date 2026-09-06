@@ -1,8 +1,14 @@
 import { prisma } from "../src/db.js";
 import { clearCanvasPersistenceTimers } from "../src/canvas/persistence.js";
+import { configureExportSpecService } from "../src/ai/export-spec-service.js";
 import { configureGenerateService } from "../src/ai/generate-service.js";
 
 configureGenerateService({
+  groqModel: "openai/gpt-oss-20b",
+  isTest: true,
+});
+
+configureExportSpecService({
   groqModel: "openai/gpt-oss-20b",
   isTest: true,
 });

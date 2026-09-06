@@ -1,5 +1,7 @@
 import { parseDiagramPlan, type DiagramPlan } from "./diagram-plan.js";
 import { GENERATE_DIAGRAM_SYSTEM_PROMPT } from "./prompts/generate-diagram.js";
+import { EXPORT_SPEC_SYSTEM_PROMPT } from "./prompts/export-spec.js";
+import type { ExportSpecResult } from "./types.js";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -36,19 +38,69 @@ export async function generateDiagramPlanWithGroq(
   prompt: string,
   config: GroqConfig,
 ): Promise<GroqInferenceResult> {
+  const { parsed, tokensUsed, model } = await requestGroqJson(
+    GENERATE_DIAGRAM_SYSTEM_PROMPT,
+    prompt,
+    config,
+    "diagram content",
+  );
+
+  return {
+    plan: parseDiagramPlan(parsed),
+    tokensUsed,
+    model,
+  };
+}
+
+export async function generateExportSpecWithGroq(
+  canvasSummary: string,
+  config: GroqConfig,
+): Promise<ExportSpecResult> {
+  const { parsed, tokensUsed, model } = await requestGroqJson(
+    EXPORT_SPEC_SYSTEM_PROMPT,
+    canvasSummary || "The canvas has no shapes.",
+    config,
+    "spec content",
+    4096,
+  );
+
+  return {
+    ...parseExportSpecResult(parsed),
+    tokensUsed,
+    model,
+  };
+}
+
+async function requestGroqJson(
+  systemPrompt: string,
+  userPrompt: string,
+  config: GroqConfig,
+  missingContentLabel: string,
+  maxTokens = 2048,
+): Promise<{ parsed: unknown; tokensUsed?: number; model: string }> {
   const timeoutMs = config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
   return await withTimeout(
-    () => requestDiagramPlanWithGroq(prompt, config),
+    () =>
+      requestGroqJsonOnce(
+        systemPrompt,
+        userPrompt,
+        config,
+        missingContentLabel,
+        maxTokens,
+      ),
     timeoutMs,
     `Groq request timed out after ${timeoutMs}ms`,
   );
 }
 
-async function requestDiagramPlanWithGroq(
-  prompt: string,
+async function requestGroqJsonOnce(
+  systemPrompt: string,
+  userPrompt: string,
   config: GroqConfig,
-): Promise<GroqInferenceResult> {
+  missingContentLabel: string,
+  maxTokens: number,
+): Promise<{ parsed: unknown; tokensUsed?: number; model: string }> {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -58,12 +110,12 @@ async function requestDiagramPlanWithGroq(
     body: JSON.stringify({
       model: config.model,
       messages: [
-        { role: "system", content: GENERATE_DIAGRAM_SYSTEM_PROMPT },
-        { role: "user", content: prompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      max_tokens: 2048,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -75,7 +127,7 @@ async function requestDiagramPlanWithGroq(
 
   const content = body.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("Groq response did not include diagram content");
+    throw new Error(`Groq response did not include ${missingContentLabel}`);
   }
 
   let parsed: unknown;
@@ -86,9 +138,32 @@ async function requestDiagramPlanWithGroq(
   }
 
   return {
-    plan: parseDiagramPlan(parsed),
+    parsed,
     tokensUsed: body.usage?.total_tokens,
     model: body.model ?? config.model,
+  };
+}
+
+function parseExportSpecResult(raw: unknown): { markdown: string; gaps_summary: string } {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Export spec result must be an object");
+  }
+
+  const value = raw as Record<string, unknown>;
+  const markdown = value.markdown;
+  const gapsSummary = value.gaps_summary;
+
+  if (typeof markdown !== "string" || !markdown.trim()) {
+    throw new Error("Export spec result must include markdown");
+  }
+
+  if (typeof gapsSummary !== "string" || !gapsSummary.trim()) {
+    throw new Error("Export spec result must include gaps_summary");
+  }
+
+  return {
+    markdown: markdown.trim(),
+    gaps_summary: gapsSummary.trim(),
   };
 }
 
