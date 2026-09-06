@@ -11,6 +11,8 @@
   --muted: #858585;
   --hover: #2a2d2e;
   --selection: #094771;
+  --destructive: #5a1d1d;
+  --destructive-foreground: #f14c4c;
 }
 
 @theme inline {
@@ -24,6 +26,8 @@
   --color-muted: var(--muted);
   --color-hover: var(--hover);
   --color-selection: var(--selection);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

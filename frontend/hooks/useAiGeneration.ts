@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   applyAiPreview,
   fetchAiPreviews,
@@ -27,7 +28,6 @@ export function useAiGeneration(
     null,
   );
   const [isBusy, setIsBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
   const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
@@ -84,7 +84,7 @@ export function useAiGeneration(
         return;
       }
 
-      setError(
+      toast.error(
         loadError instanceof Error
           ? loadError.message
           : "Failed to load previews",
@@ -104,7 +104,6 @@ export function useAiGeneration(
 
     setPreviews([]);
     setSelectedPreviewId(null);
-    setError(null);
 
     if (initialPrompt?.trim()) {
       setPrompt(initialPrompt.trim());
@@ -157,7 +156,6 @@ export function useAiGeneration(
     }
 
     setIsBusy(true);
-    setError(null);
 
     try {
       const token = await getToken();
@@ -173,7 +171,7 @@ export function useAiGeneration(
         await loadPreviews();
       }
     } catch (actionError) {
-      setError(
+      toast.error(
         actionError instanceof Error
           ? actionError.message
           : "Failed to regenerate preview",
@@ -189,7 +187,6 @@ export function useAiGeneration(
     }
 
     setIsBusy(true);
-    setError(null);
 
     try {
       const token = await getToken();
@@ -206,7 +203,7 @@ export function useAiGeneration(
       setPreviews([]);
       setSelectedPreviewId(null);
     } catch (actionError) {
-      setError(
+      toast.error(
         actionError instanceof Error
           ? actionError.message
           : "Failed to apply preview",
@@ -226,7 +223,6 @@ export function useAiGeneration(
     isBusy,
     isGenerating,
     generationFailed,
-    error,
     regenerate,
     applySelectedPreview,
     loadPreviews,

@@ -11,6 +11,12 @@ vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ getToken }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
   return {
@@ -21,9 +27,12 @@ vi.mock("../lib/api", async () => {
   };
 });
 
-import { fetchAiPreviews } from "../lib/api";
+import { toast } from "sonner";
+import { fetchAiPreviews, regenerateAiPreview } from "../lib/api";
 
 const fetchAiPreviewsMock = vi.mocked(fetchAiPreviews);
+const regenerateAiPreviewMock = vi.mocked(regenerateAiPreview);
+const toastErrorMock = vi.mocked(toast.error);
 
 function projectWith(
   status: ApiProject["status"],
@@ -60,6 +69,8 @@ describe("useAiGeneration polling", () => {
     getToken.mockClear();
     getToken.mockResolvedValue("test-token");
     fetchAiPreviewsMock.mockReset();
+    regenerateAiPreviewMock.mockReset();
+    toastErrorMock.mockReset();
     vi.useFakeTimers({
       toFake: ["setInterval", "clearInterval"],
     });
@@ -180,5 +191,29 @@ describe("useAiGeneration polling", () => {
 
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
     expect(refreshProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a toast when regenerate fails", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    regenerateAiPreviewMock.mockRejectedValueOnce(
+      new Error("Rate limit exceeded"),
+    );
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    expect(toastErrorMock).toHaveBeenCalledWith("Rate limit exceeded");
   });
 });
