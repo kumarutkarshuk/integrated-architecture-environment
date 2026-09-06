@@ -4,6 +4,7 @@ import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { notDeleted, prisma } from "../db.js";
+import { createProjectInvite } from "../invites/service.js";
 import { requireOwner } from "../projects/access.js";
 import { softDeleteProject } from "../projects/soft-delete.js";
 
@@ -15,6 +16,7 @@ const projectSelect = {
   mode: true,
   status: true,
   createdAt: true,
+  ownerId: true,
 } as const;
 
 projectsRouter.get("/", async (req, res) => {
@@ -113,6 +115,28 @@ projectsRouter.post("/", async (req, res) => {
   });
 
   res.status(201).json(project);
+});
+
+projectsRouter.post("/:id/invites", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const result = await createProjectInvite(
+    req.params.id,
+    user,
+    (req.body as { email?: unknown }).email,
+  );
+
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.status(201).json(result.value);
 });
 
 projectsRouter.get("/:id", async (req, res) => {

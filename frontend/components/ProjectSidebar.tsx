@@ -13,6 +13,7 @@ interface ProjectSidebarProps {
   selectedProjectId: string | null;
   isLoading: boolean;
   error: string | null;
+  currentUserId: string | null;
   onSelectProject: (projectId: string) => void;
   onCreateBlankProject: (name: string) => Promise<void>;
   onCreatePromptProject: (name: string, prompt: string) => Promise<void>;
@@ -24,6 +25,7 @@ export function ProjectSidebar({
   selectedProjectId,
   isLoading,
   error,
+  currentUserId,
   onSelectProject,
   onCreateBlankProject,
   onCreatePromptProject,
@@ -88,6 +90,10 @@ export function ProjectSidebar({
     project: ApiProject,
   ) {
     event.stopPropagation();
+
+    if (currentUserId !== project.ownerId) {
+      return;
+    }
 
     const confirmed = window.confirm(`Delete "${project.name}"?`);
     if (!confirmed) {
@@ -183,6 +189,7 @@ export function ProjectSidebar({
         <ul className="space-y-1">
           {projects.map((project) => {
             const isSelected = project.id === selectedProjectId;
+            const canDelete = currentUserId === project.ownerId;
 
             return (
               <li key={project.id}>
@@ -203,8 +210,9 @@ export function ProjectSidebar({
                   </button>
                   <button
                     type="button"
-                    className="px-2 py-1 text-xs text-muted hover:text-red-400"
+                    className="px-2 py-1 text-xs text-muted hover:text-red-400 disabled:pointer-events-none disabled:opacity-40"
                     aria-label={`Delete ${project.name}`}
+                    disabled={!canDelete}
                     onClick={(event) => void handleDeleteProject(event, project)}
                   >
                     Delete

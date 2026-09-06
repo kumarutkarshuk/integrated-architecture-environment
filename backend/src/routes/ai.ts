@@ -183,7 +183,14 @@ aiRouter.post("/apply", async (req, res) => {
 
   const project = await prisma.project.findFirst({
     where: { id: projectId, ...notDeleted },
-    select: { id: true, name: true, mode: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      mode: true,
+      status: true,
+      createdAt: true,
+      ownerId: true,
+    },
   });
 
   res.json(project);

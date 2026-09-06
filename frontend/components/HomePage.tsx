@@ -2,8 +2,22 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
+
+function SignedInWorkspace() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-background text-foreground">
+          Loading...
+        </div>
+      }
+    >
+      <WorkspaceShell />
+    </Suspense>
+  );
+}
 
 export function HomePage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -27,5 +41,5 @@ export function HomePage() {
     return null;
   }
 
-  return <WorkspaceShell />;
+  return <SignedInWorkspace />;
 }
