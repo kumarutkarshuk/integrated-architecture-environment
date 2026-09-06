@@ -10,7 +10,6 @@ function renderToolbar(
     canInvite: true,
     isSending: false,
     sentTo: null,
-    error: null,
     onInvite: () => undefined,
     ...overrides,
   };

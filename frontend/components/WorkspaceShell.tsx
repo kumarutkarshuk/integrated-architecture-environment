@@ -137,7 +137,6 @@ export function WorkspaceShell() {
                 canInvite={invite.canInvite}
                 isSending={invite.isSending}
                 sentTo={invite.sentTo}
-                error={invite.error}
                 onInvite={(email) => {
                   void invite.invite(email);
                 }}
@@ -146,7 +145,6 @@ export function WorkspaceShell() {
                 canExport={exportSpec.canExport}
                 isExporting={exportSpec.isExporting}
                 spec={exportSpec.spec}
-                error={exportSpec.error}
                 downloadFileName={exportSpec.downloadFileName}
                 onExport={() => {
                   void exportSpec.exportSpec();

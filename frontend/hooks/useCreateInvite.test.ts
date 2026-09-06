@@ -11,6 +11,12 @@ vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ getToken }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
   return {
@@ -20,8 +26,10 @@ vi.mock("../lib/api", async () => {
 });
 
 import { createInvite } from "../lib/api";
+import { toast } from "sonner";
 
 const createInviteMock = vi.mocked(createInvite);
+const toastErrorMock = vi.mocked(toast.error);
 
 const owner: ApiUser = {
   id: "user-owner",
@@ -45,6 +53,7 @@ describe("useCreateInvite", () => {
     getToken.mockClear();
     getToken.mockResolvedValue("test-token");
     createInviteMock.mockReset();
+    toastErrorMock.mockReset();
   });
 
   it("allows the owner to send an Invite", async () => {
@@ -71,7 +80,6 @@ describe("useCreateInvite", () => {
       "editor@example.com",
     );
     expect(result.current.sentTo).toBe("editor@example.com");
-    expect(result.current.error).toBeNull();
   });
 
   it("hides Invite for a non-owner Collaborator", () => {
@@ -80,5 +88,20 @@ describe("useCreateInvite", () => {
     );
 
     expect(result.current.canInvite).toBe(false);
+  });
+
+  it("shows a toast when sending an Invite fails", async () => {
+    createInviteMock.mockRejectedValueOnce(new Error("Failed to send Invite email"));
+
+    const { result } = renderHook(() =>
+      useCreateInvite(projectWith("user-owner"), owner),
+    );
+
+    await act(async () => {
+      await result.current.invite("editor@example.com");
+    });
+
+    expect(result.current.sentTo).toBeNull();
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to send Invite email");
   });
 });

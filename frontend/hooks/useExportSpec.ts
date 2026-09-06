@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   fetchAiJob,
   startExportSpec as startExportSpecRequest,
@@ -32,7 +33,6 @@ export function useExportSpec(project: ApiProject | null) {
   const [isExporting, setIsExporting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [spec, setSpec] = useState<ExportedSpec | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const projectIdRef = useRef<string | null>(project?.id ?? null);
 
   projectIdRef.current = project?.id ?? null;
@@ -43,7 +43,6 @@ export function useExportSpec(project: ApiProject | null) {
     setIsExporting(false);
     setJobId(null);
     setSpec(null);
-    setError(null);
   }, [project?.id]);
 
   useEffect(() => {
@@ -72,7 +71,7 @@ export function useExportSpec(project: ApiProject | null) {
             const gapsSummary = job.result?.gaps_summary?.trim() ?? "";
 
             if (!markdown || !gapsSummary) {
-              setError("Export Spec result was incomplete");
+              toast.error("Export Spec result was incomplete");
               setIsExporting(false);
               setJobId(null);
               return;
@@ -88,7 +87,7 @@ export function useExportSpec(project: ApiProject | null) {
           }
 
           if (job.status === "failed") {
-            setError("Export Spec failed");
+            toast.error("Export Spec failed");
             setIsExporting(false);
             setJobId(null);
           }
@@ -97,7 +96,7 @@ export function useExportSpec(project: ApiProject | null) {
             return;
           }
 
-          setError(
+          toast.error(
             pollError instanceof Error
               ? pollError.message
               : "Failed to poll Export Spec",
@@ -117,7 +116,6 @@ export function useExportSpec(project: ApiProject | null) {
     }
 
     setIsExporting(true);
-    setError(null);
     setSpec(null);
 
     try {
@@ -133,7 +131,7 @@ export function useExportSpec(project: ApiProject | null) {
 
       setJobId(job.id);
     } catch (startError) {
-      setError(
+      toast.error(
         startError instanceof Error
           ? startError.message
           : "Failed to start Export Spec",
@@ -144,7 +142,6 @@ export function useExportSpec(project: ApiProject | null) {
 
   const clearSpec = useCallback(() => {
     setSpec(null);
-    setError(null);
   }, []);
 
   const downloadSpec = useCallback(() => {
@@ -175,7 +172,6 @@ export function useExportSpec(project: ApiProject | null) {
     canExport,
     isExporting,
     spec,
-    error,
     downloadFileName: toDownloadFileName(project?.name ?? "project"),
     exportSpec,
     clearSpec,

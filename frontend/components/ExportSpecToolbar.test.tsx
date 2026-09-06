@@ -15,7 +15,6 @@ function renderToolbar(
     canExport: true,
     isExporting: false,
     spec: null,
-    error: null,
     downloadFileName: "todo-api-spec.md",
     onExport: () => undefined,
     onClear: () => undefined,

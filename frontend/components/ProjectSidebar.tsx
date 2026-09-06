@@ -2,6 +2,7 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
+import { toast } from "sonner";
 import type { ApiProject } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -50,7 +51,7 @@ export function ProjectSidebar({
     try {
       await onCreateBlankProject(name.trim());
     } catch (createError) {
-      setActionError(
+      toast.error(
         createError instanceof Error
           ? createError.message
           : "Failed to create project",
@@ -75,7 +76,7 @@ export function ProjectSidebar({
       setProjectName("");
       setProjectPrompt("");
     } catch (createError) {
-      setActionError(
+      toast.error(
         createError instanceof Error
           ? createError.message
           : "Failed to create prompt project",
@@ -105,7 +106,7 @@ export function ProjectSidebar({
     try {
       await onDeleteProject(project.id);
     } catch (deleteError) {
-      setActionError(
+      toast.error(
         deleteError instanceof Error
           ? deleteError.message
           : "Failed to delete project",

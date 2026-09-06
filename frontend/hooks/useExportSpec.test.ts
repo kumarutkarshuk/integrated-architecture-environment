@@ -11,6 +11,12 @@ vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ getToken }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
   return {
@@ -20,10 +26,12 @@ vi.mock("../lib/api", async () => {
   };
 });
 
+import { toast } from "sonner";
 import { fetchAiJob, startExportSpec } from "../lib/api";
 
 const startExportSpecMock = vi.mocked(startExportSpec);
 const fetchAiJobMock = vi.mocked(fetchAiJob);
+const toastErrorMock = vi.mocked(toast.error);
 
 function projectWith(
   status: ApiProject["status"],
@@ -71,6 +79,7 @@ describe("useExportSpec", () => {
     getToken.mockResolvedValue("test-token");
     startExportSpecMock.mockReset();
     fetchAiJobMock.mockReset();
+    toastErrorMock.mockReset();
     vi.useFakeTimers({
       toFake: ["setInterval", "clearInterval"],
     });
@@ -182,6 +191,24 @@ describe("useExportSpec", () => {
 
     expect(result.current.isExporting).toBe(false);
     expect(result.current.spec).toBeNull();
-    expect(result.current.error).toBe("Export Spec failed");
+    expect(toastErrorMock).toHaveBeenCalledWith("Export Spec failed");
+  });
+
+  it("shows a toast when starting Export Spec is rate limited", async () => {
+    startExportSpecMock.mockRejectedValueOnce(
+      new Error("Daily Export Spec limit reached (10 per day)"),
+    );
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    expect(result.current.isExporting).toBe(false);
+    expect(result.current.spec).toBeNull();
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Daily Export Spec limit reached (10 per day)",
+    );
   });
 });

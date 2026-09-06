@@ -26,7 +26,6 @@ interface ExportSpecToolbarProps {
   canExport: boolean;
   isExporting: boolean;
   spec: ExportedSpec | null;
-  error: string | null;
   downloadFileName: string;
   onExport: () => void;
   onClear: () => void;
@@ -38,7 +37,6 @@ export function ExportSpecToolbar({
   canExport,
   isExporting,
   spec,
-  error,
   downloadFileName,
   onExport,
   onClear,
@@ -116,7 +114,6 @@ export function ExportSpecToolbar({
       >
         {isExporting ? "Exporting spec..." : "Export Spec"}
       </Button>
-      {error && <span className="text-red-400">{error}</span>}
 
       <Dialog
         open={spec !== null}
