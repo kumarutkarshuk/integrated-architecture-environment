@@ -1,20 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useAiGeneration } from "../hooks/useAiGeneration";
+import { useCreateInvite } from "../hooks/useCreateInvite";
 import { useExportSpec } from "../hooks/useExportSpec";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { ExportSpecToolbar } from "./ExportSpecToolbar";
+import { InviteToolbar } from "./InviteToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 
 export function WorkspaceShell() {
   const { user, isLoading: isUserLoading, error: userError } = useCurrentUser();
+  const searchParams = useSearchParams();
+  const projectFromUrl = searchParams.get("project");
+  const appliedUrlProject = useRef<string | null>(null);
   const {
     projects,
     isLoading: isProjectsLoading,
@@ -35,6 +41,17 @@ export function WorkspaceShell() {
     [projects, selectedProjectId],
   );
 
+  useEffect(() => {
+    if (!projectFromUrl || appliedUrlProject.current === projectFromUrl) {
+      return;
+    }
+
+    if (projects.some((project) => project.id === projectFromUrl)) {
+      setSelectedProjectId(projectFromUrl);
+      appliedUrlProject.current = projectFromUrl;
+    }
+  }, [projectFromUrl, projects]);
+
   const initialPrompt = selectedProject
     ? (initialPromptByProjectId[selectedProject.id] ?? null)
     : null;
@@ -46,6 +63,7 @@ export function WorkspaceShell() {
     initialPrompt,
   );
   const exportSpec = useExportSpec(selectedProject);
+  const invite = useCreateInvite(selectedProject, user);
 
   const canvasEnabled =
     Boolean(selectedProject) && selectedProject?.status === "ready";
@@ -114,6 +132,15 @@ export function WorkspaceShell() {
               {selectedProject?.status === "ready" ? "Canvas" : "Preview"}
             </span>
             <div className="flex items-center gap-3">
+              <InviteToolbar
+                canInvite={invite.canInvite}
+                isSending={invite.isSending}
+                sentTo={invite.sentTo}
+                error={invite.error}
+                onInvite={(email) => {
+                  void invite.invite(email);
+                }}
+              />
               <ExportSpecToolbar
                 canExport={exportSpec.canExport}
                 isExporting={exportSpec.isExporting}

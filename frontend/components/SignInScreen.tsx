@@ -1,0 +1,26 @@
+"use client";
+
+import { SignIn } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function SignInForm() {
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect_url") ?? "/";
+  const signUpUrl =
+    redirectUrl === "/"
+      ? "/sign-up"
+      : `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`;
+
+  return <SignIn signUpUrl={signUpUrl} forceRedirectUrl={redirectUrl} />;
+}
+
+export function SignInScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Suspense>
+        <SignInForm />
+      </Suspense>
+    </div>
+  );
+}

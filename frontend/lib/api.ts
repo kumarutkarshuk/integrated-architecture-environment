@@ -10,6 +10,14 @@ export interface ApiProject {
   mode: string;
   status: string;
   createdAt: string;
+  ownerId: string;
+}
+
+export interface ApiInvite {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
 }
 
 export interface ApiAiPreview {
@@ -153,4 +161,26 @@ export function fetchAiJob(
   jobId: string,
 ): Promise<ApiAiJob> {
   return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/${jobId}`, token);
+}
+
+export function createInvite(
+  token: string,
+  projectId: string,
+  email: string,
+): Promise<ApiInvite> {
+  return apiFetch<ApiInvite>(`/api/projects/${projectId}/invites`, token, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function redeemInvite(
+  token: string,
+  inviteToken: string,
+): Promise<{ projectId: string }> {
+  return apiFetch<{ projectId: string }>(
+    `/api/invites/${inviteToken}/redeem`,
+    token,
+    { method: "POST" },
+  );
 }
