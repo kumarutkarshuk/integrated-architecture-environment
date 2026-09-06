@@ -115,6 +115,7 @@ describe("Export Spec job lifecycle", () => {
       id: started.body.id,
       type: "export_spec",
       status: "completed",
+      prompt: "The canvas has no shapes.",
       result: {
         markdown: "# Checkout Service\n\nAPI Gateway sends requests to Payments.",
         gaps_summary: "Auth is missing from the canvas.",
@@ -177,6 +178,8 @@ describe("Export Spec job lifecycle", () => {
 
     expect(seenCanvasSummary).toContain("API Gateway");
     expect(seenCanvasSummary).toContain("charges card");
+    expect(completed.body.prompt).toContain("API Gateway");
+    expect(completed.body.prompt).toContain("charges card");
     expect(completed.body.result).toEqual({
       markdown: "# Spec from snapshot",
       gaps_summary: "Payments storage is not shown.",
@@ -235,6 +238,14 @@ describe("Export Spec job lifecycle", () => {
 
     expect(seenCanvasSummary).toContain("Live Payments");
     expect(seenCanvasSummary).not.toContain("Old Service");
+
+    const completed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${started.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(completed.body.prompt).toContain("Live Payments");
+    expect(completed.body.prompt).not.toContain("Old Service");
   });
 
   it("rejects Export Spec when the Project is not ready", async () => {

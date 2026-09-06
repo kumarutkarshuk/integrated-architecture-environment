@@ -33,7 +33,7 @@ export function ProjectCanvas({
   }
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative z-0 isolate min-h-0 flex-1">
       <Tldraw
         store={storeWithStatus.store}
         options={TLDRAW_OPTIONS}

@@ -48,12 +48,14 @@ export async function runExportSpecJob(aiGenerationId: string): Promise<void> {
     return;
   }
 
+  const prompt = await readExportSpecPrompt(job.projectId);
+
   await prisma.aiGeneration.update({
     where: { id: aiGenerationId },
-    data: { status: "running" },
+    data: { status: "running", prompt },
   });
 
-  const result = await produceExportSpecResult(job.projectId);
+  const result = await getInferenceProvider(inferenceConfig).exportSpec(prompt);
   await completeExportSpecJob(aiGenerationId, result);
 }
 
@@ -72,10 +74,9 @@ export async function failExportSpecJob(aiGenerationId: string): Promise<void> {
   });
 }
 
-async function produceExportSpecResult(projectId: string): Promise<ExportSpecResult> {
+async function readExportSpecPrompt(projectId: string): Promise<string> {
   const records = await readProjectCanvasRecords(projectId);
-  const canvasSummary = summarizeCanvasRecords(records);
-  return getInferenceProvider(inferenceConfig).exportSpec(canvasSummary);
+  return summarizeCanvasRecords(records) || "The canvas has no shapes.";
 }
 
 export async function completeExportSpecJob(

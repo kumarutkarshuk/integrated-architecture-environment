@@ -148,6 +148,17 @@ describe("useExportSpec", () => {
 
     vi.unstubAllGlobals();
     globalThis.Blob = OriginalBlob;
+
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    await act(async () => {
+      await result.current.copySpec();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("## Gaps summary"),
+    );
   });
 
   it("surfaces an error when the export_spec job fails", async () => {

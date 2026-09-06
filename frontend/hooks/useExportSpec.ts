@@ -13,6 +13,10 @@ export interface ExportedSpec {
   gaps_summary: string;
 }
 
+export function formatSpecFile(spec: ExportedSpec): string {
+  return `${spec.markdown}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`;
+}
+
 function toDownloadFileName(projectName: string): string {
   const slug = projectName
     .trim()
@@ -148,12 +152,7 @@ export function useExportSpec(project: ApiProject | null) {
       return;
     }
 
-    const blob = new Blob(
-      [
-        `${spec.markdown}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`,
-      ],
-      { type: "text/markdown" },
-    );
+    const blob = new Blob([formatSpecFile(spec)], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -164,6 +163,14 @@ export function useExportSpec(project: ApiProject | null) {
     URL.revokeObjectURL(url);
   }, [project?.name, spec]);
 
+  const copySpec = useCallback(async () => {
+    if (!spec) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(formatSpecFile(spec));
+  }, [spec]);
+
   return {
     canExport,
     isExporting,
@@ -173,5 +180,6 @@ export function useExportSpec(project: ApiProject | null) {
     exportSpec,
     clearSpec,
     downloadSpec,
+    copySpec,
   };
 }

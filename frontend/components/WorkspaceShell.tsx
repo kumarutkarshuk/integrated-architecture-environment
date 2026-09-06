@@ -124,6 +124,9 @@ export function WorkspaceShell() {
                   void exportSpec.exportSpec();
                 }}
                 onClear={exportSpec.clearSpec}
+                onCopy={() => {
+                  void exportSpec.copySpec();
+                }}
                 onDownload={exportSpec.downloadSpec}
               />
               {selectedProject?.status === "ready" && (
