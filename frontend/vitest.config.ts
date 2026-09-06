@@ -18,6 +18,7 @@ export default defineConfig({
       "hooks/**/*.test.tsx",
       "components/**/*.test.ts",
       "components/**/*.test.tsx",
+      "lib/**/*.test.ts",
     ],
   },
 });

@@ -7,7 +7,7 @@ import {
   defaultBindingUtils,
   defaultShapeUtils,
 } from "tldraw";
-import type { Editor, TLPageId, TLRecord, TLStoreWithStatus } from "tldraw";
+import type { Editor, TLPageId, TLRecord, TLStore, TLStoreWithStatus } from "tldraw";
 import { WebsocketProvider } from "y-websocket";
 import { YKeyValue } from "y-utility/y-keyvalue";
 import * as Y from "yjs";
@@ -20,6 +20,11 @@ import {
   getCanvasYArrayName,
   normalizeCanvasRecords,
 } from "../lib/canvas";
+import {
+  bindCanvasPresence,
+  type AwarenessLike,
+  type PresenceIdentity,
+} from "../lib/presence";
 
 const LOCAL_ORIGIN = "tldraw-local";
 
@@ -72,6 +77,7 @@ function focusPageWithShapes(editor: Editor): void {
 export function useYjsTldrawStore(
   projectId: string | null,
   enabled: boolean,
+  identity: PresenceIdentity | null,
 ): {
   storeWithStatus: TLStoreWithStatus | null;
   saveStatus: CanvasSaveStatus;
@@ -82,6 +88,14 @@ export function useYjsTldrawStore(
     useState<TLStoreWithStatus | null>(null);
   const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("loading");
   const syncToYjsEnabledRef = useRef(false);
+  const presenceSessionRef = useRef<{
+    store: TLStore;
+    awareness: AwarenessLike;
+  } | null>(null);
+  const presenceHandleRef = useRef<ReturnType<typeof bindCanvasPresence> | null>(
+    null,
+  );
+  const [presenceEpoch, setPresenceEpoch] = useState(0);
 
   const onEditorReady = useCallback((editor: Editor) => {
     focusPageWithShapes(editor);
@@ -89,8 +103,15 @@ export function useYjsTldrawStore(
   }, []);
 
   useEffect(() => {
+    function clearPresence() {
+      presenceHandleRef.current?.disconnect();
+      presenceHandleRef.current = null;
+      presenceSessionRef.current = null;
+    }
+
     if (!projectId || !enabled) {
       syncToYjsEnabledRef.current = false;
+      clearPresence();
       setStoreWithStatus(null);
       setSaveStatus("loading");
       return;
@@ -304,6 +325,11 @@ export function useYjsTldrawStore(
         isConnected = true;
 
         if (!cancelled) {
+          presenceSessionRef.current = {
+            store,
+            awareness: provider.awareness as AwarenessLike,
+          };
+          setPresenceEpoch((current) => current + 1);
           setStoreWithStatus({
             status: "synced-remote",
             store,
@@ -328,6 +354,7 @@ export function useYjsTldrawStore(
     return () => {
       cancelled = true;
       syncToYjsEnabledRef.current = false;
+      clearPresence();
       clearSaveTimer();
       unsubscribeStore?.();
       removeYStoreListener?.();
@@ -335,6 +362,27 @@ export function useYjsTldrawStore(
       yDoc?.destroy();
     };
   }, [projectId, enabled, getToken]);
+
+  useEffect(() => {
+    const session = presenceSessionRef.current;
+    if (!session || !identity) {
+      return;
+    }
+
+    const presence = bindCanvasPresence({
+      awareness: session.awareness,
+      store: session.store,
+      identity,
+    });
+    presenceHandleRef.current = presence;
+
+    return () => {
+      presence.disconnect();
+      if (presenceHandleRef.current === presence) {
+        presenceHandleRef.current = null;
+      }
+    };
+  }, [identity, presenceEpoch]);
 
   return { storeWithStatus, saveStatus, onEditorReady };
 }
