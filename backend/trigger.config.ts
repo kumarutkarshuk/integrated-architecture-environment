@@ -1,15 +1,10 @@
-import "dotenv/config";
 import { defineConfig } from "@trigger.dev/sdk";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
-const project = process.env.TRIGGER_PROJECT_REF;
-
-if (!project) {
-  throw new Error("TRIGGER_PROJECT_REF is required");
-}
-
 export default defineConfig({
-  project,
+  // Public project id from the Trigger.dev dashboard. Must be inlined:
+  // `trigger deploy` re-loads this file inside Docker without GitHub secrets.
+  project: "proj_slybifnllvevwcunbsnm",
   dirs: ["./src/trigger"],
   maxDuration: 300,
   retries: {
