@@ -74,6 +74,15 @@ const newerPreview: ApiAiPreview = {
   createdAt: "2026-09-05T00:00:02.000Z",
 };
 
+const pendingRegeneratePreview: ApiAiPreview = {
+  id: "preview-pending",
+  prompt: "Design a todo API with auth",
+  status: "pending",
+  result: null,
+  appliedAt: null,
+  createdAt: "2026-09-05T00:00:03.000Z",
+};
+
 async function flushEffects(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
@@ -234,7 +243,7 @@ describe("useAiGeneration polling", () => {
     fetchAiPreviewsMock
       .mockResolvedValueOnce([completedPreview])
       .mockResolvedValueOnce([newerPreview, completedPreview]);
-    regenerateAiPreviewMock.mockResolvedValue(undefined);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
     const preview = projectWith("preview");
     const generating = projectWith("generating");
     const refreshProject = vi
@@ -300,7 +309,7 @@ describe("useAiGeneration polling", () => {
     fetchAiPreviewsMock
       .mockResolvedValueOnce([completedPreview])
       .mockResolvedValueOnce([newerPreview, completedPreview]);
-    regenerateAiPreviewMock.mockResolvedValue(undefined);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
     const preview = projectWith("preview");
     const generating = projectWith("generating");
     const refreshProject = vi
@@ -341,7 +350,7 @@ describe("useAiGeneration polling", () => {
     fetchAiPreviewsMock
       .mockResolvedValueOnce([completedPreview])
       .mockResolvedValueOnce([newerPreview, completedPreview]);
-    regenerateAiPreviewMock.mockResolvedValue(undefined);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
     const preview = projectWith("preview");
     const refreshProject = vi.fn(async () => preview);
     const updateProjectInList = vi.fn();
