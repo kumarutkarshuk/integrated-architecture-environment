@@ -13,6 +13,7 @@ function renderToolbar(
 ) {
   const props: ComponentProps<typeof ExportSpecToolbar> = {
     canExport: true,
+    actionsEnabled: true,
     isExporting: false,
     spec: null,
     downloadFileName: "todo-api-spec.md",
@@ -42,6 +43,14 @@ describe("ExportSpecToolbar", () => {
   it("hides Export Spec when the Project is not ready", () => {
     renderToolbar({ canExport: false });
     expect(screen.queryByRole("button", { name: "Export Spec" })).toBeNull();
+  });
+
+  it("disables Export Spec until the live canvas is connected", () => {
+    renderToolbar({ actionsEnabled: false });
+    expect(
+      (screen.getByRole("button", { name: "Export Spec" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   it("asks twice before closing the exported Spec", () => {

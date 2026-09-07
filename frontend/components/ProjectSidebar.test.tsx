@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiProject } from "../lib/api";
@@ -212,6 +212,91 @@ describe("ProjectSidebar", () => {
 
     expect(deleteOwned.disabled).toBe(false);
     expect(deleteShared.disabled).toBe(true);
+  });
+
+  it("opens a delete confirmation modal instead of window.confirm", () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    renderSidebar("user-owner");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Owned Canvas" }),
+    );
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(screen.getByText('Delete "Owned Canvas"?')).toBeTruthy();
+    confirmSpy.mockRestore();
+  });
+
+  it("does not delete when the modal is cancelled", () => {
+    const onDeleteProject = vi.fn(async () => undefined);
+    renderSidebar("user-owner", { onDeleteProject });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Owned Canvas" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+
+    expect(onDeleteProject).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("deletes the project when confirmed in the modal", async () => {
+    const onDeleteProject = vi.fn(async () => undefined);
+    renderSidebar("user-owner", { onDeleteProject });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Owned Canvas" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(onDeleteProject).toHaveBeenCalledWith("project-owned");
+    });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("shows a loading state while deleting", async () => {
+    let resolveDelete: () => void = () => undefined;
+    const onDeleteProject = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+    renderSidebar("user-owner", { onDeleteProject });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Owned Canvas" }),
+    );
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        within(dialog).getByRole("button", { name: "Deleting..." }),
+      ).toBeTruthy();
+    });
+    expect(
+      (
+        within(dialog).getByRole("button", { name: "Cancel" }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    resolveDelete();
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
   });
 
   it("disables delete for a non-owner Collaborator", () => {

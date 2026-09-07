@@ -8,6 +8,7 @@ import { useCreateInvite } from "../hooks/useCreateInvite";
 import { useExportSpec } from "../hooks/useExportSpec";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import { isLiveCanvasOnline } from "../lib/canvas";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { ExportSpecToolbar } from "./ExportSpecToolbar";
@@ -82,6 +83,7 @@ export function WorkspaceShell() {
     canvasEnabled,
     presenceIdentity,
   );
+  const canvasActionsEnabled = isLiveCanvasOnline(storeWithStatus, saveStatus);
 
   const previewRecords = ai.selectedPreview?.result?.records ?? null;
 
@@ -146,10 +148,14 @@ export function WorkspaceShell() {
             <div className="flex items-center gap-3">
               <InviteToolbar
                 canInvite={invite.canInvite}
+                actionsEnabled={canvasActionsEnabled}
                 isSending={invite.isSending}
                 collaborators={invite.collaborators}
                 isLoadingCollaborators={invite.isLoadingCollaborators}
                 resendingInviteId={invite.resendingInviteId}
+                onOpen={() => {
+                  void invite.loadCollaborators();
+                }}
                 onInvite={(email) => {
                   void invite.invite(email);
                 }}
@@ -159,6 +165,7 @@ export function WorkspaceShell() {
               />
               <ExportSpecToolbar
                 canExport={exportSpec.canExport}
+                actionsEnabled={canvasActionsEnabled}
                 isExporting={exportSpec.isExporting}
                 spec={exportSpec.spec}
                 downloadFileName={exportSpec.downloadFileName}
@@ -204,6 +211,13 @@ export function WorkspaceShell() {
                       the AI panel.
                     </p>
                   </>
+                ) : ai.previewWaitTimedOut ? (
+                  <>
+                    <p className="text-red-400">Preview load timed out</p>
+                    <p className="text-muted">
+                      Check your connection and try again.
+                    </p>
+                  </>
                 ) : ai.isGenerating ? (
                   <p className="text-muted">Generating preview...</p>
                 ) : (
@@ -218,6 +232,7 @@ export function WorkspaceShell() {
               <ProjectCanvas
                 projectName={selectedProject.name}
                 storeWithStatus={storeWithStatus}
+                saveStatus={saveStatus}
                 onEditorReady={onEditorReady}
               />
             )}

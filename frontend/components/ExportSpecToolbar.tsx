@@ -24,6 +24,7 @@ type ConfirmKind = "close-sure" | "close-gaps" | "copy-gaps" | "download-gaps";
 
 interface ExportSpecToolbarProps {
   canExport: boolean;
+  actionsEnabled: boolean;
   isExporting: boolean;
   spec: ExportedSpec | null;
   downloadFileName: string;
@@ -35,6 +36,7 @@ interface ExportSpecToolbarProps {
 
 export function ExportSpecToolbar({
   canExport,
+  actionsEnabled,
   isExporting,
   spec,
   downloadFileName,
@@ -109,7 +111,7 @@ export function ExportSpecToolbar({
         type="button"
         variant="outline"
         size="sm"
-        disabled={isExporting}
+        disabled={!actionsEnabled || isExporting}
         onClick={onExport}
       >
         {isExporting ? "Exporting spec..." : "Export Spec"}

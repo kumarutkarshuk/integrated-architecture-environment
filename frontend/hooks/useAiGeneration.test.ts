@@ -29,6 +29,7 @@ vi.mock("../lib/api", async () => {
 
 import { toast } from "sonner";
 import { fetchAiPreviews, regenerateAiPreview } from "../lib/api";
+import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 const fetchAiPreviewsMock = vi.mocked(fetchAiPreviews);
 const regenerateAiPreviewMock = vi.mocked(regenerateAiPreview);
@@ -72,7 +73,7 @@ describe("useAiGeneration polling", () => {
     regenerateAiPreviewMock.mockReset();
     toastErrorMock.mockReset();
     vi.useFakeTimers({
-      toFake: ["setInterval", "clearInterval"],
+      toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"],
     });
   });
 
@@ -191,6 +192,28 @@ describe("useAiGeneration polling", () => {
 
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
     expect(refreshProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("times out when preview records never load", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.previewWaitTimedOut).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PREVIEW_LOAD_TIMEOUT_MS);
+    });
+
+    expect(result.current.previewWaitTimedOut).toBe(true);
   });
 
   it("shows a toast when regenerate fails", async () => {

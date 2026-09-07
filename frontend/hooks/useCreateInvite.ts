@@ -61,15 +61,6 @@ export function useCreateInvite(
     setCollaborators([]);
   }, [projectId]);
 
-  useEffect(() => {
-    if (!canInvite) {
-      setCollaborators([]);
-      return;
-    }
-
-    void loadCollaborators();
-  }, [canInvite, loadCollaborators]);
-
   const invite = useCallback(
     async (email: string) => {
       if (!projectId || !canInvite) {
@@ -134,6 +125,7 @@ export function useCreateInvite(
     collaborators,
     isLoadingCollaborators,
     resendingInviteId,
+    loadCollaborators,
     invite,
     resend,
   };

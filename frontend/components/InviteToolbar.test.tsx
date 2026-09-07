@@ -8,10 +8,12 @@ function renderToolbar(
 ) {
   const props: ComponentProps<typeof InviteToolbar> = {
     canInvite: true,
+    actionsEnabled: true,
     isSending: false,
     collaborators: [],
     isLoadingCollaborators: false,
     resendingInviteId: null,
+    onOpen: () => undefined,
     onInvite: () => undefined,
     onResend: () => undefined,
     ...overrides,
@@ -36,6 +38,23 @@ describe("InviteToolbar", () => {
   it("hides Invite when the User is not the owner", () => {
     renderToolbar({ canInvite: false });
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+  });
+
+  it("disables Invite until the live canvas is connected", () => {
+    renderToolbar({ actionsEnabled: false });
+    expect(
+      (screen.getByRole("button", { name: "Invite" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it("loads Collaborators when the dialog opens", () => {
+    const onOpen = vi.fn();
+    renderToolbar({ onOpen });
+
+    openDialog();
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
   it("sends an Invite to the typed email", () => {

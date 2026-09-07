@@ -4,6 +4,14 @@ import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { apiErrorMessage, type ApiProject } from "../lib/api";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -38,6 +46,9 @@ export function ProjectSidebar({
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectPrompt, setProjectPrompt] = useState("");
+  const [projectPendingDelete, setProjectPendingDelete] =
+    useState<ApiProject | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   function toggleBlankForm() {
     setShowBlankForm((current) => !current);
@@ -96,27 +107,40 @@ export function ProjectSidebar({
     }
   }
 
-  async function handleDeleteProject(
-    event: React.MouseEvent,
-    project: ApiProject,
-  ) {
+  function openDeleteDialog(event: React.MouseEvent, project: ApiProject) {
     event.stopPropagation();
 
     if (currentUserId !== project.ownerId) {
       return;
     }
 
-    const confirmed = window.confirm(`Delete "${project.name}"?`);
-    if (!confirmed) {
+    setProjectPendingDelete(project);
+  }
+
+  function cancelDelete() {
+    if (isDeleting) {
       return;
     }
 
+    setProjectPendingDelete(null);
+  }
+
+  async function confirmDelete() {
+    if (!projectPendingDelete || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+
     try {
-      await onDeleteProject(project.id);
+      await onDeleteProject(projectPendingDelete.id);
+      setProjectPendingDelete(null);
     } catch (deleteError) {
       toast.error(
         apiErrorMessage(deleteError, "Could not delete the Project"),
       );
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -238,7 +262,7 @@ export function ProjectSidebar({
                     className="px-2 py-1 text-xs text-muted hover:text-red-400 disabled:pointer-events-none disabled:opacity-40"
                     aria-label={`Delete ${project.name}`}
                     disabled={!canDelete}
-                    onClick={(event) => void handleDeleteProject(event, project)}
+                    onClick={(event) => openDeleteDialog(event, project)}
                   >
                     Delete
                   </button>
@@ -248,6 +272,46 @@ export function ProjectSidebar({
           })}
         </ul>
       </div>
+
+      <AlertDialog
+        open={projectPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelDelete();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete &quot;{projectPendingDelete?.name}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The project will be removed from your
+              list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isDeleting}
+              onClick={cancelDelete}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => void confirmDelete()}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
