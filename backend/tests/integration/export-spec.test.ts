@@ -408,6 +408,91 @@ describe("Export Spec job lifecycle", () => {
       .expect(404);
   });
 
+  it("lets an editor Collaborator start Export Spec", async () => {
+    const ownerHeader = authHeader(
+      "clerk_export_editor_owner",
+      "exportedowner@example.com",
+    );
+    const editorHeader = authHeader(
+      "clerk_export_editor",
+      "exporteditor@example.com",
+    );
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", ownerHeader)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    const editor = await prisma.user.upsert({
+      where: { clerkId: "clerk_export_editor" },
+      create: {
+        clerkId: "clerk_export_editor",
+        email: "exporteditor@example.com",
+      },
+      update: {},
+    });
+
+    await prisma.collaborator.create({
+      data: {
+        projectId: created.body.id,
+        userId: editor.id,
+        role: "editor",
+      },
+    });
+
+    const started = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/export-spec`)
+      .set("Authorization", editorHeader)
+      .expect(201);
+
+    expect(started.body).toMatchObject({
+      status: "pending",
+      type: "export_spec",
+    });
+    expect(started.body.error).toBeUndefined();
+
+    const project = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", editorHeader)
+      .expect(200);
+
+    expect(project.body.status).toBe("ready");
+  });
+
+  it("does not return Unauthorized when enqueueing Export Spec fails", async () => {
+    const header = authHeader(
+      "clerk_export_enqueue_fail",
+      "exportenqueuefail@example.com",
+    );
+
+    setJobRunner({
+      async enqueueGenerate() {
+        throw new Error("generate should not run for export_spec");
+      },
+      async enqueueExportSpec() {
+        const error = new Error("Unauthorized");
+        Object.assign(error, { status: 401, statusCode: 401 });
+        throw error;
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Enqueue Fail Canvas", mode: "blank" })
+      .expect(201);
+
+    const response = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/export-spec`)
+      .set("Authorization", header);
+
+    expect(response.status).not.toBe(401);
+    expect(response.body.error).not.toBe("Unauthorized");
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe("Failed to start Export Spec");
+  });
+
   it("leaves an export_spec job running when inference fails so the worker can retry", async () => {
     const header = authHeader("clerk_export_retry", "exportretry@example.com");
 

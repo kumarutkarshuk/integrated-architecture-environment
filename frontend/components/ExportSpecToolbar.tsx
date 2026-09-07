@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { formatSpecFile, type ExportedSpec } from "../hooks/useExportSpec";
 import { Button } from "./ui/button";
@@ -47,13 +47,25 @@ export function ExportSpecToolbar({
   onDownload,
 }: ExportSpecToolbarProps) {
   const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null);
+  const closingSpecRef = useRef(false);
+
+  useEffect(() => {
+    if (spec === null) {
+      closingSpecRef.current = false;
+      setConfirmKind(null);
+    }
+  }, [spec]);
 
   if (!canExport) {
     return null;
   }
 
   function requestClose() {
-    setConfirmKind("close-sure");
+    if (spec === null || closingSpecRef.current) {
+      return;
+    }
+
+    setConfirmKind((current) => current ?? "close-sure");
   }
 
   function cancelConfirm() {
@@ -67,6 +79,7 @@ export function ExportSpecToolbar({
     }
 
     if (confirmKind === "close-gaps") {
+      closingSpecRef.current = true;
       setConfirmKind(null);
       onClear();
       return;
@@ -121,7 +134,7 @@ export function ExportSpecToolbar({
       <Dialog
         open={spec !== null}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && spec !== null) {
             requestClose();
           }
         }}

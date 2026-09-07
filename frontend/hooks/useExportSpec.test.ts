@@ -183,6 +183,50 @@ describe("useExportSpec", () => {
     );
   });
 
+  it("does not reopen the Spec after it is cleared while a poll is still in flight", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+
+    let resolveLatePoll: ((job: ApiAiJob) => void) | undefined;
+    fetchAiJobMock.mockImplementationOnce(
+      () =>
+        new Promise<ApiAiJob>((resolve) => {
+          resolveLatePoll = resolve;
+        }),
+    );
+    fetchAiJobMock.mockResolvedValueOnce(completedJob);
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    expect(result.current.spec).not.toBeNull();
+
+    act(() => {
+      result.current.clearSpec();
+    });
+    expect(result.current.spec).toBeNull();
+
+    await act(async () => {
+      resolveLatePoll?.(completedJob);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.spec).toBeNull();
+  });
+
   it("does not resume an in-flight Export Spec after remount", async () => {
     startExportSpecMock.mockResolvedValue(pendingJob);
 

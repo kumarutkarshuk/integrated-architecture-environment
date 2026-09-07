@@ -70,6 +70,38 @@ describe("ExportSpecToolbar", () => {
       screen.getByRole("alertdialog"),
     );
     expect(onClear).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Are you sure?")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("does not ask to close again after the Spec is dismissed", () => {
+    const onClear = vi.fn();
+    const view = renderToolbar({ spec, onClear });
+
+    clickButton("Close");
+    clickButton("Yes, close", screen.getByRole("alertdialog"));
+    clickButton(
+      "Yes, I reviewed the gaps",
+      screen.getByRole("alertdialog"),
+    );
+
+    view.rerender(
+      <ExportSpecToolbar
+        canExport
+        actionsEnabled
+        isExporting={false}
+        spec={null}
+        downloadFileName="todo-api-spec.md"
+        onExport={() => undefined}
+        onClear={onClear}
+        onCopy={() => undefined}
+        onDownload={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByText("Are you sure?")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("asks if gaps were reviewed before copy and download", () => {

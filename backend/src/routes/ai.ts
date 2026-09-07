@@ -168,7 +168,8 @@ aiRouter.post("/export-spec", async (req, res) => {
     if (sendAiRateLimitError(res, error)) {
       return;
     }
-    throw error;
+    console.error("Failed to start Export Spec", error);
+    res.status(500).json({ error: "Failed to start Export Spec" });
   }
 });
 
