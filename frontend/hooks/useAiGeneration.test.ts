@@ -28,11 +28,16 @@ vi.mock("../lib/api", async () => {
 });
 
 import { toast } from "sonner";
-import { fetchAiPreviews, regenerateAiPreview } from "../lib/api";
+import {
+  applyAiPreview,
+  fetchAiPreviews,
+  regenerateAiPreview,
+} from "../lib/api";
 import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 const fetchAiPreviewsMock = vi.mocked(fetchAiPreviews);
 const regenerateAiPreviewMock = vi.mocked(regenerateAiPreview);
+const applyAiPreviewMock = vi.mocked(applyAiPreview);
 const toastErrorMock = vi.mocked(toast.error);
 
 function projectWith(
@@ -58,6 +63,26 @@ const completedPreview: ApiAiPreview = {
   createdAt: "2026-09-05T00:00:01.000Z",
 };
 
+const newerPreview: ApiAiPreview = {
+  id: "preview-2",
+  prompt: "Design a todo API with auth",
+  status: "completed",
+  result: {
+    records: { "shape:new": { id: "shape:new", typeName: "shape" } },
+  },
+  appliedAt: null,
+  createdAt: "2026-09-05T00:00:02.000Z",
+};
+
+const pendingRegeneratePreview: ApiAiPreview = {
+  id: "preview-pending",
+  prompt: "Design a todo API with auth",
+  status: "pending",
+  result: null,
+  appliedAt: null,
+  createdAt: "2026-09-05T00:00:03.000Z",
+};
+
 async function flushEffects(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
@@ -71,6 +96,7 @@ describe("useAiGeneration polling", () => {
     getToken.mockResolvedValue("test-token");
     fetchAiPreviewsMock.mockReset();
     regenerateAiPreviewMock.mockReset();
+    applyAiPreviewMock.mockReset();
     toastErrorMock.mockReset();
     vi.useFakeTimers({
       toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"],
@@ -173,12 +199,6 @@ describe("useAiGeneration polling", () => {
     );
 
     await flushEffects();
-    expect(fetchAiPreviewsMock).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-    await flushEffects();
 
     expect(refreshProject).toHaveBeenCalledTimes(1);
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
@@ -192,6 +212,75 @@ describe("useAiGeneration polling", () => {
 
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
     expect(refreshProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows generating state immediately when regenerate starts", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    regenerateAiPreviewMock.mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    act(() => {
+      void result.current.regenerate();
+    });
+
+    expect(result.current.isGenerating).toBe(true);
+    expect(result.current.isBusy).toBe(true);
+  });
+
+  it("stays busy until regenerated previews load", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([completedPreview])
+      .mockResolvedValueOnce([newerPreview, completedPreview]);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
+    const preview = projectWith("preview");
+    const generating = projectWith("generating");
+    const refreshProject = vi
+      .fn()
+      .mockResolvedValueOnce(generating)
+      .mockResolvedValueOnce(preview);
+    const updateProjectInList = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    expect(result.current.isBusy).toBe(true);
+    expect(result.current.isGenerating).toBe(true);
+
+    rerender({ project: generating });
+    await flushEffects();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await flushEffects();
+
+    rerender({ project: preview });
+    await flushEffects();
+
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.selectedPreview?.id).toBe("preview-2");
   });
 
   it("times out when preview records never load", async () => {
@@ -214,6 +303,135 @@ describe("useAiGeneration polling", () => {
     });
 
     expect(result.current.previewWaitTimedOut).toBe(true);
+  });
+
+  it("selects the newest preview when regenerate finishes via polling", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([completedPreview])
+      .mockResolvedValueOnce([newerPreview, completedPreview]);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
+    const preview = projectWith("preview");
+    const generating = projectWith("generating");
+    const refreshProject = vi
+      .fn()
+      .mockResolvedValueOnce(generating)
+      .mockResolvedValueOnce(preview);
+    const updateProjectInList = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.selectedPreview?.id).toBe("preview-1");
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    rerender({ project: generating });
+    await flushEffects();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await flushEffects();
+
+    rerender({ project: preview });
+    await flushEffects();
+
+    expect(result.current.previews).toHaveLength(2);
+    expect(result.current.selectedPreview?.id).toBe("preview-2");
+  });
+
+  it("selects the newest preview after regenerate when older previews remain", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([completedPreview])
+      .mockResolvedValueOnce([newerPreview, completedPreview]);
+    regenerateAiPreviewMock.mockResolvedValue(pendingRegeneratePreview);
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.selectedPreview?.id).toBe("preview-1");
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    expect(result.current.previews).toHaveLength(2);
+    expect(result.current.selectedPreview?.id).toBe("preview-2");
+    expect(result.current.selectedPreview?.result?.records).toEqual(
+      newerPreview.result?.records,
+    );
+  });
+
+  it("keeps the selected preview when previews reload without regenerate", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([newerPreview, completedPreview])
+      .mockResolvedValueOnce([newerPreview, completedPreview]);
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.selectedPreview?.id).toBe("preview-2");
+
+    await act(async () => {
+      result.current.setSelectedPreviewId("preview-1");
+    });
+    expect(result.current.selectedPreview?.id).toBe("preview-1");
+
+    await act(async () => {
+      await result.current.loadPreviews();
+    });
+
+    expect(result.current.selectedPreview?.id).toBe("preview-1");
+  });
+
+  it("applies whichever preview is selected", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([newerPreview, completedPreview]);
+    applyAiPreviewMock.mockResolvedValue(projectWith("ready"));
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      result.current.setSelectedPreviewId("preview-1");
+    });
+
+    await act(async () => {
+      await result.current.applySelectedPreview();
+    });
+
+    expect(applyAiPreviewMock).toHaveBeenCalledWith(
+      "test-token",
+      "project-1",
+      "preview-1",
+    );
   });
 
   it("shows a toast when regenerate fails", async () => {
