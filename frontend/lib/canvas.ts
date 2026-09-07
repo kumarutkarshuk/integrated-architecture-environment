@@ -57,6 +57,18 @@ export const CANVAS_SAVE_DEBOUNCE_MS = 2000;
 export const LIVE_CANVAS_SYNC_TIMEOUT_MS = 10000;
 export const PREVIEW_LOAD_TIMEOUT_MS = 10000;
 
+/** Matches y-websocket reconnect delay: min(2^attempt * 100ms, maxBackoffTime). */
+export const CANVAS_WS_RECONNECT_MAX_MS = 30000;
+
+export function getCanvasWsReconnectDelayMs(
+  unsuccessfulReconnects: number,
+): number {
+  return Math.min(
+    100 * 2 ** unsuccessfulReconnects,
+    CANVAS_WS_RECONNECT_MAX_MS,
+  );
+}
+
 type LiveCanvasSaveStatus = "loading" | "saved" | "saving" | "offline" | "error";
 
 export function isLiveCanvasOnline(

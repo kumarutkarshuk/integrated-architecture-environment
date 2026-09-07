@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isLiveCanvasOnline } from "./canvas";
+import {
+  CANVAS_WS_RECONNECT_MAX_MS,
+  getCanvasWsReconnectDelayMs,
+  isLiveCanvasOnline,
+} from "./canvas";
 
 describe("isLiveCanvasOnline", () => {
   it("is true when the live canvas is synced and online", () => {
@@ -19,5 +23,14 @@ describe("isLiveCanvasOnline", () => {
         "offline",
       ),
     ).toBe(false);
+  });
+});
+
+describe("getCanvasWsReconnectDelayMs", () => {
+  it("uses exponential backoff capped at the max delay", () => {
+    expect(getCanvasWsReconnectDelayMs(1)).toBe(200);
+    expect(getCanvasWsReconnectDelayMs(2)).toBe(400);
+    expect(getCanvasWsReconnectDelayMs(3)).toBe(800);
+    expect(getCanvasWsReconnectDelayMs(10)).toBe(CANVAS_WS_RECONNECT_MAX_MS);
   });
 });

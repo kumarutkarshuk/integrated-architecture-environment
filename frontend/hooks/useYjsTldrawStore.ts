@@ -15,6 +15,7 @@ import { getApiBaseUrl } from "../lib/api";
 import {
   CANVAS_PAGE_ID,
   CANVAS_SAVE_DEBOUNCE_MS,
+  CANVAS_WS_RECONNECT_MAX_MS,
   LIVE_CANVAS_SYNC_TIMEOUT_MS,
   frameCanvasContent,
   getCanvasWsBaseUrl,
@@ -125,6 +126,7 @@ export function useYjsTldrawStore(
     let removeYStoreListener: (() => void) | null = null;
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let isConnected = false;
+    let hasSyncedOnce = false;
 
     const activeProjectId = projectId;
     syncToYjsEnabledRef.current = false;
@@ -133,6 +135,23 @@ export function useYjsTldrawStore(
       if (saveTimer) {
         clearTimeout(saveTimer);
         saveTimer = null;
+      }
+    }
+
+    async function refreshProviderAuthToken() {
+      if (!provider || cancelled) {
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token || cancelled || !provider) {
+          return;
+        }
+
+        provider.params = { token };
+      } catch {
+        // y-websocket will retry with the previous token on its backoff schedule.
       }
     }
 
@@ -178,8 +197,17 @@ export function useYjsTldrawStore(
           {
             connect: true,
             params: { token },
+            maxBackoffTime: CANVAS_WS_RECONNECT_MAX_MS,
           },
         );
+
+        provider.on("connection-close", () => {
+          if (!hasSyncedOnce || cancelled) {
+            return;
+          }
+
+          void refreshProviderAuthToken();
+        });
 
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(
@@ -326,6 +354,7 @@ export function useYjsTldrawStore(
         isConnected = true;
 
         if (!cancelled) {
+          hasSyncedOnce = true;
           presenceSessionRef.current = {
             store,
             awareness: provider.awareness as AwarenessLike,
