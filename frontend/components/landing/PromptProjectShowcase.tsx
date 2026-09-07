@@ -5,6 +5,7 @@ import { AiBadge } from "../ai/AiBadge";
 import { AiGlow } from "../ai/AiGlow";
 import { AiShimmer } from "../ai/AiShimmer";
 import { MagicReveal, MagicRevealItem } from "../ai/MagicReveal";
+import { CanvasNode, DEMO_NODES } from "./CanvasNode";
 import { LandingSection } from "./LandingSection";
 import { TypingLine } from "./TypingLine";
 
@@ -12,13 +13,8 @@ const PROMPT = "Checkout flow with a gateway and Postgres";
 const TYPING_SECONDS = 2.4;
 const REPLAY_MS = 11000;
 
-/** Left to right, in the order a generated architecture depends on itself. */
-const GENERATED_NODES = [
-  "Client",
-  "API Gateway",
-  "Orders Service",
-  "Postgres",
-];
+/** What the prompt generates: the demo system, reached from a client. */
+const GENERATED_NODES = ["Client", ...DEMO_NODES];
 
 export function PromptProjectShowcase() {
   const { ref, isPlaying, replayKey, prefersReducedMotion } =
@@ -58,18 +54,10 @@ export function PromptProjectShowcase() {
             className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:gap-3"
           >
             {GENERATED_NODES.map((node, index) => (
-              <MagicRevealItem
-                key={node}
-                className="flex items-center gap-2 sm:gap-3"
-              >
-                {index > 0 && (
-                  <span aria-hidden className="text-muted">
-                    →
-                  </span>
-                )}
-                <span className="rounded-lg border border-glass-highlight bg-panel/70 px-3 py-2 text-xs whitespace-nowrap sm:text-sm">
-                  {node}
-                </span>
+              // The arrow shares its node's slot, so it never arrives before
+              // whatever it points at.
+              <MagicRevealItem key={node}>
+                <CanvasNode label={node} hasIncomingArrow={index > 0} />
               </MagicRevealItem>
             ))}
           </MagicReveal>

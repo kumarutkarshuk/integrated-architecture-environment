@@ -7,7 +7,10 @@ import { useEffect, useRef, useState } from "react";
  * first sighting so content never animates back out. Starts false on both the
  * server and the first client render, so hydration sees the same markup.
  */
-export function useInViewOnce<T extends HTMLElement>(margin = "-12%") {
+/** Waits until the element is a little way onto the screen before firing. */
+const VIEW_MARGIN = "0px 0px -12% 0px";
+
+export function useInViewOnce<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [isInView, setIsInView] = useState(false);
 
@@ -24,12 +27,12 @@ export function useInViewOnce<T extends HTMLElement>(margin = "-12%") {
           setIsInView(true);
         }
       },
-      { rootMargin: `0px 0px ${margin} 0px` },
+      { rootMargin: VIEW_MARGIN },
     );
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [isInView, margin]);
+  }, [isInView]);
 
   return { ref, isInView };
 }

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 
 /**
  * A soft pool of AI colour behind a surface that is thinking. Purely

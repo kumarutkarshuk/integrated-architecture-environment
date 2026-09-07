@@ -2,10 +2,10 @@
 
 import { useLoopingDemo } from "../../hooks/useLoopingDemo";
 import { AiBadge } from "../ai/AiBadge";
+import { CanvasNode, DEMO_NODES } from "./CanvasNode";
 import { LandingSection } from "./LandingSection";
 import { TypingLine } from "./TypingLine";
 
-const CANVAS_NODES = ["API Gateway", "Orders Service", "Postgres"];
 const LINE_SECONDS = 0.5;
 const REPLAY_MS = 12000;
 
@@ -38,13 +38,8 @@ export function SpecExportShowcase() {
           <div className="surface-glass flex flex-col gap-3 rounded-2xl p-4 sm:p-6">
             <span className="text-xs text-muted">Canvas</span>
             <div className="flex flex-1 flex-col justify-center gap-2">
-              {CANVAS_NODES.map((node) => (
-                <span
-                  key={node}
-                  className="rounded-lg border border-glass-highlight bg-panel/70 px-3 py-2 text-xs sm:text-sm"
-                >
-                  {node}
-                </span>
+              {DEMO_NODES.map((node) => (
+                <CanvasNode key={node} label={node} />
               ))}
             </div>
             <span className="flex items-center gap-2 self-start rounded-full bg-panel/70 px-3 py-1.5 text-xs">

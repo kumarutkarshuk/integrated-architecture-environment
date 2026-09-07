@@ -2,14 +2,13 @@
 
 import { motion } from "motion/react";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
+import { CanvasNode, DEMO_NODES } from "./CanvasNode";
 import { LandingSection } from "./LandingSection";
-
-const CANVAS_NODES = ["API Gateway", "Orders Service", "Postgres"];
 
 /**
  * Two Collaborators wandering the same canvas. Paths are written as
  * percentages of the canvas, so they stay on it at any width, and are kept to
- * the bands above and below the diagram so a name never lands on a node.
+ * the bands above and below the boxes so a name never lands on one.
  */
 const CURSORS = [
   {
@@ -21,7 +20,7 @@ const CURSORS = [
   },
   {
     name: "Grace",
-    tint: "bg-ai",
+    tint: "bg-ai-secondary",
     left: ["80%", "22%", "68%", "80%"],
     top: ["76%", "88%", "70%", "76%"],
     seconds: 11,
@@ -39,17 +38,8 @@ export function CollaborationShowcase() {
     >
       <div className="surface-glass-strong canvas-grid relative h-56 overflow-hidden rounded-2xl sm:h-64">
         <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-wrap justify-center gap-2 px-4 sm:gap-3">
-          {CANVAS_NODES.map((node, index) => (
-            <span key={node} className="flex items-center gap-2 sm:gap-3">
-              {index > 0 && (
-                <span aria-hidden className="text-muted">
-                  →
-                </span>
-              )}
-              <span className="rounded-lg border border-glass-highlight bg-panel/80 px-3 py-2 text-xs whitespace-nowrap sm:text-sm">
-                {node}
-              </span>
-            </span>
+          {DEMO_NODES.map((node, index) => (
+            <CanvasNode key={node} label={node} hasIncomingArrow={index > 0} />
           ))}
         </div>
 
@@ -80,7 +70,7 @@ export function CollaborationShowcase() {
               className={`size-2.5 rotate-45 rounded-[2px] ${cursor.tint}`}
             />
             <span
-              className={`rounded-full px-2 py-0.5 text-[0.625rem] font-medium text-ai-foreground ${cursor.tint}`}
+              className={`rounded-full px-2 py-0.5 text-[0.625rem] font-medium text-white ${cursor.tint}`}
             >
               {cursor.name}
             </span>

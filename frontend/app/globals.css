@@ -87,7 +87,7 @@ body {
   font-optical-sizing: auto;
 }
 
-/* The dotted field that reads as a canvas behind a mock diagram. */
+/* The dotted field that reads as a canvas behind the demo boxes. */
 .canvas-grid {
   background-image: radial-gradient(var(--sidebar-border) 1px, transparent 1px);
   background-size: 22px 22px;
