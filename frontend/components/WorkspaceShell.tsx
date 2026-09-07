@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useCreateInvite } from "../hooks/useCreateInvite";
 import { useExportSpec } from "../hooks/useExportSpec";
+import { useOpenProject } from "../hooks/useOpenProject";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { isLiveCanvasOnline } from "../lib/canvas";
@@ -19,9 +19,6 @@ import { ProjectSidebar } from "./ProjectSidebar";
 
 export function WorkspaceShell() {
   const { user, isLoading: isUserLoading, error: userError } = useCurrentUser();
-  const searchParams = useSearchParams();
-  const projectFromUrl = searchParams.get("project");
-  const appliedUrlProject = useRef<string | null>(null);
   const {
     projects,
     isLoading: isProjectsLoading,
@@ -32,7 +29,10 @@ export function WorkspaceShell() {
     updateProjectInList,
     removeProject,
   } = useProjects(Boolean(user));
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const { selectedProjectId, selectProject, clearOpenProject } = useOpenProject(
+    projects,
+    { isLoading: isProjectsLoading, error: projectsError },
+  );
   const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
     Record<string, string>
   >({});
@@ -41,17 +41,6 @@ export function WorkspaceShell() {
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
-
-  useEffect(() => {
-    if (!projectFromUrl || appliedUrlProject.current === projectFromUrl) {
-      return;
-    }
-
-    if (projects.some((project) => project.id === projectFromUrl)) {
-      setSelectedProjectId(projectFromUrl);
-      appliedUrlProject.current = projectFromUrl;
-    }
-  }, [projectFromUrl, projects]);
 
   const initialPrompt = selectedProject
     ? (initialPromptByProjectId[selectedProject.id] ?? null)
@@ -90,7 +79,7 @@ export function WorkspaceShell() {
 
   async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
-    setSelectedProjectId(project.id);
+    selectProject(project.id);
   }
 
   async function handleCreatePromptProject(name: string, prompt: string) {
@@ -99,7 +88,7 @@ export function WorkspaceShell() {
       ...current,
       [project.id]: prompt,
     }));
-    setSelectedProjectId(project.id);
+    selectProject(project.id);
   }
 
   async function handleDeleteProject(projectId: string) {
@@ -110,7 +99,7 @@ export function WorkspaceShell() {
       return next;
     });
     if (selectedProjectId === projectId) {
-      setSelectedProjectId(null);
+      clearOpenProject();
     }
   }
 
@@ -135,7 +124,7 @@ export function WorkspaceShell() {
           isLoading={isUserLoading || isProjectsLoading}
           error={userError ?? projectsError}
           currentUserId={user?.id ?? null}
-          onSelectProject={setSelectedProjectId}
+          onSelectProject={selectProject}
           onCreateBlankProject={handleCreateBlankProject}
           onCreatePromptProject={handleCreatePromptProject}
           onDeleteProject={handleDeleteProject}

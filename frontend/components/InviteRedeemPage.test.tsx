@@ -2,9 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InviteRedeemPage } from "./InviteRedeemPage";
 
-const { useAuth, useRedeemInvite } = vi.hoisted(() => ({
+const { useAuth, useRedeemInvite, replace } = vi.hoisted(() => ({
   useAuth: vi.fn(),
   useRedeemInvite: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs", () => ({
@@ -12,7 +13,7 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
 }));
 
 vi.mock("../hooks/useRedeemInvite", () => ({
@@ -23,6 +24,7 @@ describe("InviteRedeemPage", () => {
   beforeEach(() => {
     useAuth.mockReset();
     useRedeemInvite.mockReset();
+    replace.mockReset();
     useAuth.mockReturnValue({ isLoaded: true, isSignedIn: true });
   });
 
@@ -54,5 +56,17 @@ describe("InviteRedeemPage", () => {
     expect(
       screen.queryByText("Sign in with the email this Invite was sent to."),
     ).toBeNull();
+  });
+
+  it("lands on the redeemed Project query after redeem", () => {
+    useRedeemInvite.mockReturnValue({
+      isRedeeming: false,
+      projectId: "project-42",
+      error: null,
+    });
+
+    render(<InviteRedeemPage token="invite-token" />);
+
+    expect(replace).toHaveBeenCalledWith("/?project=project-42");
   });
 });
