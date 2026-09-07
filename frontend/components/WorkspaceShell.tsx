@@ -85,7 +85,8 @@ export function WorkspaceShell() {
   );
   const canvasActionsEnabled = isLiveCanvasOnline(storeWithStatus, saveStatus);
 
-  const previewRecords = ai.selectedPreview?.result?.records ?? null;
+  const previewRecords =
+    ai.isGenerating ? null : (ai.selectedPreview?.result?.records ?? null);
 
   async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);

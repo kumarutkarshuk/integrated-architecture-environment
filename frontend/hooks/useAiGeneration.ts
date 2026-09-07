@@ -29,6 +29,7 @@ export function useAiGeneration(
     null,
   );
   const [isBusy, setIsBusy] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [previewWaitTimedOut, setPreviewWaitTimedOut] = useState(false);
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
@@ -80,6 +81,8 @@ export function useAiGeneration(
       });
       if (selectNewest) {
         selectNewestAfterRegenerateRef.current = false;
+        setIsRegenerating(false);
+        setIsBusy(false);
       }
 
       const latestPrompt = nextPreviews[0]?.prompt;
@@ -114,6 +117,8 @@ export function useAiGeneration(
       setSelectedPreviewId(null);
       setPreviewWaitTimedOut(false);
       selectNewestAfterRegenerateRef.current = false;
+      setIsRegenerating(false);
+      setIsBusy(false);
       return;
     }
 
@@ -121,6 +126,8 @@ export function useAiGeneration(
     setSelectedPreviewId(null);
     setPreviewWaitTimedOut(false);
     selectNewestAfterRegenerateRef.current = false;
+    setIsRegenerating(false);
+    setIsBusy(false);
 
     if (initialPrompt?.trim()) {
       setPrompt(initialPrompt.trim());
@@ -137,7 +144,7 @@ export function useAiGeneration(
     }
 
     const projectId = project.id;
-    const interval = window.setInterval(() => {
+    const poll = () => {
       void refreshProject(projectId)
         .then((updated) => {
           if (activeProjectIdRef.current !== projectId) {
@@ -154,13 +161,27 @@ export function useAiGeneration(
             return;
           }
         });
-    }, 1500);
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 1500);
 
     return () => window.clearInterval(interval);
   }, [project?.id, project?.status, refreshProject, updateProjectInList]);
 
   const generationFailed = project?.status === "failed";
-  const isGenerating = project?.status === "generating";
+  const isGenerating =
+    isRegenerating || project?.status === "generating";
+
+  useEffect(() => {
+    if (project?.status !== "failed") {
+      return;
+    }
+
+    selectNewestAfterRegenerateRef.current = false;
+    setIsRegenerating(false);
+    setIsBusy(false);
+  }, [project?.id, project?.status]);
 
   const selectedPreview = useMemo(
     () => previews.find((preview) => preview.id === selectedPreviewId) ?? null,
@@ -201,6 +222,7 @@ export function useAiGeneration(
 
     setPreviewWaitTimedOut(false);
     setIsBusy(true);
+    setIsRegenerating(true);
     selectNewestAfterRegenerateRef.current = true;
 
     try {
@@ -218,13 +240,13 @@ export function useAiGeneration(
       }
     } catch (actionError) {
       selectNewestAfterRegenerateRef.current = false;
+      setIsRegenerating(false);
+      setIsBusy(false);
       toast.error(
         actionError instanceof Error
           ? actionError.message
           : "Failed to regenerate preview",
       );
-    } finally {
-      setIsBusy(false);
     }
   }, [getToken, project, prompt, refreshProject, updateProjectInList, loadPreviews]);
 

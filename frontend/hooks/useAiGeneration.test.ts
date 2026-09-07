@@ -190,12 +190,6 @@ describe("useAiGeneration polling", () => {
     );
 
     await flushEffects();
-    expect(fetchAiPreviewsMock).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-    await flushEffects();
 
     expect(refreshProject).toHaveBeenCalledTimes(1);
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
@@ -209,6 +203,75 @@ describe("useAiGeneration polling", () => {
 
     expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(1);
     expect(refreshProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows generating state immediately when regenerate starts", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    regenerateAiPreviewMock.mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    act(() => {
+      void result.current.regenerate();
+    });
+
+    expect(result.current.isGenerating).toBe(true);
+    expect(result.current.isBusy).toBe(true);
+  });
+
+  it("stays busy until regenerated previews load", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([completedPreview])
+      .mockResolvedValueOnce([newerPreview, completedPreview]);
+    regenerateAiPreviewMock.mockResolvedValue(undefined);
+    const preview = projectWith("preview");
+    const generating = projectWith("generating");
+    const refreshProject = vi
+      .fn()
+      .mockResolvedValueOnce(generating)
+      .mockResolvedValueOnce(preview);
+    const updateProjectInList = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      await result.current.regenerate();
+    });
+
+    expect(result.current.isBusy).toBe(true);
+    expect(result.current.isGenerating).toBe(true);
+
+    rerender({ project: generating });
+    await flushEffects();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await flushEffects();
+
+    rerender({ project: preview });
+    await flushEffects();
+
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.isGenerating).toBe(false);
+    expect(result.current.selectedPreview?.id).toBe("preview-2");
   });
 
   it("times out when preview records never load", async () => {
@@ -263,7 +326,7 @@ describe("useAiGeneration polling", () => {
     await flushEffects();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
+      await vi.advanceTimersByTimeAsync(0);
     });
     await flushEffects();
 
