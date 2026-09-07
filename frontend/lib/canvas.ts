@@ -54,6 +54,23 @@ export function getCanvasWsBaseUrl(apiBaseUrl: string): string {
 /** Matches backend canvas snapshot debounce in persistence.ts */
 export const CANVAS_SAVE_DEBOUNCE_MS = 2000;
 
+type LiveCanvasSaveStatus = "loading" | "saved" | "saving" | "offline" | "error";
+
+export function isLiveCanvasOnline(
+  storeWithStatus: {
+    status: string;
+    connectionStatus?: string;
+  } | null,
+  saveStatus: LiveCanvasSaveStatus,
+): boolean {
+  return (
+    storeWithStatus?.status === "synced-remote" &&
+    storeWithStatus.connectionStatus === "online" &&
+    saveStatus !== "error" &&
+    saveStatus !== "loading"
+  );
+}
+
 export function frameCanvasContent(editor: {
   getCurrentPageBounds(): { x: number; y: number; w: number; h: number } | undefined;
   zoomToBounds(

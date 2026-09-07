@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toastRequestError } from "../lib/toast-errors";
+import { toast } from "sonner";
 import {
   applyAiPreview,
   fetchAiPreviews,
@@ -84,7 +84,11 @@ export function useAiGeneration(
         return;
       }
 
-      toastRequestError(loadError, "Failed to load previews");
+      toast.error(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load previews",
+      );
     }
   }, [getToken]);
 
@@ -167,7 +171,11 @@ export function useAiGeneration(
         await loadPreviews();
       }
     } catch (actionError) {
-      toastRequestError(actionError, "Failed to regenerate preview");
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to regenerate preview",
+      );
     } finally {
       setIsBusy(false);
     }
@@ -195,7 +203,11 @@ export function useAiGeneration(
       setPreviews([]);
       setSelectedPreviewId(null);
     } catch (actionError) {
-      toastRequestError(actionError, "Failed to apply preview");
+      toast.error(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to apply preview",
+      );
     } finally {
       setIsBusy(false);
     }

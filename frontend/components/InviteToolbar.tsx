@@ -16,10 +16,12 @@ import { Label } from "./ui/label";
 
 interface InviteToolbarProps {
   canInvite: boolean;
+  actionsEnabled: boolean;
   isSending: boolean;
   collaborators: ApiCollaborator[];
   isLoadingCollaborators: boolean;
   resendingInviteId: string | null;
+  onOpen: () => void;
   onInvite: (email: string) => void;
   onResend: (inviteId: string) => void;
 }
@@ -44,10 +46,12 @@ function resendWaitLabel(resendAvailableAt: string, now: number): string | null 
 
 export function InviteToolbar({
   canInvite,
+  actionsEnabled,
   isSending,
   collaborators,
   isLoadingCollaborators,
   resendingInviteId,
+  onOpen,
   onInvite,
   onResend,
 }: InviteToolbarProps) {
@@ -80,6 +84,9 @@ export function InviteToolbar({
   }
 
   function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      onOpen();
+    }
     setOpen(nextOpen);
     if (!nextOpen) {
       setEmail("");
@@ -102,7 +109,8 @@ export function InviteToolbar({
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => setOpen(true)}
+        disabled={!actionsEnabled}
+        onClick={() => handleOpenChange(true)}
       >
         Invite
       </Button>

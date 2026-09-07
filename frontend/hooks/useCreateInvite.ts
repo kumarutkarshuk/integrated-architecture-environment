@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
-import { toastRequestError } from "../lib/toast-errors";
+import { toast } from "sonner";
 import {
   createInvite,
   fetchCollaborators,
@@ -45,7 +45,11 @@ export function useCreateInvite(
 
       setCollaborators(await fetchCollaborators(token, projectId));
     } catch (loadError) {
-      toastRequestError(loadError, "Failed to load Collaborators");
+      toast.error(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load Collaborators",
+      );
     } finally {
       setIsLoadingCollaborators(false);
     }
@@ -56,15 +60,6 @@ export function useCreateInvite(
     setResendingInviteId(null);
     setCollaborators([]);
   }, [projectId]);
-
-  useEffect(() => {
-    if (!canInvite) {
-      setCollaborators([]);
-      return;
-    }
-
-    void loadCollaborators();
-  }, [canInvite, loadCollaborators]);
 
   const invite = useCallback(
     async (email: string) => {
@@ -83,7 +78,11 @@ export function useCreateInvite(
         await createInvite(token, projectId, email);
         await loadCollaborators();
       } catch (inviteError) {
-        toastRequestError(inviteError, "Failed to send Invite");
+        toast.error(
+          inviteError instanceof Error
+            ? inviteError.message
+            : "Failed to send Invite",
+        );
       } finally {
         setIsSending(false);
       }
@@ -108,7 +107,11 @@ export function useCreateInvite(
         await resendInvite(token, projectId, inviteId);
         await loadCollaborators();
       } catch (resendError) {
-        toastRequestError(resendError, "Failed to resend Invite");
+        toast.error(
+          resendError instanceof Error
+            ? resendError.message
+            : "Failed to resend Invite",
+        );
       } finally {
         setResendingInviteId(null);
       }
@@ -122,6 +125,7 @@ export function useCreateInvite(
     collaborators,
     isLoadingCollaborators,
     resendingInviteId,
+    loadCollaborators,
     invite,
     resend,
   };

@@ -74,6 +74,14 @@ describe("useCreateInvite", () => {
     ]);
   });
 
+  it("does not load Collaborators until loadCollaborators is called", async () => {
+    renderHook(() => useCreateInvite(projectWith("user-owner"), owner));
+
+    await waitFor(() => {
+      expect(fetchCollaboratorsMock).not.toHaveBeenCalled();
+    });
+  });
+
   it("allows the owner to send an Invite", async () => {
     createInviteMock.mockResolvedValue({
       id: "invite-1",
@@ -88,11 +96,8 @@ describe("useCreateInvite", () => {
 
     expect(result.current.canInvite).toBe(true);
 
-    await waitFor(() => {
-      expect(fetchCollaboratorsMock).toHaveBeenCalledWith(
-        "test-token",
-        "project-1",
-      );
+    await act(async () => {
+      await result.current.loadCollaborators();
     });
 
     await act(async () => {
@@ -128,6 +133,7 @@ describe("useCreateInvite", () => {
       "project-1",
       "invite-1",
     );
+    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(1);
   });
 
   it("hides Invite for a non-owner Collaborator", () => {
@@ -150,9 +156,6 @@ describe("useCreateInvite", () => {
       await result.current.invite("editor@example.com");
     });
 
-    expect(toastErrorMock).toHaveBeenCalledWith(
-      "Failed to send Invite email",
-      undefined,
-    );
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to send Invite email");
   });
 });

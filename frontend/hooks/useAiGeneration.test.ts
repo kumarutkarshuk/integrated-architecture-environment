@@ -214,6 +214,6 @@ describe("useAiGeneration polling", () => {
       await result.current.regenerate();
     });
 
-    expect(toastErrorMock).toHaveBeenCalledWith("Rate limit exceeded", undefined);
+    expect(toastErrorMock).toHaveBeenCalledWith("Rate limit exceeded");
   });
 });
