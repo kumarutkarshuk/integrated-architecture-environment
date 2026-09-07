@@ -8,9 +8,15 @@ import { useExportSpec } from "../hooks/useExportSpec";
 import { useOpenProject } from "../hooks/useOpenProject";
 import { useProjects } from "../hooks/useProjects";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import {
+  AI_SIDEBAR_STORAGE_KEY,
+  PROJECTS_SIDEBAR_STORAGE_KEY,
+  useSidebarOpen,
+} from "../hooks/useSidebarOpen";
 import { isLiveCanvasOnline } from "../lib/canvas";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
+import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import { ExportSpecToolbar } from "./ExportSpecToolbar";
 import { InviteToolbar } from "./InviteToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
@@ -32,6 +38,11 @@ export function WorkspaceShell() {
   const { selectedProjectId, selectProject, clearOpenProject } = useOpenProject(
     projects,
     { isLoading: isProjectsLoading, error: projectsError },
+  );
+  const { isOpen: isProjectsSidebarOpen, toggle: toggleProjectsSidebar } =
+    useSidebarOpen(PROJECTS_SIDEBAR_STORAGE_KEY);
+  const { isOpen: isAiSidebarOpen, toggle: toggleAiSidebar } = useSidebarOpen(
+    AI_SIDEBAR_STORAGE_KEY,
   );
   const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
     Record<string, string>
@@ -124,6 +135,8 @@ export function WorkspaceShell() {
           isLoading={isUserLoading || isProjectsLoading}
           error={userError ?? projectsError}
           currentUserId={user?.id ?? null}
+          isOpen={isProjectsSidebarOpen}
+          onToggleOpen={toggleProjectsSidebar}
           onSelectProject={selectProject}
           onCreateBlankProject={handleCreateBlankProject}
           onCreatePromptProject={handleCreatePromptProject}
@@ -228,12 +241,15 @@ export function WorkspaceShell() {
             )}
         </main>
 
-        <aside className="flex w-72 shrink-0 flex-col border-l border-sidebar-border bg-sidebar">
-          <div className="border-b border-sidebar-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
-            AI Assistant
-          </div>
+        <CollapsibleSidebar
+          title="AI Assistant"
+          side="right"
+          isOpen={isAiSidebarOpen}
+          openWidthClass="w-72"
+          onToggleOpen={toggleAiSidebar}
+        >
           <AiSidebar ai={ai} project={selectedProject} />
-        </aside>
+        </CollapsibleSidebar>
       </div>
     </div>
   );

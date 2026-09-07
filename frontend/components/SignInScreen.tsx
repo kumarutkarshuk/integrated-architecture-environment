@@ -3,6 +3,7 @@
 import { SignIn } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { clerkAppearance } from "../lib/clerkAppearance";
 
 function SignInForm() {
   const searchParams = useSearchParams();
@@ -12,7 +13,13 @@ function SignInForm() {
       ? "/sign-up"
       : `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`;
 
-  return <SignIn signUpUrl={signUpUrl} forceRedirectUrl={redirectUrl} />;
+  return (
+    <SignIn
+      appearance={clerkAppearance}
+      signUpUrl={signUpUrl}
+      forceRedirectUrl={redirectUrl}
+    />
+  );
 }
 
 export function SignInScreen() {
