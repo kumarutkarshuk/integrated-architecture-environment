@@ -34,14 +34,27 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [showBlankForm, setShowBlankForm] = useState(false);
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectPrompt, setProjectPrompt] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
+  function toggleBlankForm() {
+    setShowBlankForm((current) => !current);
+    setShowPromptForm(false);
+    setActionError(null);
+  }
+
+  function togglePromptForm() {
+    setShowPromptForm((current) => !current);
+    setShowBlankForm(false);
+    setActionError(null);
+  }
+
   async function handleCreateBlankProject() {
-    const name = window.prompt("Project name");
-    if (!name?.trim()) {
+    if (!projectName.trim()) {
+      setActionError("Name is required");
       return;
     }
 
@@ -49,9 +62,11 @@ export function ProjectSidebar({
     setActionError(null);
 
     try {
-      await onCreateBlankProject(name.trim());
+      await onCreateBlankProject(projectName.trim());
+      setShowBlankForm(false);
+      setProjectName("");
     } catch (createError) {
-      toast.error(
+      setActionError(
         createError instanceof Error
           ? createError.message
           : "Failed to create project",
@@ -127,19 +142,40 @@ export function ProjectSidebar({
         <Button
           type="button"
           className="w-full"
-          disabled={isCreatingBlank}
-          onClick={() => void handleCreateBlankProject()}
+          onClick={toggleBlankForm}
         >
-          {isCreatingBlank ? "Creating..." : "New blank project"}
+          {showBlankForm ? "Cancel blank project" : "New blank project"}
         </Button>
         <Button
           type="button"
           variant="secondary"
           className="w-full"
-          onClick={() => setShowPromptForm((current) => !current)}
+          onClick={togglePromptForm}
         >
           {showPromptForm ? "Cancel prompt project" : "New prompt project"}
         </Button>
+
+        {showBlankForm && (
+          <div className="space-y-2 rounded-md border border-sidebar-border p-2">
+            <div className="space-y-1">
+              <Label htmlFor="blank-project-name">Name</Label>
+              <Input
+                id="blank-project-name"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="Payment service"
+              />
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={isCreatingBlank}
+              onClick={() => void handleCreateBlankProject()}
+            >
+              {isCreatingBlank ? "Creating..." : "Create blank project"}
+            </Button>
+          </div>
+        )}
 
         {showPromptForm && (
           <div className="space-y-2 rounded-md border border-sidebar-border p-2">
