@@ -4,6 +4,8 @@ import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { apiErrorMessage, type ApiProject } from "../lib/api";
+import { clerkAppearance } from "../lib/clerkAppearance";
+import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -23,6 +25,8 @@ interface ProjectSidebarProps {
   isLoading: boolean;
   error: string | null;
   currentUserId: string | null;
+  isOpen: boolean;
+  onToggleOpen: () => void;
   onSelectProject: (projectId: string) => void;
   onCreateBlankProject: (name: string) => Promise<void>;
   onCreatePromptProject: (name: string, prompt: string) => Promise<void>;
@@ -35,6 +39,8 @@ export function ProjectSidebar({
   isLoading,
   error,
   currentUserId,
+  isOpen,
+  onToggleOpen,
   onSelectProject,
   onCreateBlankProject,
   onCreatePromptProject,
@@ -145,14 +151,16 @@ export function ProjectSidebar({
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-      <div className="flex items-center justify-between border-b border-sidebar-border px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Projects
-        </span>
-        <UserButton afterSignOutUrl="/" />
-      </div>
-
+    <CollapsibleSidebar
+      title="Projects"
+      side="left"
+      isOpen={isOpen}
+      openWidthClass="w-64"
+      onToggleOpen={onToggleOpen}
+      headerEnd={
+        <UserButton appearance={clerkAppearance} afterSignOutUrl="/" />
+      }
+    >
       <div className="space-y-2 border-b border-sidebar-border p-2">
         <Button
           type="button"
@@ -312,6 +320,6 @@ export function ProjectSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </aside>
+    </CollapsibleSidebar>
   );
 }

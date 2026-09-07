@@ -2,10 +2,16 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiProject } from "../lib/api";
+import { clerkAppearance } from "../lib/clerkAppearance";
 import { ProjectSidebar } from "./ProjectSidebar";
 
+const userButtonProps: { appearance?: unknown }[] = [];
+
 vi.mock("@clerk/nextjs", () => ({
-  UserButton: () => <div>Account</div>,
+  UserButton: (props: { appearance?: unknown }) => {
+    userButtonProps.push(props);
+    return <div>Account</div>;
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -46,6 +52,8 @@ function renderSidebar(
       isLoading={false}
       error={null}
       currentUserId={currentUserId}
+      isOpen
+      onToggleOpen={() => undefined}
       onSelectProject={() => undefined}
       onCreateBlankProject={async () => undefined}
       onCreatePromptProject={async () => undefined}
@@ -57,9 +65,26 @@ function renderSidebar(
 
 describe("ProjectSidebar", () => {
   beforeEach(() => {
+    userButtonProps.length = 0;
     vi.mocked(toast.error).mockReset();
     vi.mocked(toast.success).mockReset();
   });
+
+  it("hides the project list when collapsed and still lets it be opened", () => {
+    const onToggleOpen = vi.fn();
+    renderSidebar("user-owner", { isOpen: false, onToggleOpen });
+
+    expect(screen.queryByText("Owned Canvas")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open Projects" }));
+    expect(onToggleOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the account button with the dark theme", () => {
+    renderSidebar("user-owner");
+
+    expect(userButtonProps[0]?.appearance).toBe(clerkAppearance);
+  });
+
   it("shows an in-app name field when choosing a new blank Project", () => {
     const promptSpy = vi.spyOn(window, "prompt");
     renderSidebar("user-owner");

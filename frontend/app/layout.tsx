@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "../components/ui/sonner";
+import { clerkAppearance } from "../lib/clerkAppearance";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <ClerkProvider>
+    <ClerkProvider appearance={clerkAppearance}>
       <html
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
