@@ -64,9 +64,12 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
 
+export const SERVER_UNREACHABLE_MESSAGE =
+  "Could not reach the server. Check your connection and try again.";
+
 export function apiErrorMessage(error: unknown, fallback: string): string {
   if (isLikelyNetworkFailure(error)) {
-    return "Could not reach the server. Check your connection and try again.";
+    return SERVER_UNREACHABLE_MESSAGE;
   }
 
   if (error instanceof Error && error.message.trim()) {
@@ -102,10 +105,7 @@ async function apiFetch<T>(
     });
   } catch (error) {
     throw new Error(
-      apiErrorMessage(
-        error,
-        "Could not reach the server. Check your connection and try again.",
-      ),
+      apiErrorMessage(error, SERVER_UNREACHABLE_MESSAGE),
     );
   }
 

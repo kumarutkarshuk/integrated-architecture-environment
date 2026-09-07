@@ -150,6 +150,9 @@ describe("useCreateInvite", () => {
       await result.current.invite("editor@example.com");
     });
 
-    expect(toastErrorMock).toHaveBeenCalledWith("Failed to send Invite email");
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Failed to send Invite email",
+      undefined,
+    );
   });
 });

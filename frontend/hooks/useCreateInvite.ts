@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toastRequestError } from "../lib/toast-errors";
 import {
   createInvite,
   fetchCollaborators,
@@ -45,11 +45,7 @@ export function useCreateInvite(
 
       setCollaborators(await fetchCollaborators(token, projectId));
     } catch (loadError) {
-      toast.error(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load Collaborators",
-      );
+      toastRequestError(loadError, "Failed to load Collaborators");
     } finally {
       setIsLoadingCollaborators(false);
     }
@@ -87,11 +83,7 @@ export function useCreateInvite(
         await createInvite(token, projectId, email);
         await loadCollaborators();
       } catch (inviteError) {
-        toast.error(
-          inviteError instanceof Error
-            ? inviteError.message
-            : "Failed to send Invite",
-        );
+        toastRequestError(inviteError, "Failed to send Invite");
       } finally {
         setIsSending(false);
       }
@@ -116,11 +108,7 @@ export function useCreateInvite(
         await resendInvite(token, projectId, inviteId);
         await loadCollaborators();
       } catch (resendError) {
-        toast.error(
-          resendError instanceof Error
-            ? resendError.message
-            : "Failed to resend Invite",
-        );
+        toastRequestError(resendError, "Failed to resend Invite");
       } finally {
         setResendingInviteId(null);
       }
