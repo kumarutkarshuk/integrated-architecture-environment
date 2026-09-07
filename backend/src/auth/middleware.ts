@@ -24,8 +24,14 @@ export function createAuthMiddleware(tokenVerifier: TokenVerifier) {
       const claims = await tokenVerifier.verify(token);
       req.user = await upsertUserFromClaims(claims);
       next();
-    } catch {
-      res.status(401).json({ error: "Unauthorized" });
+    } catch (error) {
+      console.error("Auth failed", error);
+      res.status(401).json({
+        error:
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Unauthorized",
+      });
     }
   };
 }

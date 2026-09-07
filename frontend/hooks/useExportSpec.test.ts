@@ -166,9 +166,86 @@ describe("useExportSpec", () => {
       await result.current.copySpec();
     });
 
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("# Todo API"));
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining("## Gaps summary"),
     );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Storage is not shown on the canvas."),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.not.stringContaining(
+        "This Spec is from the canvas when you clicked Export",
+      ),
+    );
+    expect(String(blobParts[0])).not.toContain(
+      "This Spec is from the canvas when you clicked Export",
+    );
+  });
+
+  it("does not reopen the Spec after it is cleared while a poll is still in flight", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+
+    let resolveLatePoll: ((job: ApiAiJob) => void) | undefined;
+    fetchAiJobMock.mockImplementationOnce(
+      () =>
+        new Promise<ApiAiJob>((resolve) => {
+          resolveLatePoll = resolve;
+        }),
+    );
+    fetchAiJobMock.mockResolvedValueOnce(completedJob);
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    expect(result.current.spec).not.toBeNull();
+
+    act(() => {
+      result.current.clearSpec();
+    });
+    expect(result.current.spec).toBeNull();
+
+    await act(async () => {
+      resolveLatePoll?.(completedJob);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.spec).toBeNull();
+  });
+
+  it("does not resume an in-flight Export Spec after remount", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+
+    const { result, unmount } = renderHook(() =>
+      useExportSpec(projectWith("ready")),
+    );
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    expect(result.current.isExporting).toBe(true);
+
+    unmount();
+
+    const remounted = renderHook(() => useExportSpec(projectWith("ready")));
+
+    expect(remounted.result.current.isExporting).toBe(false);
+    expect(remounted.result.current.spec).toBeNull();
   });
 
   it("surfaces an error when the export_spec job fails", async () => {

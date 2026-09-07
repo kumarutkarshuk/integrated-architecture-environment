@@ -52,17 +52,18 @@ export function useExportSpec(project: ApiProject | null) {
 
     const projectId = project.id;
     const activeJobId = jobId;
+    let cancelled = false;
 
     const interval = window.setInterval(() => {
       void (async () => {
         try {
           const token = await getToken();
-          if (!token) {
+          if (!token || cancelled) {
             return;
           }
 
           const job = await fetchAiJob(token, projectId, activeJobId);
-          if (projectIdRef.current !== projectId) {
+          if (cancelled || projectIdRef.current !== projectId) {
             return;
           }
 
@@ -92,7 +93,7 @@ export function useExportSpec(project: ApiProject | null) {
             setJobId(null);
           }
         } catch (pollError) {
-          if (projectIdRef.current !== projectId) {
+          if (cancelled || projectIdRef.current !== projectId) {
             return;
           }
 
@@ -107,7 +108,10 @@ export function useExportSpec(project: ApiProject | null) {
       })();
     }, 1500);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [getToken, project, jobId, isExporting]);
 
   const exportSpec = useCallback(async () => {

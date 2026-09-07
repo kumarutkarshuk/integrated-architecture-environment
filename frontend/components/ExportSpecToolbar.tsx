@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { ExportedSpec } from "../hooks/useExportSpec";
+import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import { formatSpecFile, type ExportedSpec } from "../hooks/useExportSpec";
 import { Button } from "./ui/button";
 import {
   AlertDialog,
@@ -46,13 +47,25 @@ export function ExportSpecToolbar({
   onDownload,
 }: ExportSpecToolbarProps) {
   const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null);
+  const closingSpecRef = useRef(false);
+
+  useEffect(() => {
+    if (spec === null) {
+      closingSpecRef.current = false;
+      setConfirmKind(null);
+    }
+  }, [spec]);
 
   if (!canExport) {
     return null;
   }
 
   function requestClose() {
-    setConfirmKind("close-sure");
+    if (spec === null || closingSpecRef.current) {
+      return;
+    }
+
+    setConfirmKind((current) => current ?? "close-sure");
   }
 
   function cancelConfirm() {
@@ -66,6 +79,7 @@ export function ExportSpecToolbar({
     }
 
     if (confirmKind === "close-gaps") {
+      closingSpecRef.current = true;
       setConfirmKind(null);
       onClear();
       return;
@@ -120,7 +134,7 @@ export function ExportSpecToolbar({
       <Dialog
         open={spec !== null}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && spec !== null) {
             requestClose();
           }
         }}
@@ -138,21 +152,13 @@ export function ExportSpecToolbar({
           <DialogHeader>
             <DialogTitle>Exported Spec</DialogTitle>
             <DialogDescription>
-              Markdown from the current canvas, plus a gaps summary.
+              This Spec is from the canvas when you clicked Export. Collaborators may have changed the live canvas since then. Check the canvas before you treat this as current.
             </DialogDescription>
           </DialogHeader>
 
           {spec && (
-            <div className="grid max-h-[60vh] gap-3 overflow-auto text-sm">
-              <pre className="whitespace-pre-wrap font-mono text-xs text-foreground">
-                {spec.markdown}
-              </pre>
-              <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-                  Gaps summary
-                </p>
-                <p className="text-sm text-foreground">{spec.gaps_summary}</p>
-              </div>
+            <div className="max-h-[60vh] overflow-auto text-sm text-foreground [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_p]:mb-2 [&_hr]:my-3 [&_hr]:border-sidebar-border [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4">
+              <Markdown>{formatSpecFile(spec)}</Markdown>
             </div>
           )}
 

@@ -70,6 +70,38 @@ describe("ExportSpecToolbar", () => {
       screen.getByRole("alertdialog"),
     );
     expect(onClear).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Are you sure?")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("does not ask to close again after the Spec is dismissed", () => {
+    const onClear = vi.fn();
+    const view = renderToolbar({ spec, onClear });
+
+    clickButton("Close");
+    clickButton("Yes, close", screen.getByRole("alertdialog"));
+    clickButton(
+      "Yes, I reviewed the gaps",
+      screen.getByRole("alertdialog"),
+    );
+
+    view.rerender(
+      <ExportSpecToolbar
+        canExport
+        actionsEnabled
+        isExporting={false}
+        spec={null}
+        downloadFileName="todo-api-spec.md"
+        onExport={() => undefined}
+        onClear={onClear}
+        onCopy={() => undefined}
+        onDownload={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByText("Are you sure?")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("asks if gaps were reviewed before copy and download", () => {
@@ -88,5 +120,26 @@ describe("ExportSpecToolbar", () => {
     expect(screen.getByText("Have you reviewed the gaps?")).toBeTruthy();
     clickButton("Download", screen.getByRole("alertdialog"));
     expect(onDownload).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders one markdown document for the Spec and gaps", () => {
+    const { container } = renderToolbar({ spec });
+
+    expect(screen.getByRole("heading", { name: "Todo API" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Gaps summary" })).toBeTruthy();
+    expect(screen.getByText("Users talk to the API Gateway.")).toBeTruthy();
+    expect(screen.getByText("Storage is not shown on the canvas.")).toBeTruthy();
+    expect(container.querySelector("pre")).toBeNull();
+    expect(screen.queryByText("# Todo API")).toBeNull();
+  });
+
+  it("warns that the Spec is from the canvas at click", () => {
+    renderToolbar({ spec });
+
+    expect(
+      screen.getByText(
+        "This Spec is from the canvas when you clicked Export. Collaborators may have changed the live canvas since then. Check the canvas before you treat this as current.",
+      ),
+    ).toBeTruthy();
   });
 });
