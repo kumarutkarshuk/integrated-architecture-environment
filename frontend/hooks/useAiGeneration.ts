@@ -33,6 +33,7 @@ export function useAiGeneration(
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
   const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
+  const selectNewestAfterRegenerateRef = useRef(false);
 
   useEffect(() => {
     activeProjectIdRef.current = project?.id ?? null;
@@ -40,7 +41,7 @@ export function useAiGeneration(
 
   projectRef.current = project;
 
-  const loadPreviews = useCallback(async () => {
+  const loadPreviews = useCallback(async (options?: { selectNewest?: boolean }) => {
     const currentProject = projectRef.current;
     if (
       !currentProject ||
@@ -65,12 +66,21 @@ export function useAiGeneration(
 
       setPreviews(nextPreviews);
       setPreviewWaitTimedOut(false);
+      const selectNewest =
+        options?.selectNewest ?? selectNewestAfterRegenerateRef.current;
       setSelectedPreviewId((current) => {
-        if (current && nextPreviews.some((preview) => preview.id === current)) {
+        if (
+          !selectNewest &&
+          current &&
+          nextPreviews.some((preview) => preview.id === current)
+        ) {
           return current;
         }
         return nextPreviews[0]?.id ?? null;
       });
+      if (selectNewest) {
+        selectNewestAfterRegenerateRef.current = false;
+      }
 
       const latestPrompt = nextPreviews[0]?.prompt;
       if (latestPrompt) {
@@ -103,12 +113,14 @@ export function useAiGeneration(
       setPreviews([]);
       setSelectedPreviewId(null);
       setPreviewWaitTimedOut(false);
+      selectNewestAfterRegenerateRef.current = false;
       return;
     }
 
     setPreviews([]);
     setSelectedPreviewId(null);
     setPreviewWaitTimedOut(false);
+    selectNewestAfterRegenerateRef.current = false;
 
     if (initialPrompt?.trim()) {
       setPrompt(initialPrompt.trim());
@@ -189,6 +201,7 @@ export function useAiGeneration(
 
     setPreviewWaitTimedOut(false);
     setIsBusy(true);
+    selectNewestAfterRegenerateRef.current = true;
 
     try {
       const token = await getToken();
@@ -201,9 +214,10 @@ export function useAiGeneration(
       updateProjectInList(updated);
       if (updated.status === "preview") {
         projectRef.current = updated;
-        await loadPreviews();
+        await loadPreviews({ selectNewest: true });
       }
     } catch (actionError) {
+      selectNewestAfterRegenerateRef.current = false;
       toast.error(
         actionError instanceof Error
           ? actionError.message
