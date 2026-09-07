@@ -2,10 +2,10 @@ import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { clerkAppearance } from "../lib/clerkAppearance";
 
-const signInProps: { appearance?: unknown }[] = [];
+const signInProps: { appearance?: unknown; forceRedirectUrl?: string }[] = [];
 
 vi.mock("@clerk/nextjs", () => ({
-  SignIn: (props: { appearance?: unknown }) => {
+  SignIn: (props: { appearance?: unknown; forceRedirectUrl?: string }) => {
     signInProps.push(props);
     return <div>Sign in</div>;
   },
@@ -23,5 +23,12 @@ describe("SignInScreen", () => {
     render(<SignInScreen />);
 
     expect(signInProps[0]?.appearance).toBe(clerkAppearance);
+  });
+
+  it("lands in the workspace when no redirect was asked for", async () => {
+    const { SignInScreen } = await import("./SignInScreen");
+    render(<SignInScreen />);
+
+    expect(signInProps.at(-1)?.forceRedirectUrl).toBe("/workspace");
   });
 });

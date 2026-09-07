@@ -13,6 +13,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    setupFiles: ["./vitest.setup.ts"],
     include: [
       "hooks/**/*.test.ts",
       "hooks/**/*.test.tsx",

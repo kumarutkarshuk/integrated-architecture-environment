@@ -58,7 +58,7 @@ describe("InviteRedeemPage", () => {
     ).toBeNull();
   });
 
-  it("lands on the redeemed Project query after redeem", () => {
+  it("lands on the redeemed Project in the workspace after redeem", () => {
     useRedeemInvite.mockReturnValue({
       isRedeeming: false,
       projectId: "project-42",
@@ -67,6 +67,6 @@ describe("InviteRedeemPage", () => {
 
     render(<InviteRedeemPage token="invite-token" />);
 
-    expect(replace).toHaveBeenCalledWith("/?project=project-42");
+    expect(replace).toHaveBeenCalledWith("/workspace?project=project-42");
   });
 });

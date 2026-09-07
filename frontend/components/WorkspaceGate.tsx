@@ -3,7 +3,8 @@
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { signInPathFor, WORKSPACE_PATH } from "../lib/routes";
+import { WorkspaceShell } from "./WorkspaceShell";
 
 function SignedInWorkspace() {
   return (
@@ -19,13 +20,14 @@ function SignedInWorkspace() {
   );
 }
 
-export function HomePage() {
+/** Keeps the workspace behind sign-in, and sends deep links back after auth. */
+export function WorkspaceGate() {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      router.replace("/sign-in");
+      router.replace(signInPathFor(WORKSPACE_PATH));
     }
   }, [isLoaded, isSignedIn, router]);
 

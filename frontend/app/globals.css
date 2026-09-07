@@ -14,6 +14,19 @@
   --selection: #094771;
   --destructive: #5a1d1d;
   --destructive-foreground: #f14c4c;
+
+  --glass: rgba(46, 46, 48, 0.62);
+  --glass-strong: rgba(32, 32, 34, 0.82);
+  --glass-highlight: rgba(255, 255, 255, 0.09);
+  --glass-blur: 20px;
+
+  --ai: #a371f7;
+  --ai-secondary: #22d3ee;
+  --ai-foreground: #ffffff;
+  --ai-glow: rgba(163, 113, 247, 0.28);
+
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --elevation-2: 0 2px 4px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.42);
 }
 
 @theme inline {
@@ -29,6 +42,15 @@
   --color-selection: var(--selection);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-highlight: var(--glass-highlight);
+  --color-ai: var(--ai);
+  --color-ai-secondary: var(--ai-secondary);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-glow: var(--ai-glow);
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -37,4 +59,99 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+/* Translucent chrome: a floating layer that page content scrolls under. */
+.surface-glass {
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--glass-highlight);
+  box-shadow: var(--elevation-1);
+}
+
+/* Bigger surfaces read as thicker material: more blur, deeper shadow. */
+.surface-glass-strong {
+  background: var(--glass-strong);
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(160%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(160%);
+  border: 1px solid var(--glass-highlight);
+  box-shadow: var(--elevation-2);
+}
+
+/* Large display type: tight leading, slightly negative tracking. */
+.display-type {
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+  font-optical-sizing: auto;
+}
+
+/* The dotted field that reads as a canvas behind a mock diagram. */
+.canvas-grid {
+  background-image: radial-gradient(var(--sidebar-border) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Feedback lands on pointer-down, not on release. */
+.press-feedback {
+  transition: transform 100ms ease-out;
+}
+
+.press-feedback:active {
+  transform: scale(0.97);
+}
+
+/* Decorative sweep marking an AI Generation in progress. */
+.ai-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--ai-glow) 45%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: ai-shimmer-sweep 1.2s linear infinite;
+}
+
+@keyframes ai-shimmer-sweep {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass: #2a2a2c;
+    --glass-strong: #202022;
+    --glass-blur: 0px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --glass: #1a1a1c;
+    --glass-strong: #141416;
+    --glass-highlight: #8f8f8f;
+    --glass-blur: 0px;
+    --muted: #b5b5b5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-shimmer {
+    animation: none;
+    background-position: 50% 0;
+  }
+
+  .press-feedback {
+    transition: none;
+  }
+
+  .press-feedback:active {
+    transform: none;
+  }
 }

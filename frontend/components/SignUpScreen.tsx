@@ -4,14 +4,13 @@ import { SignUp } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { clerkAppearance } from "../lib/clerkAppearance";
+import { signInPathFor, WORKSPACE_PATH } from "../lib/routes";
 
 function SignUpForm() {
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect_url") ?? "/";
+  const redirectUrl = searchParams.get("redirect_url") ?? WORKSPACE_PATH;
   const signInUrl =
-    redirectUrl === "/"
-      ? "/sign-in"
-      : `/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`;
+    redirectUrl === WORKSPACE_PATH ? "/sign-in" : signInPathFor(redirectUrl);
 
   return (
     <SignUp

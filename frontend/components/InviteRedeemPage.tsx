@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useRedeemInvite } from "../hooks/useRedeemInvite";
+import { signInPathFor, workspacePathForProject } from "../lib/routes";
 
 interface InviteRedeemPageProps {
   token: string;
@@ -18,15 +19,13 @@ export function InviteRedeemPage({ token }: InviteRedeemPageProps) {
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      router.replace(
-        `/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`,
-      );
+      router.replace(signInPathFor(`/invite/${token}`));
     }
   }, [isLoaded, isSignedIn, router, token]);
 
   useEffect(() => {
     if (redeem.projectId) {
-      router.replace(`/?project=${redeem.projectId}`);
+      router.replace(workspacePathForProject(redeem.projectId));
     }
   }, [redeem.projectId, router]);
 

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { workspacePathForProject, WORKSPACE_PATH } from "../lib/routes";
 
 interface OpenProjectLoad {
   isLoading: boolean;
@@ -52,7 +53,7 @@ export function useOpenProject(
 
     appliedUrlProject.current = null;
     setSelectedProjectId(null);
-    router.replace("/");
+    router.replace(WORKSPACE_PATH);
   }, [
     hasLoadedProjects,
     projectFromUrl,
@@ -64,14 +65,14 @@ export function useOpenProject(
   const selectProject = useCallback(
     (projectId: string) => {
       setSelectedProjectId(projectId);
-      router.replace(`/?project=${projectId}`);
+      router.replace(workspacePathForProject(projectId));
     },
     [router],
   );
 
   const clearOpenProject = useCallback(() => {
     setSelectedProjectId(null);
-    router.replace("/");
+    router.replace(WORKSPACE_PATH);
   }, [router]);
 
   return {
