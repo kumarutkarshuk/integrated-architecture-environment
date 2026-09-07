@@ -10,6 +10,7 @@ import {
   type ApiAiPreview,
   type ApiProject,
 } from "../lib/api";
+import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 function isProjectNotFoundError(error: unknown): boolean {
   return error instanceof Error && error.message === "Project not found";
@@ -28,6 +29,7 @@ export function useAiGeneration(
     null,
   );
   const [isBusy, setIsBusy] = useState(false);
+  const [previewWaitTimedOut, setPreviewWaitTimedOut] = useState(false);
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
   const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
@@ -62,6 +64,7 @@ export function useAiGeneration(
       }
 
       setPreviews(nextPreviews);
+      setPreviewWaitTimedOut(false);
       setSelectedPreviewId((current) => {
         if (current && nextPreviews.some((preview) => preview.id === current)) {
           return current;
@@ -99,11 +102,13 @@ export function useAiGeneration(
       setPrompt("");
       setPreviews([]);
       setSelectedPreviewId(null);
+      setPreviewWaitTimedOut(false);
       return;
     }
 
     setPreviews([]);
     setSelectedPreviewId(null);
+    setPreviewWaitTimedOut(false);
 
     if (initialPrompt?.trim()) {
       setPrompt(initialPrompt.trim());
@@ -150,11 +155,39 @@ export function useAiGeneration(
     [previews, selectedPreviewId],
   );
 
+  useEffect(() => {
+    if (
+      !project ||
+      project.mode !== "prompt" ||
+      project.status !== "preview" ||
+      selectedPreview?.result?.records
+    ) {
+      return;
+    }
+
+    const projectId = project.id;
+    const timer = window.setTimeout(() => {
+      if (activeProjectIdRef.current !== projectId) {
+        return;
+      }
+
+      setPreviewWaitTimedOut(true);
+    }, PREVIEW_LOAD_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    project?.id,
+    project?.mode,
+    project?.status,
+    selectedPreview?.result?.records,
+  ]);
+
   const regenerate = useCallback(async () => {
     if (!project || !prompt.trim()) {
       return;
     }
 
+    setPreviewWaitTimedOut(false);
     setIsBusy(true);
 
     try {
@@ -223,6 +256,7 @@ export function useAiGeneration(
     isBusy,
     isGenerating,
     generationFailed,
+    previewWaitTimedOut,
     regenerate,
     applySelectedPreview,
     loadPreviews,

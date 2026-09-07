@@ -54,6 +54,9 @@ export function getCanvasWsBaseUrl(apiBaseUrl: string): string {
 /** Matches backend canvas snapshot debounce in persistence.ts */
 export const CANVAS_SAVE_DEBOUNCE_MS = 2000;
 
+export const LIVE_CANVAS_SYNC_TIMEOUT_MS = 10000;
+export const PREVIEW_LOAD_TIMEOUT_MS = 10000;
+
 type LiveCanvasSaveStatus = "loading" | "saved" | "saving" | "offline" | "error";
 
 export function isLiveCanvasOnline(

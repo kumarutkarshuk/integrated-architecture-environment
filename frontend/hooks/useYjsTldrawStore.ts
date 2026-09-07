@@ -15,6 +15,7 @@ import { getApiBaseUrl } from "../lib/api";
 import {
   CANVAS_PAGE_ID,
   CANVAS_SAVE_DEBOUNCE_MS,
+  LIVE_CANVAS_SYNC_TIMEOUT_MS,
   frameCanvasContent,
   getCanvasWsBaseUrl,
   getCanvasYArrayName,
@@ -183,7 +184,7 @@ export function useYjsTldrawStore(
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(
             () => reject(new Error("Canvas sync timed out")),
-            10000,
+            LIVE_CANVAS_SYNC_TIMEOUT_MS,
           );
 
           provider?.on("sync", (isSynced: boolean) => {

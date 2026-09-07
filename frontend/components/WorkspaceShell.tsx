@@ -211,6 +211,13 @@ export function WorkspaceShell() {
                       the AI panel.
                     </p>
                   </>
+                ) : ai.previewWaitTimedOut ? (
+                  <>
+                    <p className="text-red-400">Preview load timed out</p>
+                    <p className="text-muted">
+                      Check your connection and try again from the AI panel.
+                    </p>
+                  </>
                 ) : ai.isGenerating ? (
                   <p className="text-muted">Generating preview...</p>
                 ) : (
