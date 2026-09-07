@@ -13,7 +13,11 @@ import {
   setInferenceProvider,
 } from "../../src/ai/inference-provider.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
-import { replaceRecordsInDoc, upsertCanvasSnapshot } from "../../src/canvas/snapshot.js";
+import {
+  loadCanvasSnapshot,
+  replaceRecordsInDoc,
+  upsertCanvasSnapshot,
+} from "../../src/canvas/snapshot.js";
 import { clearCanvasDocs, getYDoc } from "../../src/canvas/yjs-ws-utils.js";
 import { prisma } from "../../src/db.js";
 import { testAppConfig } from "../test-config.js";
@@ -64,9 +68,10 @@ describe("Export Spec job lifecycle", () => {
     expect(generation).toMatchObject({
       type: "export_spec",
       status: "pending",
-      prompt: null,
+      prompt: "The canvas has no shapes.",
       model: "openai/gpt-oss-20b",
     });
+    expect(response.body.prompt).toBe("The canvas has no shapes.");
 
     expect(testJobRunner.getEnqueuedExportSpec()).toEqual([
       {
@@ -246,6 +251,121 @@ describe("Export Spec job lifecycle", () => {
 
     expect(completed.body.prompt).toContain("Live Payments");
     expect(completed.body.prompt).not.toContain("Old Service");
+  });
+
+  it("stores the click-time canvas summary and ignores shapes drawn after click", async () => {
+    const header = authHeader("clerk_export_freeze", "exportfreeze@example.com");
+    let seenCanvasSummary = "";
+
+    setInferenceProvider({
+      async generate() {
+        throw new Error("generate should not run for export_spec");
+      },
+      async exportSpec(canvasSummary) {
+        seenCanvasSummary = canvasSummary;
+        return {
+          markdown: "# Frozen Spec",
+          gaps_summary: "Later shapes are not in this Spec.",
+        };
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Freeze Canvas", mode: "blank" })
+      .expect(201);
+
+    replaceRecordsInDoc(getYDoc(created.body.id), created.body.id, {
+      "shape:click-payments": buildGeoShape({
+        id: "shape:click-payments",
+        label: "Click Payments",
+        x: 80,
+        y: 80,
+        index: "a1",
+      }),
+    });
+
+    const started = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/export-spec`)
+      .set("Authorization", header)
+      .expect(201);
+
+    expect(started.body.status).toBe("pending");
+    expect(started.body.prompt).toContain("Click Payments");
+    expect(started.body.prompt).not.toContain("Later Auth");
+
+    replaceRecordsInDoc(getYDoc(created.body.id), created.body.id, {
+      "shape:later-auth": buildGeoShape({
+        id: "shape:later-auth",
+        label: "Later Auth",
+        x: 160,
+        y: 120,
+        index: "a2",
+      }),
+    });
+
+    await upsertCanvasSnapshot(created.body.id, {
+      "shape:later-auth": buildGeoShape({
+        id: "shape:later-auth",
+        label: "Later Auth",
+        x: 160,
+        y: 120,
+        index: "a2",
+      }),
+    });
+
+    await runExportSpecJob(started.body.id);
+
+    expect(seenCanvasSummary).toContain("Click Payments");
+    expect(seenCanvasSummary).not.toContain("Later Auth");
+
+    const completed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${started.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(completed.body.prompt).toContain("Click Payments");
+    expect(completed.body.prompt).not.toContain("Later Auth");
+    expect(completed.body.result).toEqual({
+      markdown: "# Frozen Spec",
+      gaps_summary: "Later shapes are not in this Spec.",
+    });
+
+    const snapshot = await loadCanvasSnapshot(created.body.id);
+    expect(JSON.stringify(snapshot?.records)).toContain("Later Auth");
+  });
+
+  it("keeps the Project ready and allows a second Spec job while one is pending", async () => {
+    const header = authHeader("clerk_export_parallel", "exportparallel@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Parallel Specs", mode: "blank" })
+      .expect(201);
+
+    const first = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/export-spec`)
+      .set("Authorization", header)
+      .expect(201);
+
+    const second = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/export-spec`)
+      .set("Authorization", header)
+      .expect(201);
+
+    expect(first.body.id).not.toBe(second.body.id);
+    expect(first.body.status).toBe("pending");
+    expect(second.body.status).toBe("pending");
+    expect(testJobRunner.getEnqueuedExportSpec()).toHaveLength(2);
+
+    const project = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(project.body.status).toBe("ready");
   });
 
   it("rejects Export Spec when the Project is not ready", async () => {

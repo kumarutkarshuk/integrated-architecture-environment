@@ -59,7 +59,7 @@ ai_generation
   user_id       uuid FK → user.id NOT NULL     -- Restrict (not cascade)
   type          text NOT NULL  -- 'generate' | 'export_spec'
   status        text NOT NULL  -- 'pending' | 'running' | 'completed' | 'failed'
-  prompt        text           -- set for type=generate; stores prompt used (supports tweak + regenerate)
+  prompt        text           -- generate: user prompt; export_spec: canvas summary at click
   result        jsonb          -- tldraw shapes (generate) or { markdown, gaps_summary } (export_spec)
   model         text           -- LLM id used for the job
   tokens_used   integer
@@ -108,7 +108,7 @@ POST   /api/projects/:id/ai/generate     -- { prompt }; sets status → generati
 GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs
 POST   /api/projects/:id/ai/apply        -- { aiGenerationId }; sets status → ready
 GET    /api/projects/:id/ai/:jobId       -- job status + result
-POST   /api/projects/:id/ai/export-spec  -- starts spec export job
+POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
 WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
 ```

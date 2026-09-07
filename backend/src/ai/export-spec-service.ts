@@ -4,6 +4,8 @@ import { getInferenceProvider } from "./inference-provider.js";
 import { readProjectCanvasRecords, summarizeCanvasRecords } from "./canvas-summary.js";
 import type { ExportSpecResult } from "./types.js";
 
+const EMPTY_CANVAS_PROMPT = "The canvas has no shapes.";
+
 let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
   groqModel: "openai/gpt-oss-20b",
   isTest: process.env.NODE_ENV === "test",
@@ -24,12 +26,15 @@ export function configureExportSpecServiceFromEnv(): void {
 }
 
 export async function createExportSpecJob(projectId: string, userId: string) {
+  const prompt = await readExportSpecPrompt(projectId);
+
   return prisma.aiGeneration.create({
     data: {
       projectId,
       userId,
       type: "export_spec",
       status: "pending",
+      prompt,
       model: inferenceConfig.groqModel,
     },
   });
@@ -48,11 +53,11 @@ export async function runExportSpecJob(aiGenerationId: string): Promise<void> {
     return;
   }
 
-  const prompt = await readExportSpecPrompt(job.projectId);
+  const prompt = job.prompt?.trim() || EMPTY_CANVAS_PROMPT;
 
   await prisma.aiGeneration.update({
     where: { id: aiGenerationId },
-    data: { status: "running", prompt },
+    data: { status: "running" },
   });
 
   const result = await getInferenceProvider(inferenceConfig).exportSpec(prompt);
@@ -76,7 +81,7 @@ export async function failExportSpecJob(aiGenerationId: string): Promise<void> {
 
 async function readExportSpecPrompt(projectId: string): Promise<string> {
   const records = await readProjectCanvasRecords(projectId);
-  return summarizeCanvasRecords(records) || "The canvas has no shapes.";
+  return summarizeCanvasRecords(records) || EMPTY_CANVAS_PROMPT;
 }
 
 export async function completeExportSpecJob(

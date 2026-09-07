@@ -166,9 +166,42 @@ describe("useExportSpec", () => {
       await result.current.copySpec();
     });
 
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("# Todo API"));
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining("## Gaps summary"),
     );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Storage is not shown on the canvas."),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.not.stringContaining(
+        "This Spec is from the canvas when you clicked Export",
+      ),
+    );
+    expect(String(blobParts[0])).not.toContain(
+      "This Spec is from the canvas when you clicked Export",
+    );
+  });
+
+  it("does not resume an in-flight Export Spec after remount", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+
+    const { result, unmount } = renderHook(() =>
+      useExportSpec(projectWith("ready")),
+    );
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    expect(result.current.isExporting).toBe(true);
+
+    unmount();
+
+    const remounted = renderHook(() => useExportSpec(projectWith("ready")));
+
+    expect(remounted.result.current.isExporting).toBe(false);
+    expect(remounted.result.current.spec).toBeNull();
   });
 
   it("surfaces an error when the export_spec job fails", async () => {

@@ -89,4 +89,25 @@ describe("ExportSpecToolbar", () => {
     clickButton("Download", screen.getByRole("alertdialog"));
     expect(onDownload).toHaveBeenCalledTimes(1);
   });
+
+  it("renders one markdown document for the Spec and gaps", () => {
+    const { container } = renderToolbar({ spec });
+
+    expect(screen.getByRole("heading", { name: "Todo API" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Gaps summary" })).toBeTruthy();
+    expect(screen.getByText("Users talk to the API Gateway.")).toBeTruthy();
+    expect(screen.getByText("Storage is not shown on the canvas.")).toBeTruthy();
+    expect(container.querySelector("pre")).toBeNull();
+    expect(screen.queryByText("# Todo API")).toBeNull();
+  });
+
+  it("warns that the Spec is from the canvas at click", () => {
+    renderToolbar({ spec });
+
+    expect(
+      screen.getByText(
+        "This Spec is from the canvas when you clicked Export. Collaborators may have changed the live canvas since then. Check the canvas before you treat this as current.",
+      ),
+    ).toBeTruthy();
+  });
 });
