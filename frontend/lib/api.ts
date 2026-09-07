@@ -64,19 +64,50 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
 
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  if (isLikelyNetworkFailure(error)) {
+    return "Could not reach the server. Check your connection and try again.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function isLikelyNetworkFailure(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      /failed to fetch|networkerror|load failed/i.test(error.message))
+  );
+}
+
 async function apiFetch<T>(
   path: string,
   token: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
+  } catch (error) {
+    throw new Error(
+      apiErrorMessage(
+        error,
+        "Could not reach the server. Check your connection and try again.",
+      ),
+    );
+  }
 
   if (!response.ok) {
     let message = `API request failed: ${response.status}`;

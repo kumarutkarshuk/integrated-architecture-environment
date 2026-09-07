@@ -25,7 +25,7 @@ An AI-generated canvas proposal shown before it is written to the live canvas. T
 _Avoid_: Draft, mockup
 
 **Spec**:
-A markdown document describing the system design, generated from a project's canvas by AI. Includes a separate gaps summary for anything inferred or missing from the canvas.
+A markdown document of a Project's canvas as it was when a User asked for a Spec, plus a gaps summary for anything inferred or missing. The live canvas may change after that moment.
 _Avoid_: Specification doc, export
 
 **AI Generation**:

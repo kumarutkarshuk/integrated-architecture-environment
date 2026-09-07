@@ -3,7 +3,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { ApiProject } from "../lib/api";
+import { apiErrorMessage, type ApiProject } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -34,27 +34,38 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [isCreatingBlank, setIsCreatingBlank] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [showBlankForm, setShowBlankForm] = useState(false);
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectPrompt, setProjectPrompt] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
+
+  function toggleBlankForm() {
+    setShowBlankForm((current) => !current);
+    setShowPromptForm(false);
+  }
+
+  function togglePromptForm() {
+    setShowPromptForm((current) => !current);
+    setShowBlankForm(false);
+  }
 
   async function handleCreateBlankProject() {
-    const name = window.prompt("Project name");
-    if (!name?.trim()) {
+    if (!projectName.trim()) {
+      toast.error("Name is required");
       return;
     }
 
     setIsCreatingBlank(true);
-    setActionError(null);
 
     try {
-      await onCreateBlankProject(name.trim());
+      const name = projectName.trim();
+      await onCreateBlankProject(name);
+      toast.success(`Created "${name}"`);
+      setShowBlankForm(false);
+      setProjectName("");
     } catch (createError) {
       toast.error(
-        createError instanceof Error
-          ? createError.message
-          : "Failed to create project",
+        apiErrorMessage(createError, "Could not create the Project"),
       );
     } finally {
       setIsCreatingBlank(false);
@@ -63,23 +74,22 @@ export function ProjectSidebar({
 
   async function handleCreatePromptProject() {
     if (!projectName.trim() || !projectPrompt.trim()) {
-      setActionError("Name and prompt are required");
+      toast.error("Name and prompt are required");
       return;
     }
 
     setIsCreatingPrompt(true);
-    setActionError(null);
 
     try {
-      await onCreatePromptProject(projectName.trim(), projectPrompt.trim());
+      const name = projectName.trim();
+      await onCreatePromptProject(name, projectPrompt.trim());
+      toast.success(`Created "${name}"`);
       setShowPromptForm(false);
       setProjectName("");
       setProjectPrompt("");
     } catch (createError) {
       toast.error(
-        createError instanceof Error
-          ? createError.message
-          : "Failed to create prompt project",
+        apiErrorMessage(createError, "Could not create the Project"),
       );
     } finally {
       setIsCreatingPrompt(false);
@@ -101,15 +111,11 @@ export function ProjectSidebar({
       return;
     }
 
-    setActionError(null);
-
     try {
       await onDeleteProject(project.id);
     } catch (deleteError) {
       toast.error(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete project",
+        apiErrorMessage(deleteError, "Could not delete the Project"),
       );
     }
   }
@@ -127,19 +133,40 @@ export function ProjectSidebar({
         <Button
           type="button"
           className="w-full"
-          disabled={isCreatingBlank}
-          onClick={() => void handleCreateBlankProject()}
+          onClick={toggleBlankForm}
         >
-          {isCreatingBlank ? "Creating..." : "New blank project"}
+          {showBlankForm ? "Cancel blank project" : "New blank project"}
         </Button>
         <Button
           type="button"
           variant="secondary"
           className="w-full"
-          onClick={() => setShowPromptForm((current) => !current)}
+          onClick={togglePromptForm}
         >
           {showPromptForm ? "Cancel prompt project" : "New prompt project"}
         </Button>
+
+        {showBlankForm && (
+          <div className="space-y-2 rounded-md border border-sidebar-border p-2">
+            <div className="space-y-1">
+              <Label htmlFor="blank-project-name">Name</Label>
+              <Input
+                id="blank-project-name"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="Payment service"
+              />
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={isCreatingBlank}
+              onClick={() => void handleCreateBlankProject()}
+            >
+              {isCreatingBlank ? "Creating..." : "Create blank project"}
+            </Button>
+          </div>
+        )}
 
         {showPromptForm && (
           <div className="space-y-2 rounded-md border border-sidebar-border p-2">
@@ -179,9 +206,6 @@ export function ProjectSidebar({
         )}
 
         {error && <p className="px-2 py-1 text-sm text-red-400">{error}</p>}
-        {actionError && (
-          <p className="px-2 py-1 text-sm text-red-400">{actionError}</p>
-        )}
 
         {!isLoading && !error && projects.length === 0 && (
           <p className="px-2 py-1 text-sm text-muted">No projects yet</p>
