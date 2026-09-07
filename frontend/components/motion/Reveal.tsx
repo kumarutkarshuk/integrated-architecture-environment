@@ -19,16 +19,16 @@ interface RevealProps {
 export function Reveal({ children, className, delay = 0 }: RevealProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const { ref, isInView } = useInViewOnce<HTMLDivElement>();
+  // Reduced motion waits in place, so the reveal is a fade and nothing travels.
+  const restingOffset = prefersReducedMotion ? 0 : 24;
 
   return (
     <motion.div
       ref={ref}
       className={className}
-      initial={{ opacity: 0 }}
+      initial={{ opacity: 0, y: restingOffset }}
       animate={
-        isInView
-          ? { opacity: 1, y: 0 }
-          : { opacity: 0, y: prefersReducedMotion ? 0 : 24 }
+        isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: restingOffset }
       }
       transition={{
         ...(prefersReducedMotion ? crossFade : uiSpring),

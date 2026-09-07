@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { LANDING_PATH, WORKSPACE_PATH } from "../../lib/routes";
+import type { Visitor } from "./visitor";
 
 /**
  * A floating translucent bar the page scrolls under, rather than a strip of
  * chrome that eats the top of the viewport.
  */
-export function LandingNav({ isSignedIn }: { isSignedIn: boolean }) {
+export function LandingNav({ visitor }: { visitor: Visitor }) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex justify-center p-3 sm:p-4">
       <nav
@@ -25,12 +26,15 @@ export function LandingNav({ isSignedIn }: { isSignedIn: boolean }) {
           </span>
         </Link>
 
-        <div className="flex shrink-0 items-center gap-1">
-          {isSignedIn ? (
+        {/* Holds the row's height while Clerk answers, so nothing jumps. */}
+        <div className="flex h-8 shrink-0 items-center gap-1">
+          {visitor === "signed-in" && (
             <Button asChild size="sm" className="press-feedback rounded-full">
               <Link href={WORKSPACE_PATH}>Workspace</Link>
             </Button>
-          ) : (
+          )}
+
+          {visitor === "signed-out" && (
             <>
               <Button
                 asChild

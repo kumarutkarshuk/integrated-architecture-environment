@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { apiErrorMessage, type ApiProject } from "../lib/api";
 import { clerkAppearance } from "../lib/clerkAppearance";
+import { LANDING_PATH } from "../lib/routes";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import {
   AlertDialog,
@@ -158,7 +159,7 @@ export function ProjectSidebar({
       openWidthClass="w-64"
       onToggleOpen={onToggleOpen}
       headerEnd={
-        <UserButton appearance={clerkAppearance} afterSignOutUrl="/" />
+        <UserButton appearance={clerkAppearance} afterSignOutUrl={LANDING_PATH} />
       }
     >
       <div className="space-y-2 border-b border-sidebar-border p-2">

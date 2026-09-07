@@ -26,7 +26,9 @@ export function PromptProjectShowcase() {
       heading="Describe a system, and it draws itself"
       description="Create a Project in prompt mode and an AI Generation drafts a Preview. Regenerate until it reads right, then apply the Preview to unlock the live canvas."
     >
-      <div ref={ref} className="relative">
+      {/* `isolate` keeps the glow's negative layer inside this box, instead of
+          sliding behind the page background where nothing would see it. */}
+      <div ref={ref} className="relative isolate">
         <AiGlow />
 
         <div
@@ -38,7 +40,13 @@ export function PromptProjectShowcase() {
             className="w-full rounded-xl bg-panel/60 px-3 py-2.5"
           >
             <span className="flex w-full min-w-0 items-center gap-2 overflow-hidden font-mono text-[0.6rem] sm:text-sm">
-              <AiBadge />
+              {/* The label lands once the prompt is written, so the demo reads
+                  as "this went to the AI" rather than as decoration. */}
+              <MagicReveal isRevealed={isPlaying} delay={TYPING_SECONDS}>
+                <MagicRevealItem>
+                  <AiBadge />
+                </MagicRevealItem>
+              </MagicReveal>
               <TypingLine
                 text={PROMPT}
                 isTyping={!prefersReducedMotion && isPlaying}

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Reveal } from "../motion/Reveal";
 import { Button } from "../ui/button";
 import { WORKSPACE_PATH } from "../../lib/routes";
+import type { Visitor } from "./visitor";
 
-export function LandingHero({ isSignedIn }: { isSignedIn: boolean }) {
+export function LandingHero({ visitor }: { visitor: Visitor }) {
   return (
     <section className="mx-auto w-full max-w-4xl px-6 pt-32 pb-16 text-center sm:pt-44 sm:pb-24">
       <Reveal>
@@ -25,16 +26,20 @@ export function LandingHero({ isSignedIn }: { isSignedIn: boolean }) {
       </Reveal>
 
       <Reveal delay={0.16}>
-        <div className="mt-9 flex justify-center">
-          <Button
-            asChild
-            size="lg"
-            className="press-feedback rounded-full px-6 shadow-elevation-1"
-          >
-            <Link href={WORKSPACE_PATH}>
-              {isSignedIn ? "Open workspace" : "Start designing"}
-            </Link>
-          </Button>
+        {/* Holds the button's height while Clerk answers, so the page below
+            does not jump once the label is known. */}
+        <div className="mt-9 flex h-10 justify-center">
+          {visitor !== "unknown" && (
+            <Button
+              asChild
+              size="lg"
+              className="press-feedback rounded-full px-6 shadow-elevation-1"
+            >
+              <Link href={WORKSPACE_PATH}>
+                {visitor === "signed-in" ? "Open workspace" : "Start designing"}
+              </Link>
+            </Button>
+          )}
         </div>
       </Reveal>
     </section>

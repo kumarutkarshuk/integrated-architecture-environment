@@ -16,6 +16,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push }),
 }));
 
+vi.mock("./WorkspaceShell", () => ({
+  WorkspaceShell: () => <div>Workspace canvas</div>,
+}));
+
 describe("the public landing page", () => {
   beforeEach(() => {
     useAuth.mockReset();
@@ -30,6 +34,24 @@ describe("the public landing page", () => {
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
     expect(replace).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not mount the workspace on the marketing page", () => {
+    useAuth.mockReturnValue({ isLoaded: true, isSignedIn: true });
+
+    render(<LandingRoute />);
+
+    expect(screen.queryByText("Workspace canvas")).toBeNull();
+  });
+
+  it("shows no sign-in or workspace action until Clerk has answered", () => {
+    useAuth.mockReturnValue({ isLoaded: false, isSignedIn: undefined });
+
+    render(<LandingRoute />);
+
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Start designing" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 
   it("points the primary action at the workspace", () => {
