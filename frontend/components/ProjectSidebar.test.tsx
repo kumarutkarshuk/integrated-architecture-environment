@@ -11,6 +11,7 @@ vi.mock("@clerk/nextjs", () => ({
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
@@ -57,6 +58,7 @@ function renderSidebar(
 describe("ProjectSidebar", () => {
   beforeEach(() => {
     vi.mocked(toast.error).mockReset();
+    vi.mocked(toast.success).mockReset();
   });
   it("shows an in-app name field when choosing a new blank Project", () => {
     const promptSpy = vi.spyOn(window, "prompt");
@@ -86,7 +88,8 @@ describe("ProjectSidebar", () => {
     );
 
     expect(onCreateBlankProject).not.toHaveBeenCalled();
-    expect(screen.getByText("Name is required")).toBeTruthy();
+    expect(toast.error).toHaveBeenCalledWith("Name is required");
+    expect(screen.queryByText("Name is required")).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "   " },
@@ -115,6 +118,7 @@ describe("ProjectSidebar", () => {
     await waitFor(() => {
       expect(onCreateBlankProject).toHaveBeenCalledWith("Payment service");
     });
+    expect(toast.success).toHaveBeenCalledWith('Created "Payment service"');
     expect(
       screen.queryByRole("button", { name: "Create blank project" }),
     ).toBeNull();
@@ -165,9 +169,9 @@ describe("ProjectSidebar", () => {
     expect(screen.getByLabelText("Prompt")).toBeTruthy();
   });
 
-  it("shows a blank create failure in the sidebar", async () => {
+  it("shows a toast when creating a blank Project fails", async () => {
     const onCreateBlankProject = vi.fn(async () => {
-      throw new Error("Could not create project");
+      throw new Error("Failed to fetch");
     });
     renderSidebar("user-owner", { onCreateBlankProject });
 
@@ -181,13 +185,19 @@ describe("ProjectSidebar", () => {
       screen.getByRole("button", { name: "Create blank project" }),
     );
 
-    expect(
-      await screen.findByText("Could not create project"),
-    ).toBeTruthy();
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not reach the server. Check your connection and try again.",
+      );
+    });
     expect(
       screen.getByRole("button", { name: "Create blank project" }),
     ).toBeTruthy();
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(
+        "Could not reach the server. Check your connection and try again.",
+      ),
+    ).toBeNull();
   });
 
   it("lets the owner delete their Project", () => {
@@ -241,9 +251,10 @@ describe("ProjectSidebar", () => {
         "Design a payment flow",
       );
     });
+    expect(toast.success).toHaveBeenCalledWith('Created "Payment service"');
   });
 
-  it("keeps prompt form validation next to the form", () => {
+  it("shows a toast when prompt form validation fails", () => {
     renderSidebar("user-owner");
 
     fireEvent.click(
@@ -253,8 +264,8 @@ describe("ProjectSidebar", () => {
       screen.getByRole("button", { name: "Create prompt project" }),
     );
 
-    expect(screen.getByText("Name and prompt are required")).toBeTruthy();
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Name and prompt are required");
+    expect(screen.queryByText("Name and prompt are required")).toBeNull();
   });
 
   it("shows a toast when creating a prompt Project fails", async () => {

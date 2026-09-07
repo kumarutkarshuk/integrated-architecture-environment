@@ -3,7 +3,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { ApiProject } from "../lib/api";
+import { apiErrorMessage, type ApiProject } from "../lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -38,38 +38,34 @@ export function ProjectSidebar({
   const [showPromptForm, setShowPromptForm] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectPrompt, setProjectPrompt] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
 
   function toggleBlankForm() {
     setShowBlankForm((current) => !current);
     setShowPromptForm(false);
-    setActionError(null);
   }
 
   function togglePromptForm() {
     setShowPromptForm((current) => !current);
     setShowBlankForm(false);
-    setActionError(null);
   }
 
   async function handleCreateBlankProject() {
     if (!projectName.trim()) {
-      setActionError("Name is required");
+      toast.error("Name is required");
       return;
     }
 
     setIsCreatingBlank(true);
-    setActionError(null);
 
     try {
-      await onCreateBlankProject(projectName.trim());
+      const name = projectName.trim();
+      await onCreateBlankProject(name);
+      toast.success(`Created "${name}"`);
       setShowBlankForm(false);
       setProjectName("");
     } catch (createError) {
-      setActionError(
-        createError instanceof Error
-          ? createError.message
-          : "Failed to create project",
+      toast.error(
+        apiErrorMessage(createError, "Could not create the Project"),
       );
     } finally {
       setIsCreatingBlank(false);
@@ -78,23 +74,22 @@ export function ProjectSidebar({
 
   async function handleCreatePromptProject() {
     if (!projectName.trim() || !projectPrompt.trim()) {
-      setActionError("Name and prompt are required");
+      toast.error("Name and prompt are required");
       return;
     }
 
     setIsCreatingPrompt(true);
-    setActionError(null);
 
     try {
-      await onCreatePromptProject(projectName.trim(), projectPrompt.trim());
+      const name = projectName.trim();
+      await onCreatePromptProject(name, projectPrompt.trim());
+      toast.success(`Created "${name}"`);
       setShowPromptForm(false);
       setProjectName("");
       setProjectPrompt("");
     } catch (createError) {
       toast.error(
-        createError instanceof Error
-          ? createError.message
-          : "Failed to create prompt project",
+        apiErrorMessage(createError, "Could not create the Project"),
       );
     } finally {
       setIsCreatingPrompt(false);
@@ -116,15 +111,11 @@ export function ProjectSidebar({
       return;
     }
 
-    setActionError(null);
-
     try {
       await onDeleteProject(project.id);
     } catch (deleteError) {
       toast.error(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete project",
+        apiErrorMessage(deleteError, "Could not delete the Project"),
       );
     }
   }
@@ -215,9 +206,6 @@ export function ProjectSidebar({
         )}
 
         {error && <p className="px-2 py-1 text-sm text-red-400">{error}</p>}
-        {actionError && (
-          <p className="px-2 py-1 text-sm text-red-400">{actionError}</p>
-        )}
 
         {!isLoading && !error && projects.length === 0 && (
           <p className="px-2 py-1 text-sm text-muted">No projects yet</p>
