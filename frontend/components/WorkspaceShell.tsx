@@ -218,6 +218,7 @@ export function WorkspaceShell() {
               <ProjectCanvas
                 projectName={selectedProject.name}
                 storeWithStatus={storeWithStatus}
+                saveStatus={saveStatus}
                 onEditorReady={onEditorReady}
               />
             )}
