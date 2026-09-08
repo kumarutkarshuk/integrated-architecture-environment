@@ -21,6 +21,14 @@ export function useSidebarOpen(storageKey: string) {
     setIsOpen(readStoredOpen(storageKey));
   }, [storageKey]);
 
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setIsOpen(next);
+      window.localStorage.setItem(storageKey, next ? "true" : "false");
+    },
+    [storageKey],
+  );
+
   const toggle = useCallback(() => {
     setIsOpen((current) => {
       const next = !current;
@@ -29,5 +37,5 @@ export function useSidebarOpen(storageKey: string) {
     });
   }, [storageKey]);
 
-  return { isOpen, toggle };
+  return { isOpen, toggle, setOpen };
 }

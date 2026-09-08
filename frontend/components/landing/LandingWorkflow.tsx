@@ -1,75 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { Bot, FileDown, PenLine, Sparkles } from "lucide-react";
 
-const WORKFLOW_STEPS = [
+const AI_MOVES = [
   {
     id: "prompt",
     title: "Prompt",
-    detail:
-      "Describe the system. IAE draws nodes and message paths on the canvas.",
+    detail: "Describe the system. AI draws nodes and message paths on the canvas.",
+    icon: Sparkles,
   },
   {
     id: "draw",
     title: "Draw",
-    detail:
-      "Edit the live canvas with teammates. Specs stay in sync with the graph.",
+    detail: "Edit the live canvas with teammates. Specs stay in sync with the graph.",
+    icon: PenLine,
   },
   {
     id: "export",
     title: "Export",
     detail: "Download a markdown spec ready for review and pull requests.",
+    icon: FileDown,
   },
 ] as const;
 
 export function LandingWorkflow() {
-  const [activeId, setActiveId] = useState<
-    (typeof WORKFLOW_STEPS)[number]["id"]
-  >("prompt");
-
-  const activeStep =
-    WORKFLOW_STEPS.find((step) => step.id === activeId) ?? WORKFLOW_STEPS[0];
-
   return (
-    <section className="flex h-full min-h-0 flex-col md:flex-row" aria-label="Workflow">
-      <div className="flex w-full shrink-0 flex-row overflow-x-auto border-b border-sidebar-border bg-sidebar md:w-56 md:flex-col md:border-r md:border-b-0">
-        <div className="hidden border-b border-sidebar-border px-3 py-2 font-mono text-[11px] font-semibold tracking-wide text-muted uppercase md:block">
-          Moves
-        </div>
-        <div className="flex flex-row p-1 md:flex-col">
-          {WORKFLOW_STEPS.map((step) => {
-            const isActive = step.id === activeId;
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => setActiveId(step.id)}
-                title={step.title}
-                className={`cursor-pointer rounded-md px-2.5 py-2 text-left transition-transform duration-100 active:scale-[0.99] ${
-                  isActive
-                    ? "bg-hover text-foreground"
-                    : "text-muted hover:bg-hover/60 hover:text-foreground"
-                }`}
-              >
-                <span className="block truncate font-mono text-xs font-medium">
-                  {step.title}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3 font-mono text-xs">
+      <div className="flex flex-col items-center gap-2 px-2 py-3 text-center text-muted">
+        <Bot className="h-7 w-7 text-muted/50" />
+        <p className="font-medium text-foreground">AI topology</p>
+        <p className="text-[11px] leading-relaxed text-muted">
+          Prompt a graph, tweak it live, then export a spec.
+        </p>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-center p-6 md:p-10">
-        <div className="max-w-md">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-            {activeStep.title}
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted md:text-base">
-            {activeStep.detail}
-          </p>
-        </div>
-      </div>
-    </section>
+      {AI_MOVES.map((move) => {
+        const Icon = move.icon;
+        return (
+          <div
+            key={move.id}
+            title={move.detail}
+            className="rounded-lg border border-sidebar-border bg-sidebar/70 p-3"
+          >
+            <div className="flex items-center gap-1.5 font-semibold text-accent">
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span>{move.title}</span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+              {move.detail}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 }

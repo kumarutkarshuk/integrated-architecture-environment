@@ -92,4 +92,29 @@ describe("CollapsibleSidebar", () => {
     expect(toggleAi).not.toHaveBeenCalled();
     expect(screen.getByText("AI panel")).toBeTruthy();
   });
+
+  it("keeps the collapse control visible and disabled when locked open", () => {
+    const onToggleOpen = vi.fn();
+    render(
+      <CollapsibleSidebar
+        title="AI Assistant"
+        side="right"
+        isOpen
+        lockOpen
+        openWidthClass="w-72"
+        onToggleOpen={onToggleOpen}
+      >
+        <p>AI panel</p>
+      </CollapsibleSidebar>,
+    );
+
+    const collapse = screen.getByRole("button", {
+      name: "Collapse AI Assistant",
+    });
+    expect(collapse).toHaveProperty("disabled", true);
+
+    fireEvent.click(collapse);
+    expect(onToggleOpen).not.toHaveBeenCalled();
+  });
+
 });

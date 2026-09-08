@@ -59,7 +59,7 @@ export function LandingStudioPreview() {
         <CanvasNode
           nodeRef={gatewayRef}
           title="API Gateway"
-          meta="Edge auth"
+          meta="Prompt intake"
         />
         <CanvasNode
           nodeRef={streamRef}

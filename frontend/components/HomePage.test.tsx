@@ -28,29 +28,34 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 describe("HomePage", () => {
-  it("renders the studio chrome, hero, and workspace action", () => {
+  it("renders the studio chrome, hero, and workspace actions", () => {
     render(<HomePage />);
 
     expect(
       screen.getByRole("heading", {
-        name: /Design systems at editor speed/i,
+        name: /Integrated Architecture Environment/i,
       }),
     ).toBeDefined();
 
     expect(
       screen.getAllByRole("link", { name: /Open Workspace/i }).length,
-    ).toBeGreaterThan(0);
+    ).toBeGreaterThan(1);
 
-    expect(screen.getByRole("button", { name: "Overview" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Workflow" })).toBeDefined();
+    expect(screen.getByLabelText("Overview")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "AI Assistant View" }),
+    ).toBeDefined();
+    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.getAllByText("Idle").length).toBeGreaterThan(1);
   });
 
-  it("opens the workflow pane from the activity bar", () => {
+  it("opens the AI assistant from the right activity bar", () => {
     render(<HomePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Workflow" }));
+    expect(screen.queryByText("AI Assistant")).toBeNull();
 
-    expect(screen.getByRole("heading", { name: "Prompt" })).toBeDefined();
-    expect(screen.getAllByText("workflow.md").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "AI Assistant View" }));
+    expect(screen.getByText("AI Assistant")).toBeDefined();
+    expect(screen.getByText("AI topology")).toBeDefined();
   });
 });

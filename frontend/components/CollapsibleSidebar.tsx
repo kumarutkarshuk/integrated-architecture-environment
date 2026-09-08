@@ -10,6 +10,7 @@ interface CollapsibleSidebarProps {
   isOpen: boolean;
   openWidthClass: string;
   onToggleOpen: () => void;
+  lockOpen?: boolean;
   headerEnd?: ReactNode;
   children: ReactNode;
 }
@@ -20,6 +21,7 @@ export function CollapsibleSidebar({
   isOpen,
   openWidthClass,
   onToggleOpen,
+  lockOpen = false,
   headerEnd,
   children,
 }: CollapsibleSidebarProps) {
@@ -46,7 +48,16 @@ export function CollapsibleSidebar({
             size="sm"
             className="h-7 w-7 p-0"
             aria-label={`Collapse ${title}`}
-            onClick={onToggleOpen}
+            title={
+              lockOpen ? `${title} stays open in preview` : `Collapse ${title}`
+            }
+            disabled={lockOpen}
+            onClick={() => {
+              if (lockOpen) {
+                return;
+              }
+              onToggleOpen();
+            }}
           >
             <CloseIcon className="size-4" />
           </Button>

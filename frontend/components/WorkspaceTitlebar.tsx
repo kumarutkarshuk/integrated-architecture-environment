@@ -2,26 +2,25 @@
 
 import { Layers } from "lucide-react";
 import Link from "next/link";
+import { presentShellStatus, type ShellStatus } from "../lib/shellStatus";
 import { BadgeGlow } from "./ui/badge-glow";
-
-export type CrdtBadgeStatus = "live" | "connecting" | "offline" | "idle";
 
 interface WorkspaceTitlebarProps {
   selectedProjectName: string | null;
-  crdtStatus?: CrdtBadgeStatus;
+  status?: ShellStatus;
 }
 
 export function WorkspaceTitlebar({
   selectedProjectName,
-  crdtStatus = "idle",
+  status = "idle",
 }: WorkspaceTitlebarProps) {
-  const badge = crdtBadge(crdtStatus);
+  const badge = presentShellStatus(status);
   const canvasLabel = selectedProjectName
     ? `${selectedProjectName}.canvas`
     : null;
 
   return (
-    <header className="workspace-titlebar flex h-9 w-full shrink-0 items-center justify-between border-b border-sidebar-border bg-[#323233] px-3 text-xs select-none z-20">
+    <header className="workspace-titlebar z-20 flex h-9 w-full shrink-0 items-center justify-between border-b border-sidebar-border bg-[#323233] px-3 text-xs select-none">
       <div className="flex min-w-0 items-center gap-2 font-mono text-[11px]">
         <Link
           href="/"
@@ -46,30 +45,11 @@ export function WorkspaceTitlebar({
 
       <BadgeGlow
         dotColor={badge.dotColor}
-        pulse={crdtStatus === "live" || crdtStatus === "connecting"}
+        pulse={badge.pulse}
         className="shrink-0 px-2 py-0.5 text-[10px]"
       >
         {badge.label}
       </BadgeGlow>
     </header>
   );
-}
-
-function crdtBadge(status: CrdtBadgeStatus): {
-  label: string;
-  dotColor: string;
-} {
-  if (status === "live") {
-    return { label: "CRDT Live", dotColor: "bg-emerald-400" };
-  }
-
-  if (status === "connecting") {
-    return { label: "Connecting", dotColor: "bg-amber-400" };
-  }
-
-  if (status === "offline") {
-    return { label: "Offline", dotColor: "bg-amber-400" };
-  }
-
-  return { label: "Idle", dotColor: "bg-muted" };
 }

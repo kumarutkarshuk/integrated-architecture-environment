@@ -17,10 +17,12 @@ import {
 } from "../hooks/useSidebarOpen";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { isLiveCanvasOnline } from "../lib/canvas";
+import { deriveWorkspaceShellStatus } from "../lib/shellStatus";
 import { ActivityBar } from "./ActivityBar";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
+import { RightActivityBar } from "./RightActivityBar";
 import {
   CreateProjectDialog,
   type CreateProjectMode,
@@ -31,11 +33,8 @@ import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 import { GridPattern } from "./ui/grid-pattern";
-import { WorkspaceStatusBar, type WorkspaceStatusKind } from "./WorkspaceStatusBar";
-import {
-  WorkspaceTitlebar,
-  type CrdtBadgeStatus,
-} from "./WorkspaceTitlebar";
+import { WorkspaceStatusBar } from "./WorkspaceStatusBar";
+import { WorkspaceTitlebar } from "./WorkspaceTitlebar";
 
 export function WorkspaceShell() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,9 +56,11 @@ export function WorkspaceShell() {
   );
   const { isOpen: isProjectsSidebarOpen, toggle: toggleProjectsSidebar } =
     useSidebarOpen(PROJECTS_SIDEBAR_STORAGE_KEY);
-  const { isOpen: isAiSidebarOpen, toggle: toggleAiSidebar } = useSidebarOpen(
-    AI_SIDEBAR_STORAGE_KEY,
-  );
+  const {
+    isOpen: isAiSidebarOpen,
+    toggle: toggleAiSidebar,
+    setOpen: setAiSidebarOpen,
+  } = useSidebarOpen(AI_SIDEBAR_STORAGE_KEY);
   const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
     Record<string, string>
   >({});
@@ -111,21 +112,16 @@ export function WorkspaceShell() {
     ? `${selectedProject.name}.canvas`
     : "welcome.canvas";
 
-  const crdtStatus: CrdtBadgeStatus = canvasActionsEnabled
-    ? "live"
-    : selectedProject?.status === "ready"
-      ? saveStatus === "offline" || saveStatus === "error"
-        ? "offline"
-        : "connecting"
-      : "idle";
-
-  const statusBarStatus: WorkspaceStatusKind = !selectedProject
-    ? "idle"
-    : selectedProject.status !== "ready"
-      ? ai.isGenerating
-        ? "generating"
-        : "preview"
-      : saveStatus;
+  const isPreviewing = Boolean(
+    selectedProject && selectedProject.status !== "ready",
+  );
+  const shellStatus = deriveWorkspaceShellStatus({
+    hasProject: Boolean(selectedProject),
+    projectReady: selectedProject?.status === "ready",
+    isGenerating: ai.isGenerating,
+    canvasActionsEnabled,
+    saveStatus,
+  });
 
   useEffect(() => {
     if (exportSpec.spec || exportSpec.isExporting) {
@@ -144,36 +140,28 @@ export function WorkspaceShell() {
     window.dispatchEvent(new Event("resize"));
   }, [editorTab]);
 
+  useEffect(() => {
+    if (isPreviewing) {
+      setAiSidebarOpen(true);
+    }
+  }, [isPreviewing, setAiSidebarOpen]);
+
   useGSAP(
     () => {
       if (typeof window === "undefined") return;
 
       const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
 
-      tl.from(".workspace-titlebar", {
-        opacity: 0,
-        y: -6,
-        duration: 0.35,
-      })
-        .from(
-          ".activity-bar-item",
-          {
-            opacity: 0,
-            x: -8,
-            stagger: 0.04,
-            duration: 0.3,
-          },
-          "-=0.2",
-        )
-        .from(
-          ".workspace-statusbar",
-          {
-            opacity: 0,
-            y: 6,
-            duration: 0.3,
-          },
-          "-=0.2",
-        );
+      tl.fromTo(
+        ".workspace-titlebar",
+        { y: -6 },
+        { y: 0, duration: 0.35, clearProps: "transform" },
+      ).fromTo(
+        ".workspace-statusbar",
+        { y: 6 },
+        { y: 0, duration: 0.3, clearProps: "transform" },
+        "-=0.2",
+      );
     },
     { scope: containerRef },
   );
@@ -211,15 +199,13 @@ export function WorkspaceShell() {
     >
       <WorkspaceTitlebar
         selectedProjectName={selectedProject?.name ?? null}
-        crdtStatus={crdtStatus}
+        status={shellStatus}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <ActivityBar
           isProjectsOpen={isProjectsSidebarOpen}
           onToggleProjects={toggleProjectsSidebar}
-          isAiOpen={isAiSidebarOpen}
-          onToggleAi={toggleAiSidebar}
         />
 
         <ProjectSidebar
@@ -468,14 +454,21 @@ export function WorkspaceShell() {
           side="right"
           isOpen={isAiSidebarOpen}
           openWidthClass="w-72"
+          lockOpen={isPreviewing}
           onToggleOpen={toggleAiSidebar}
         >
           <AiSidebar ai={ai} project={selectedProject} />
         </CollapsibleSidebar>
+
+        <RightActivityBar
+          isAiOpen={isAiSidebarOpen}
+          lockOpen={isPreviewing}
+          onToggleAi={toggleAiSidebar}
+        />
       </div>
 
       <WorkspaceStatusBar
-        status={statusBarStatus}
+        status={shellStatus}
         collaboratorCount={invite.joinedCount}
         projectName={selectedProject?.name}
       />

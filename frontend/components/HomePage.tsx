@@ -2,7 +2,7 @@
 
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { FileCode2, FileText } from "lucide-react";
+import { FileCode2 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { LandingActivityBar } from "./landing/LandingActivityBar";
@@ -10,13 +10,13 @@ import { LandingHero } from "./landing/LandingHero";
 import { LandingStatusBar } from "./landing/LandingStatusBar";
 import { LandingTitlebar } from "./landing/LandingTitlebar";
 import { LandingWorkflow } from "./landing/LandingWorkflow";
+import { CollapsibleSidebar } from "./CollapsibleSidebar";
+import { RightActivityBar } from "./RightActivityBar";
 import { Button } from "./ui/button";
 
 export function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeSection, setActiveSection] = useState<"overview" | "workflow">(
-    "overview",
-  );
+  const [isAiOpen, setIsAiOpen] = useState(true);
 
   useGSAP(
     () => {
@@ -33,30 +33,17 @@ export function HomePage() {
         ".workspace-titlebar",
         { y: -6 },
         { y: 0, duration: 0.35, clearProps: "transform" },
-      )
-        .fromTo(
-          ".activity-bar-item",
-          { x: -8 },
-          {
-            x: 0,
-            stagger: 0.04,
-            duration: 0.3,
-            clearProps: "transform",
-          },
-          "-=0.2",
-        )
-        .fromTo(
-          ".workspace-statusbar",
-          { y: 6 },
-          { y: 0, duration: 0.3, clearProps: "transform" },
-          "-=0.2",
-        );
+      ).fromTo(
+        ".workspace-statusbar",
+        { y: 6 },
+        { y: 0, duration: 0.3, clearProps: "transform" },
+        "-=0.2",
+      );
     },
     { scope: containerRef },
   );
 
-  const canvasLabel =
-    activeSection === "overview" ? "welcome.canvas" : "workflow.md";
+  const canvasLabel = "welcome.canvas";
 
   return (
     <div
@@ -66,10 +53,7 @@ export function HomePage() {
       <LandingTitlebar canvasLabel={canvasLabel} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <LandingActivityBar
-          activeSection={activeSection}
-          onNavigate={setActiveSection}
-        />
+        <LandingActivityBar />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-panel">
           <div className="flex h-9 shrink-0 items-center justify-between border-b border-sidebar-border bg-[#181818] px-2 text-xs">
@@ -78,28 +62,31 @@ export function HomePage() {
                 title={canvasLabel}
                 className="flex h-full max-w-45 items-center gap-2 border-t-2 border-t-accent border-r border-sidebar-border bg-panel px-3 font-mono text-xs text-foreground"
               >
-                {activeSection === "overview" ? (
-                  <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
-                ) : (
-                  <FileText className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                )}
+                <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
                 <span className="truncate">{canvasLabel}</span>
               </span>
             </div>
-
-            <Button asChild size="sm" className="active:scale-[0.97]">
-              <Link href="/workspace">Open Workspace</Link>
-            </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
-            {activeSection === "overview" ? (
-              <LandingHero />
-            ) : (
-              <LandingWorkflow />
-            )}
+            <LandingHero />
           </div>
         </main>
+
+        <CollapsibleSidebar
+          title="AI Assistant"
+          side="right"
+          isOpen={isAiOpen}
+          openWidthClass="w-72"
+          onToggleOpen={() => setIsAiOpen((current) => !current)}
+        >
+          <LandingWorkflow />
+        </CollapsibleSidebar>
+
+        <RightActivityBar
+          isAiOpen={isAiOpen}
+          onToggleAi={() => setIsAiOpen((current) => !current)}
+        />
       </div>
 
       <LandingStatusBar canvasLabel={canvasLabel} />

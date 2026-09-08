@@ -95,20 +95,20 @@ export function ProjectSidebar({
         <Button
           type="button"
           size="sm"
-          className="h-8 w-full justify-start font-mono text-xs bg-accent text-white hover:bg-accent/90"
+          className="h-8 w-full justify-start gap-2 px-2 font-mono text-xs bg-accent text-white hover:bg-accent/90"
           onClick={onRequestCreateBlank}
         >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          <Plus className="h-3.5 w-3.5 shrink-0" />
           New blank project
         </Button>
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="h-8 w-full justify-start font-mono text-xs border border-sidebar-border bg-hover hover:bg-sidebar"
+          className="h-8 w-full justify-start gap-2 px-2 font-mono text-xs border border-sidebar-border bg-hover hover:bg-sidebar"
           onClick={onRequestCreatePrompt}
         >
-          <Sparkles className="mr-1.5 h-3.5 w-3.5 text-sky-400" />
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400" />
           New prompt project
         </Button>
       </div>
@@ -135,10 +135,13 @@ export function ProjectSidebar({
                 <div
                   className={`group relative flex items-center justify-between rounded px-2 py-1.5 transition-colors ${
                     isSelected
-                      ? "border-l-2 border-accent bg-hover font-medium text-foreground"
+                      ? "bg-hover font-medium text-foreground"
                       : "text-foreground/80 hover:bg-hover hover:text-foreground"
                   }`}
                 >
+                  {isSelected && (
+                    <span className="absolute top-1 bottom-1 left-0 w-0.5 rounded-r bg-accent" />
+                  )}
                   <button
                     type="button"
                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
