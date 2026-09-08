@@ -67,6 +67,6 @@ describe("InviteRedeemPage", () => {
 
     render(<InviteRedeemPage token="invite-token" />);
 
-    expect(replace).toHaveBeenCalledWith("/?project=project-42");
+    expect(replace).toHaveBeenCalledWith("/workspace?project=project-42");
   });
 });

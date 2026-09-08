@@ -7,9 +7,9 @@ import { clerkAppearance } from "../lib/clerkAppearance";
 
 function SignUpForm() {
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect_url") ?? "/";
+  const redirectUrl = searchParams.get("redirect_url") ?? "/workspace";
   const signInUrl =
-    redirectUrl === "/"
+    redirectUrl === "/workspace"
       ? "/sign-in"
       : `/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`;
 
