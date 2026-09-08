@@ -116,16 +116,34 @@ export function WorkspaceShell() {
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
-      <header className="flex h-9 items-center border-b border-sidebar-border bg-titlebar px-3 text-sm">
-        <span className="font-medium">Integrated Architecture Environment</span>
-        {user && (
-          <span className="ml-3 text-muted">
-            {user.displayName ?? user.email}
-          </span>
-        )}
-        {selectedProject && (
-          <span className="ml-3 text-muted">/ {selectedProject.name}</span>
-        )}
+      <header className="flex h-9 items-center justify-between border-b border-sidebar-border bg-titlebar px-3 text-sm">
+        <div className="flex items-center">
+          <a
+            href="/"
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground mr-3 transition-colors"
+            title="Back to Landing Page"
+          >
+            <span className="font-semibold text-accent">IAE</span>
+            <span>&larr;</span>
+          </a>
+          <span className="font-medium">Integrated Architecture Environment</span>
+          {user && (
+            <span className="ml-3 text-muted">
+              {user.displayName ?? user.email}
+            </span>
+          )}
+          {selectedProject && (
+            <span className="ml-3 text-muted">/ {selectedProject.name}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <a
+            href="/"
+            className="text-xs text-muted hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-hover"
+          >
+            Home
+          </a>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">

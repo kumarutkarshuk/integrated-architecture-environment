@@ -1,45 +1,23 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { Suspense, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
-
-function SignedInWorkspace() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen items-center justify-center bg-background text-foreground">
-          Loading...
-        </div>
-      }
-    >
-      <WorkspaceShell />
-    </Suspense>
-  );
-}
+import { LandingArchitecture } from "./landing/LandingArchitecture";
+import { LandingFeatures } from "./landing/LandingFeatures";
+import { LandingFooter } from "./landing/LandingFooter";
+import { LandingHero } from "./landing/LandingHero";
+import { LandingNavbar } from "./landing/LandingNavbar";
+import { LandingWorkflow } from "./landing/LandingWorkflow";
 
 export function HomePage() {
-  const { isLoaded, isSignedIn } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      router.replace("/sign-in");
-    }
-  }, [isLoaded, isSignedIn, router]);
-
-  if (!isLoaded) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background text-foreground">
-        Loading...
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return null;
-  }
-
-  return <SignedInWorkspace />;
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
+      <LandingNavbar />
+      <main className="flex-1">
+        <LandingHero />
+        <LandingFeatures />
+        <LandingArchitecture />
+        <LandingWorkflow />
+      </main>
+      <LandingFooter />
+    </div>
+  );
 }

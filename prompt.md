@@ -23,8 +23,9 @@
 
 - AI can modify diagram
 - Common system design templates
-- User can see other's cursors in real-time
+- User can see other's cursors in real-time (implemented)
 - Users can leave comments on canvas 
+- Subscription
 
 # Non-Functional Requirements
 
@@ -43,15 +44,14 @@
 
 # Todos
 
-- Node.js version
-- Modal instead of alert while creating projects
 - Handle race conditions
 - Automated tests
-- Handle retries on the frontend after connection drops
 - Integrate with monitoring tool
-- make AI layer reliable
-    - retries
+- review AI layer
 - Transactions wherever needed
+- Landing page and UI
+- AI animations and labels
+- in app accepting invitations
 
 # Design
 
@@ -95,3 +95,11 @@
 - Handles errors wherever required
 - Soft delete data always
 - Add backend monitoring and logging
+
+let's review the current codebase for
+
+- rules in @prompt.md being followed or not
+- race conditions handled properly or not
+- is the behavior correct or not when frontend disconnects with the backend and reconnection is possible later
+- transactions in place or not wherever needed
+- saved status consistent or not as in later non-functional requirements in @prompt.md 
