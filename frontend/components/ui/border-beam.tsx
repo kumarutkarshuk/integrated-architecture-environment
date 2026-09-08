@@ -7,7 +7,6 @@ interface BorderBeamProps {
   size?: number;
   duration?: number;
   borderWidth?: number;
-  anchor?: number;
   colorFrom?: string;
   colorTo?: string;
   delay?: number;
@@ -15,9 +14,7 @@ interface BorderBeamProps {
 
 export function BorderBeam({
   className,
-  size = 250,
-  duration = 12,
-  anchor = 90,
+  duration = 8,
   borderWidth = 1.5,
   colorFrom = "#007acc",
   colorTo = "#38bdf8",
@@ -25,25 +22,25 @@ export function BorderBeam({
 }: BorderBeamProps) {
   return (
     <div
-      style={
-        {
-          "--size": size,
-          "--duration": `${duration}s`,
-          "--anchor": anchor,
-          "--border-width": borderWidth,
-          "--color-from": colorFrom,
-          "--color-to": colorTo,
-          "--delay": `-${delay}s`,
-        } as React.CSSProperties
-      }
+      aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-0 rounded-[inherit] [border:calc(var(--border-width)*1px)_solid_transparent]",
-        // Mask styles to isolate border
-        "[mask-clip:padding-box,border-box]! mask-intersect! [mask:linear-gradient(transparent,transparent),linear-gradient(white,white)]",
-        // Animated light traveling along the perimeter
-        "after:absolute after:aspect-square after:w-[calc(var(--size)*1px)] after:animate-border-beam after:[animation-delay:var(--delay)] after:[background:linear-gradient(to_left,var(--color-from),var(--color-to),transparent)] after:[offset-anchor:calc(var(--anchor)*1%)_50%] after:[offset-path:rect(0_auto_auto_0_round_calc(var(--size)*1px))]",
+        "pointer-events-none absolute inset-0 rounded-[inherit]",
+        "animate-border-beam",
         className,
       )}
+      style={
+        {
+          "--duration": `${duration}s`,
+          "--delay": `-${delay}s`,
+          padding: borderWidth,
+          background: `conic-gradient(from var(--beam-angle), transparent 68%, ${colorFrom} 80%, ${colorTo} 88%, transparent 100%)`,
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMaskComposite: "xor",
+          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          maskComposite: "exclude",
+        } as React.CSSProperties
+      }
     />
   );
 }

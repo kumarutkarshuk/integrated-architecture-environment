@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 if (typeof window !== "undefined" && !window.matchMedia) {
@@ -24,20 +24,33 @@ vi.mock("@clerk/nextjs", () => ({
     isSignedIn: false,
     isLoaded: true,
   }),
+  UserButton: () => <div>Account</div>,
 }));
 
 describe("HomePage", () => {
-  it("renders landing page hero and call to action", () => {
+  it("renders the studio chrome, hero, and workspace action", () => {
     render(<HomePage />);
 
     expect(
       screen.getByRole("heading", {
-        name: /System design with code editor speed and real-time canvas/i,
+        name: /Design systems at editor speed/i,
       }),
     ).toBeDefined();
 
     expect(
-      screen.getAllByRole("link", { name: /Launch Studio/i }).length,
+      screen.getAllByRole("link", { name: /Open Workspace/i }).length,
     ).toBeGreaterThan(0);
+
+    expect(screen.getByRole("button", { name: "Overview" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Workflow" })).toBeDefined();
+  });
+
+  it("opens the workflow pane from the activity bar", () => {
+    render(<HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Workflow" }));
+
+    expect(screen.getByRole("heading", { name: "Prompt" })).toBeDefined();
+    expect(screen.getAllByText("workflow.md").length).toBeGreaterThan(0);
   });
 });

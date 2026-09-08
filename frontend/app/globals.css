@@ -39,9 +39,15 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 @keyframes border-beam {
-  100% {
-    offset-distance: 100%;
+  to {
+    --beam-angle: 360deg;
   }
 }
 
@@ -61,7 +67,19 @@ body {
 }
 
 .animate-border-beam {
-  animation: border-beam var(--duration, 15s) infinite linear;
+  animation-name: border-beam;
+  animation-duration: var(--duration, 8s);
+  animation-delay: var(--delay, 0s);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-border-beam,
+  .animate-flow-dash,
+  .animate-shimmer {
+    animation: none;
+  }
 }
 
 .animate-flow-dash {
