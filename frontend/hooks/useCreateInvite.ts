@@ -30,7 +30,7 @@ export function useCreateInvite(
   const projectId = project?.id ?? null;
 
   const loadCollaborators = useCallback(async () => {
-    if (!projectId || !canInvite) {
+    if (!projectId) {
       setCollaborators([]);
       return;
     }
@@ -53,13 +53,19 @@ export function useCreateInvite(
     } finally {
       setIsLoadingCollaborators(false);
     }
-  }, [canInvite, getToken, projectId]);
+  }, [getToken, projectId]);
 
   useEffect(() => {
     setIsSending(false);
     setResendingInviteId(null);
     setCollaborators([]);
-  }, [projectId]);
+
+    if (!projectId) {
+      return;
+    }
+
+    void loadCollaborators();
+  }, [loadCollaborators, projectId]);
 
   const invite = useCallback(
     async (email: string) => {
@@ -119,10 +125,15 @@ export function useCreateInvite(
     [canInvite, getToken, loadCollaborators, projectId],
   );
 
+  const joinedCount = collaborators.filter(
+    (person) => person.status === "joined",
+  ).length;
+
   return {
     canInvite,
     isSending,
     collaborators,
+    joinedCount,
     isLoadingCollaborators,
     resendingInviteId,
     loadCollaborators,

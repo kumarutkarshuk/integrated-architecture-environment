@@ -7,12 +7,14 @@ interface BadgeGlowProps {
   children: React.ReactNode;
   className?: string;
   dotColor?: string;
+  pulse?: boolean;
 }
 
 export function BadgeGlow({
   children,
   className,
   dotColor = "bg-emerald-400",
+  pulse = true,
 }: BadgeGlowProps) {
   return (
     <div
@@ -22,12 +24,14 @@ export function BadgeGlow({
       )}
     >
       <span className="relative flex h-2 w-2">
-        <span
-          className={cn(
-            "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-            dotColor,
-          )}
-        />
+        {pulse && (
+          <span
+            className={cn(
+              "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+              dotColor,
+            )}
+          />
+        )}
         <span
           className={cn(
             "relative inline-flex h-2 w-2 rounded-full",

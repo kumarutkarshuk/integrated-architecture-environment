@@ -165,7 +165,10 @@ export function InviteToolbar({
                         className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border px-2 py-1.5"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm text-foreground">
+                          <p
+                            className="truncate text-sm text-foreground"
+                            title={person.displayName ?? person.email}
+                          >
                             {person.displayName ?? person.email}
                           </p>
                           <p className="text-xs text-muted">

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelRightClose } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "./ui/button";
 
@@ -28,27 +23,11 @@ export function CollapsibleSidebar({
   headerEnd,
   children,
 }: CollapsibleSidebarProps) {
-  const OpenIcon = side === "left" ? PanelLeftOpen : PanelRightOpen;
   const CloseIcon = side === "left" ? PanelLeftClose : PanelRightClose;
   const borderClass = side === "left" ? "border-r" : "border-l";
 
   if (!isOpen) {
-    return (
-      <aside
-        className={`flex h-full w-9 shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar`}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="m-1 h-7 w-7 p-0"
-          aria-label={`Open ${title}`}
-          onClick={onToggleOpen}
-        >
-          <OpenIcon className="size-4" />
-        </Button>
-      </aside>
-    );
+    return null;
   }
 
   return (

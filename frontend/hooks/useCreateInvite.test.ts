@@ -74,11 +74,59 @@ describe("useCreateInvite", () => {
     ]);
   });
 
-  it("does not load Collaborators until loadCollaborators is called", async () => {
-    renderHook(() => useCreateInvite(projectWith("user-owner"), owner));
+  it("loads Collaborators when a Project is selected", async () => {
+    const { result } = renderHook(() =>
+      useCreateInvite(projectWith("user-owner"), owner),
+    );
 
     await waitFor(() => {
-      expect(fetchCollaboratorsMock).not.toHaveBeenCalled();
+      expect(fetchCollaboratorsMock).toHaveBeenCalledWith(
+        "test-token",
+        "project-1",
+      );
+    });
+    await waitFor(() => {
+      expect(result.current.joinedCount).toBe(1);
+    });
+    expect(result.current.canInvite).toBe(true);
+  });
+
+  it("counts joined Collaborators including the current User", async () => {
+    fetchCollaboratorsMock.mockResolvedValue([
+      {
+        email: "owner@example.com",
+        displayName: "Owner",
+        role: "owner",
+        status: "joined",
+      },
+      {
+        email: "editor@example.com",
+        displayName: "Editor",
+        role: "editor",
+        status: "joined",
+      },
+    ]);
+
+    const editor: ApiUser = {
+      id: "user-editor",
+      email: "editor@example.com",
+      displayName: "Editor",
+    };
+
+    const { result } = renderHook(() =>
+      useCreateInvite(projectWith("user-owner"), editor),
+    );
+
+    expect(result.current.canInvite).toBe(false);
+
+    await waitFor(() => {
+      expect(fetchCollaboratorsMock).toHaveBeenCalledWith(
+        "test-token",
+        "project-1",
+      );
+    });
+    await waitFor(() => {
+      expect(result.current.joinedCount).toBe(2);
     });
   });
 
@@ -109,7 +157,7 @@ describe("useCreateInvite", () => {
       "project-1",
       "editor@example.com",
     );
-    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(2);
+    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(3);
   });
 
   it("resends a pending Invite", async () => {
@@ -133,16 +181,18 @@ describe("useCreateInvite", () => {
       "project-1",
       "invite-1",
     );
-    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(1);
+    expect(fetchCollaboratorsMock).toHaveBeenCalledTimes(2);
   });
 
-  it("hides Invite for a non-owner Collaborator", () => {
+  it("hides Invite for a non-owner Collaborator", async () => {
     const { result } = renderHook(() =>
       useCreateInvite(projectWith("someone-else"), owner),
     );
 
     expect(result.current.canInvite).toBe(false);
-    expect(fetchCollaboratorsMock).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(fetchCollaboratorsMock).toHaveBeenCalled();
+    });
   });
 
   it("shows a toast when sending an Invite fails", async () => {

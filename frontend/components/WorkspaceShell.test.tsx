@@ -92,6 +92,7 @@ vi.mock("../hooks/useCreateInvite", () => ({
     canInvite: true,
     isSending: false,
     collaborators: [],
+    joinedCount: 0,
     isLoadingCollaborators: false,
     resendingInviteId: null,
     loadCollaborators: async () => undefined,
@@ -146,8 +147,9 @@ describe("WorkspaceShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
 
-    expect(screen.getByRole("button", { name: "Open Projects" })).toBeTruthy();
+    expect(screen.queryByText("Projects")).toBeNull();
     expect(screen.queryByText("Owned Canvas")).toBeNull();
+    expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(screen.getByText("AI Assistant")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -156,10 +158,10 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "Collapse AI Assistant" }),
     );
 
-    expect(
-      screen.getByRole("button", { name: "Open AI Assistant" }),
-    ).toBeTruthy();
     expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "AI Assistant View" }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
@@ -171,10 +173,12 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Open Projects" })).toBeTruthy();
+      expect(screen.queryByText("Projects")).toBeNull();
     });
+    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Open AI Assistant" }),
+      screen.getByRole("button", { name: "AI Assistant View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();

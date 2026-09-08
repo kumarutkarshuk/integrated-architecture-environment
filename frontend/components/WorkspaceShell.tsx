@@ -1,29 +1,45 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { FileCode2, FileText, FolderPlus, Layers, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useCreateInvite } from "../hooks/useCreateInvite";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useExportSpec } from "../hooks/useExportSpec";
 import { useOpenProject } from "../hooks/useOpenProject";
 import { useProjects } from "../hooks/useProjects";
-import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import {
   AI_SIDEBAR_STORAGE_KEY,
   PROJECTS_SIDEBAR_STORAGE_KEY,
   useSidebarOpen,
 } from "../hooks/useSidebarOpen";
+import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { isLiveCanvasOnline } from "../lib/canvas";
+import { ActivityBar } from "./ActivityBar";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
-import { ExportSpecToolbar } from "./ExportSpecToolbar";
+import {
+  CreateProjectDialog,
+  type CreateProjectMode,
+} from "./CreateProjectDialog";
+import { ExportSpecPanel, ExportSpecToolbar } from "./ExportSpecToolbar";
 import { InviteToolbar } from "./InviteToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
+import { GridPattern } from "./ui/grid-pattern";
+import { WorkspaceStatusBar, type WorkspaceStatusKind } from "./WorkspaceStatusBar";
+import {
+  WorkspaceTitlebar,
+  type CrdtBadgeStatus,
+} from "./WorkspaceTitlebar";
 
 export function WorkspaceShell() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const specCloseRef = useRef<(() => void) | null>(null);
   const { user, isLoading: isUserLoading, error: userError } = useCurrentUser();
   const {
     projects,
@@ -47,6 +63,8 @@ export function WorkspaceShell() {
   const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
     Record<string, string>
   >({});
+  const [createMode, setCreateMode] = useState<CreateProjectMode | null>(null);
+  const [editorTab, setEditorTab] = useState<"canvas" | "spec">("canvas");
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -88,6 +106,78 @@ export function WorkspaceShell() {
   const previewRecords =
     ai.isGenerating ? null : (ai.selectedPreview?.result?.records ?? null);
 
+  const specTabVisible = Boolean(exportSpec.spec) || exportSpec.isExporting;
+  const canvasLabel = selectedProject
+    ? `${selectedProject.name}.canvas`
+    : "welcome.canvas";
+
+  const crdtStatus: CrdtBadgeStatus = canvasActionsEnabled
+    ? "live"
+    : selectedProject?.status === "ready"
+      ? saveStatus === "offline" || saveStatus === "error"
+        ? "offline"
+        : "connecting"
+      : "idle";
+
+  const statusBarStatus: WorkspaceStatusKind = !selectedProject
+    ? "idle"
+    : selectedProject.status !== "ready"
+      ? ai.isGenerating
+        ? "generating"
+        : "preview"
+      : saveStatus;
+
+  useEffect(() => {
+    if (exportSpec.spec || exportSpec.isExporting) {
+      setEditorTab("spec");
+      return;
+    }
+
+    setEditorTab("canvas");
+  }, [exportSpec.spec, exportSpec.isExporting]);
+
+  useEffect(() => {
+    if (editorTab !== "canvas") {
+      return;
+    }
+
+    window.dispatchEvent(new Event("resize"));
+  }, [editorTab]);
+
+  useGSAP(
+    () => {
+      if (typeof window === "undefined") return;
+
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".workspace-titlebar", {
+        opacity: 0,
+        y: -6,
+        duration: 0.35,
+      })
+        .from(
+          ".activity-bar-item",
+          {
+            opacity: 0,
+            x: -8,
+            stagger: 0.04,
+            duration: 0.3,
+          },
+          "-=0.2",
+        )
+        .from(
+          ".workspace-statusbar",
+          {
+            opacity: 0,
+            y: 6,
+            duration: 0.3,
+          },
+          "-=0.2",
+        );
+    },
+    { scope: containerRef },
+  );
+
   async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
     selectProject(project.id);
@@ -115,38 +205,23 @@ export function WorkspaceShell() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      <header className="flex h-9 items-center justify-between border-b border-sidebar-border bg-titlebar px-3 text-sm">
-        <div className="flex items-center">
-          <a
-            href="/"
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground mr-3 transition-colors"
-            title="Back to Landing Page"
-          >
-            <span className="font-semibold text-accent">IAE</span>
-            <span>&larr;</span>
-          </a>
-          <span className="font-medium">Integrated Architecture Environment</span>
-          {user && (
-            <span className="ml-3 text-muted">
-              {user.displayName ?? user.email}
-            </span>
-          )}
-          {selectedProject && (
-            <span className="ml-3 text-muted">/ {selectedProject.name}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <a
-            href="/"
-            className="text-xs text-muted hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-hover"
-          >
-            Home
-          </a>
-        </div>
-      </header>
+    <div
+      ref={containerRef}
+      className="flex h-screen flex-col bg-background text-foreground overflow-hidden select-none"
+    >
+      <WorkspaceTitlebar
+        selectedProjectName={selectedProject?.name ?? null}
+        crdtStatus={crdtStatus}
+      />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <ActivityBar
+          isProjectsOpen={isProjectsSidebarOpen}
+          onToggleProjects={toggleProjectsSidebar}
+          isAiOpen={isAiSidebarOpen}
+          onToggleAi={toggleAiSidebar}
+        />
+
         <ProjectSidebar
           projects={projects}
           selectedProjectId={selectedProjectId}
@@ -156,17 +231,71 @@ export function WorkspaceShell() {
           isOpen={isProjectsSidebarOpen}
           onToggleOpen={toggleProjectsSidebar}
           onSelectProject={selectProject}
-          onCreateBlankProject={handleCreateBlankProject}
-          onCreatePromptProject={handleCreatePromptProject}
+          onRequestCreateBlank={() => setCreateMode("blank")}
+          onRequestCreatePrompt={() => setCreateMode("prompt")}
           onDeleteProject={handleDeleteProject}
         />
 
-        <main className="flex min-w-0 flex-1 flex-col bg-panel">
-          <div className="flex h-9 items-center justify-between border-b border-sidebar-border px-3 text-xs">
-            <span className="text-muted">
-              {selectedProject?.status === "ready" ? "Canvas" : "Preview"}
-            </span>
-            <div className="flex items-center gap-3">
+        <main className="flex min-w-0 flex-1 flex-col bg-panel overflow-hidden">
+          <div className="flex h-9 shrink-0 items-center justify-between border-b border-sidebar-border bg-[#181818] px-2 text-xs">
+            <div className="flex min-w-0 items-center h-full">
+              <button
+                type="button"
+                onClick={() => setEditorTab("canvas")}
+                title={canvasLabel}
+                className={`flex h-full max-w-45 cursor-pointer items-center gap-2 border-r border-sidebar-border px-3 font-mono text-xs select-none ${
+                  editorTab === "canvas"
+                    ? "border-t-2 border-t-accent bg-panel text-foreground"
+                    : "bg-[#181818] text-muted hover:bg-hover hover:text-foreground"
+                }`}
+              >
+                <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
+                <span className="truncate">{canvasLabel}</span>
+              </button>
+
+              {specTabVisible && (
+                <div
+                  className={`flex h-full max-w-45 items-center border-r border-sidebar-border ${
+                    editorTab === "spec"
+                      ? "border-t-2 border-t-accent bg-panel text-foreground"
+                      : "bg-[#181818] text-muted"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setEditorTab("spec")}
+                    title={exportSpec.downloadFileName}
+                    className="flex h-full min-w-0 cursor-pointer items-center gap-2 px-3 font-mono text-xs hover:text-foreground"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                    <span className="truncate">
+                      {exportSpec.isExporting && !exportSpec.spec
+                        ? "exporting-spec.md"
+                        : exportSpec.downloadFileName}
+                    </span>
+                  </button>
+                  {exportSpec.spec && (
+                    <button
+                      type="button"
+                      aria-label="Close exported spec"
+                      title="Close exported spec"
+                      className="mr-1 cursor-pointer rounded p-0.5 text-muted hover:bg-hover hover:text-foreground"
+                      onClick={() => specCloseRef.current?.()}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedProject && editorTab === "canvas" && (
+                <span className="hidden font-mono text-[11px] text-muted md:inline">
+                  {selectedProject.status === "ready" ? "Canvas" : "Preview"}
+                </span>
+              )}
+
               <InviteToolbar
                 canInvite={invite.canInvite}
                 actionsEnabled={canvasActionsEnabled}
@@ -184,79 +313,154 @@ export function WorkspaceShell() {
                   void invite.resend(inviteId);
                 }}
               />
+
               <ExportSpecToolbar
                 canExport={exportSpec.canExport}
                 actionsEnabled={canvasActionsEnabled}
                 isExporting={exportSpec.isExporting}
-                spec={exportSpec.spec}
-                downloadFileName={exportSpec.downloadFileName}
                 onExport={() => {
                   void exportSpec.exportSpec();
                 }}
-                onClear={exportSpec.clearSpec}
-                onCopy={() => {
-                  void exportSpec.copySpec();
-                }}
-                onDownload={exportSpec.downloadSpec}
               />
-              {selectedProject?.status === "ready" && (
+
+              {selectedProject?.status === "ready" && editorTab === "canvas" && (
                 <CanvasSaveStatusLabel status={saveStatus} />
               )}
             </div>
           </div>
 
-          {!selectedProject && (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted">
-              Select or create a project to start designing
-            </div>
-          )}
-
-          {selectedProject &&
-            selectedProject.status !== "ready" &&
-            previewRecords && (
-              <PreviewCanvas
-                records={previewRecords}
-                label={ai.selectedPreview?.prompt ?? selectedProject.name}
-              />
-            )}
-
-          {selectedProject &&
-            selectedProject.status !== "ready" &&
-            !previewRecords && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm">
-                {ai.generationFailed ? (
-                  <>
-                    <p className="text-red-400">Preview generation failed.</p>
-                    <p className="text-muted">
-                      Check your Groq API key and model, then regenerate from
-                      the AI panel.
+          <div
+            className={
+              editorTab === "canvas" ? "flex min-h-0 flex-1 flex-col" : "hidden"
+            }
+          >
+            {!selectedProject && (
+              <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden p-6 text-center select-none">
+                <GridPattern
+                  width={32}
+                  height={32}
+                  className="opacity-30 mask-[radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"
+                />
+                <div className="relative z-10 max-w-md space-y-4">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar/80 shadow-md">
+                    <Layers className="h-6 w-6 text-accent" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">
+                      Integrated Architecture Environment
+                    </h2>
+                    <p className="mt-1 text-xs text-muted">
+                      Select or create a project to start designing
                     </p>
-                  </>
-                ) : ai.previewWaitTimedOut ? (
-                  <>
-                    <p className="text-red-400">Preview load timed out</p>
-                    <p className="text-muted">
-                      Check your connection and try again.
-                    </p>
-                  </>
-                ) : ai.isGenerating ? (
-                  <p className="text-muted">Generating preview...</p>
-                ) : (
-                  <p className="text-muted">Waiting for preview...</p>
-                )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-left font-mono text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setCreateMode("blank")}
+                      className="cursor-pointer rounded-lg border border-sidebar-border bg-sidebar/70 p-3 text-left hover:border-accent/50 hover:bg-hover transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-accent">
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        <span>New Canvas</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted">
+                        Start with a blank multiplayer Tldraw canvas.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCreateMode("prompt")}
+                      className="cursor-pointer rounded-lg border border-sidebar-border bg-sidebar/70 p-3 text-left hover:border-accent/50 hover:bg-hover transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-sky-400">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>AI Prompt</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted">
+                        Synthesize complete system topology via Groq.
+                      </p>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
-          {selectedProject &&
-            selectedProject.status === "ready" &&
-            storeWithStatus && (
-              <ProjectCanvas
-                projectName={selectedProject.name}
-                storeWithStatus={storeWithStatus}
-                saveStatus={saveStatus}
-                onEditorReady={onEditorReady}
+            {selectedProject &&
+              selectedProject.status !== "ready" &&
+              previewRecords && (
+                <PreviewCanvas
+                  records={previewRecords}
+                  label={ai.selectedPreview?.prompt ?? selectedProject.name}
+                />
+              )}
+
+            {selectedProject &&
+              selectedProject.status !== "ready" &&
+              !previewRecords && (
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs font-mono">
+                  {ai.generationFailed ? (
+                    <>
+                      <p className="font-semibold text-red-400">
+                        Preview generation failed.
+                      </p>
+                      <p className="text-muted">
+                        Check your Groq API key and model, then regenerate from
+                        the AI panel.
+                      </p>
+                    </>
+                  ) : ai.previewWaitTimedOut ? (
+                    <>
+                      <p className="font-semibold text-red-400">
+                        Preview load timed out
+                      </p>
+                      <p className="text-muted">
+                        Check your connection and try again.
+                      </p>
+                    </>
+                  ) : ai.isGenerating ? (
+                    <div className="flex items-center gap-2 text-sky-400">
+                      <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
+                      <p className="text-muted">Generating preview...</p>
+                    </div>
+                  ) : (
+                    <p className="text-muted">Waiting for preview...</p>
+                  )}
+                </div>
+              )}
+
+            {selectedProject &&
+              selectedProject.status === "ready" &&
+              storeWithStatus && (
+                <ProjectCanvas
+                  projectName={selectedProject.name}
+                  storeWithStatus={storeWithStatus}
+                  saveStatus={saveStatus}
+                  onEditorReady={onEditorReady}
+                />
+              )}
+          </div>
+
+          {specTabVisible && (
+            <div
+              className={
+                editorTab === "spec" ? "flex min-h-0 flex-1 flex-col" : "hidden"
+              }
+            >
+              <ExportSpecPanel
+                spec={exportSpec.spec}
+                isExporting={exportSpec.isExporting}
+                downloadFileName={exportSpec.downloadFileName}
+                onClear={exportSpec.clearSpec}
+                onCopy={() => {
+                  void exportSpec.copySpec();
+                }}
+                onDownload={exportSpec.downloadSpec}
+                closeRef={specCloseRef}
               />
-            )}
+            </div>
+          )}
         </main>
 
         <CollapsibleSidebar
@@ -269,6 +473,19 @@ export function WorkspaceShell() {
           <AiSidebar ai={ai} project={selectedProject} />
         </CollapsibleSidebar>
       </div>
+
+      <WorkspaceStatusBar
+        status={statusBarStatus}
+        collaboratorCount={invite.joinedCount}
+        projectName={selectedProject?.name}
+      />
+
+      <CreateProjectDialog
+        mode={createMode}
+        onClose={() => setCreateMode(null)}
+        onCreateBlankProject={handleCreateBlankProject}
+        onCreatePromptProject={handleCreatePromptProject}
+      />
     </div>
   );
 }

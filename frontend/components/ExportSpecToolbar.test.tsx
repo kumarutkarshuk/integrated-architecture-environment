@@ -1,21 +1,24 @@
 import { act, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ExportSpecToolbar } from "./ExportSpecToolbar";
+import { ExportSpecPanel, ExportSpecToolbar } from "./ExportSpecToolbar";
 
 const spec = {
   markdown: "# Todo API\n\nUsers talk to the API Gateway.",
   gaps_summary: "Storage is not shown on the canvas.",
 };
 
-function renderToolbar(
-  overrides: Partial<ComponentProps<typeof ExportSpecToolbar>> = {},
+function renderExport(
+  overrides: Partial<
+    ComponentProps<typeof ExportSpecToolbar> &
+      ComponentProps<typeof ExportSpecPanel>
+  > = {},
 ) {
-  const props: ComponentProps<typeof ExportSpecToolbar> = {
+  const props = {
     canExport: true,
     actionsEnabled: true,
     isExporting: false,
-    spec: null,
+    spec: null as typeof spec | null,
     downloadFileName: "todo-api-spec.md",
     onExport: () => undefined,
     onClear: () => undefined,
@@ -24,7 +27,26 @@ function renderToolbar(
     ...overrides,
   };
 
-  return render(<ExportSpecToolbar {...props} />);
+  return render(
+    <>
+      <ExportSpecToolbar
+        canExport={props.canExport}
+        actionsEnabled={props.actionsEnabled}
+        isExporting={props.isExporting}
+        onExport={props.onExport}
+      />
+      {(props.spec || props.isExporting) && (
+        <ExportSpecPanel
+          spec={props.spec}
+          isExporting={props.isExporting}
+          downloadFileName={props.downloadFileName}
+          onClear={props.onClear}
+          onCopy={props.onCopy}
+          onDownload={props.onDownload}
+        />
+      )}
+    </>,
+  );
 }
 
 function clickButton(name: string | RegExp, container?: HTMLElement) {
@@ -36,17 +58,17 @@ function clickButton(name: string | RegExp, container?: HTMLElement) {
 
 describe("ExportSpecToolbar", () => {
   it("shows Export Spec on a ready Project", () => {
-    renderToolbar();
+    renderExport();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
 
   it("hides Export Spec when the Project is not ready", () => {
-    renderToolbar({ canExport: false });
+    renderExport({ canExport: false });
     expect(screen.queryByRole("button", { name: "Export Spec" })).toBeNull();
   });
 
   it("disables Export Spec until the live canvas is connected", () => {
-    renderToolbar({ actionsEnabled: false });
+    renderExport({ actionsEnabled: false });
     expect(
       (screen.getByRole("button", { name: "Export Spec" }) as HTMLButtonElement)
         .disabled,
@@ -55,7 +77,7 @@ describe("ExportSpecToolbar", () => {
 
   it("asks twice before closing the exported Spec", () => {
     const onClear = vi.fn();
-    renderToolbar({ spec, onClear });
+    renderExport({ spec, onClear });
 
     clickButton("Close");
     expect(onClear).not.toHaveBeenCalled();
@@ -65,10 +87,7 @@ describe("ExportSpecToolbar", () => {
     expect(onClear).not.toHaveBeenCalled();
     expect(screen.getByText("Have you reviewed the gaps?")).toBeTruthy();
 
-    clickButton(
-      "Yes, I reviewed the gaps",
-      screen.getByRole("alertdialog"),
-    );
+    clickButton("Yes, I reviewed the gaps", screen.getByRole("alertdialog"));
     expect(onClear).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Are you sure?")).toBeNull();
     expect(screen.queryByRole("alertdialog")).toBeNull();
@@ -76,27 +95,21 @@ describe("ExportSpecToolbar", () => {
 
   it("does not ask to close again after the Spec is dismissed", () => {
     const onClear = vi.fn();
-    const view = renderToolbar({ spec, onClear });
+    const view = renderExport({ spec, onClear });
 
     clickButton("Close");
     clickButton("Yes, close", screen.getByRole("alertdialog"));
-    clickButton(
-      "Yes, I reviewed the gaps",
-      screen.getByRole("alertdialog"),
-    );
+    clickButton("Yes, I reviewed the gaps", screen.getByRole("alertdialog"));
 
     view.rerender(
-      <ExportSpecToolbar
-        canExport
-        actionsEnabled
-        isExporting={false}
-        spec={null}
-        downloadFileName="todo-api-spec.md"
-        onExport={() => undefined}
-        onClear={onClear}
-        onCopy={() => undefined}
-        onDownload={() => undefined}
-      />,
+      <>
+        <ExportSpecToolbar
+          canExport
+          actionsEnabled
+          isExporting={false}
+          onExport={() => undefined}
+        />
+      </>,
     );
 
     expect(screen.queryByText("Are you sure?")).toBeNull();
@@ -107,7 +120,7 @@ describe("ExportSpecToolbar", () => {
   it("asks if gaps were reviewed before copy and download", () => {
     const onCopy = vi.fn();
     const onDownload = vi.fn();
-    renderToolbar({ spec, onCopy, onDownload });
+    renderExport({ spec, onCopy, onDownload });
 
     clickButton("Copy");
     expect(onCopy).not.toHaveBeenCalled();
@@ -123,7 +136,7 @@ describe("ExportSpecToolbar", () => {
   });
 
   it("renders one markdown document for the Spec and gaps", () => {
-    const { container } = renderToolbar({ spec });
+    const { container } = renderExport({ spec });
 
     expect(screen.getByRole("heading", { name: "Todo API" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Gaps summary" })).toBeTruthy();
@@ -134,7 +147,7 @@ describe("ExportSpecToolbar", () => {
   });
 
   it("warns that the Spec is from the canvas at click", () => {
-    renderToolbar({ spec });
+    renderExport({ spec });
 
     expect(
       screen.getByText(

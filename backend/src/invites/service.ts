@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma, type User } from "@prisma/client";
 import { notDeleted, prisma } from "../db.js";
-import { requireOwner } from "../projects/access.js";
+import { findAccessibleProject, requireOwner } from "../projects/access.js";
 import { getMailer } from "./mailer.js";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -99,9 +99,16 @@ export async function listProjectCollaborators(
   projectId: string,
   user: User,
 ): Promise<InviteResult<CollaboratorListItem[]>> {
-  const access = await requireOwner(projectId, user);
-  if (!access.ok) {
-    return { ok: false, status: access.status, error: "Project not found" };
+  const project = await findAccessibleProject(projectId, user.id);
+  if (!project) {
+    const exists = await prisma.project.findFirst({
+      where: { id: projectId, ...notDeleted },
+    });
+    return {
+      ok: false,
+      status: exists ? 403 : 404,
+      error: "Project not found",
+    };
   }
 
   const [collaborators, pendingInvites] = await Promise.all([
@@ -111,9 +118,11 @@ export async function listProjectCollaborators(
         user: { select: { email: true, displayName: true } },
       },
     }),
-    prisma.projectInvite.findMany({
-      where: { projectId, redeemedAt: null, ...notDeleted },
-    }),
+    project.ownerId === user.id
+      ? prisma.projectInvite.findMany({
+          where: { projectId, redeemedAt: null, ...notDeleted },
+        })
+      : Promise.resolve([]),
   ]);
 
   const joinedEmails = new Set(
