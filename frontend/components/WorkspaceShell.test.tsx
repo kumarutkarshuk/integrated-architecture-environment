@@ -179,4 +179,85 @@ describe("WorkspaceShell", () => {
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
+
+  it("toggles side panels via the 48px activity bar", () => {
+    render(<WorkspaceShell />);
+
+    const explorerTool = screen.getByRole("button", { name: "Explorer" });
+    const aiTool = screen.getByRole("button", { name: "AI Assistant" });
+
+    expect(screen.getByText("Projects")).toBeTruthy();
+    expect(screen.getByText("AI Assistant")).toBeTruthy();
+
+    // Toggle Projects panel via Activity Bar
+    fireEvent.click(explorerTool);
+    expect(screen.queryByText("Owned Canvas")).toBeNull();
+
+    // Toggle Projects panel back open via Activity Bar
+    fireEvent.click(explorerTool);
+    expect(screen.getByText("Owned Canvas")).toBeTruthy();
+
+    // Toggle AI Assistant panel via Activity Bar
+    fireEvent.click(aiTool);
+    expect(screen.queryByText("Prompt")).toBeNull();
+
+    // Toggle AI Assistant panel back open via Activity Bar
+    fireEvent.click(aiTool);
+    expect(screen.getByText("AI Assistant")).toBeTruthy();
+  });
+
+  it("displays live canvas save state, connection health, and online collaborator count in the 22px status bar", () => {
+    render(<WorkspaceShell />);
+
+    const statusBar = screen.getByRole("status", { name: "Status Bar" });
+    expect(statusBar.classList.contains("h-5.5")).toBe(true);
+
+    expect(screen.getByTestId("status-bar-save").textContent).toContain("Saved");
+    expect(screen.getByTestId("status-bar-connection").textContent).toContain(
+      "Connected",
+    );
+    expect(screen.getByTestId("status-bar-collaborators").textContent).toContain(
+      "1 collaborator online",
+    );
+  });
+
+  it("switches editor tabs between Live Canvas and AI Preview mode with distinct status styling", () => {
+    render(<WorkspaceShell />);
+
+    const canvasTab = screen.getByRole("tab", { name: "Live Canvas Tab" });
+    const previewTab = screen.getByRole("tab", { name: "AI Preview Tab" });
+
+    // Initially on ready project, Live Canvas is active
+    expect(canvasTab.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("Canvas")).toBeTruthy();
+
+    // Switch to AI Preview tab
+    fireEvent.click(previewTab);
+
+    expect(previewTab.getAttribute("aria-selected")).toBe("true");
+    expect(canvasTab.getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByText("AI Proposal")).toBeTruthy();
+    expect(
+      screen.getByText(/Viewing AI proposal preview \(read-only\)/),
+    ).toBeTruthy();
+
+    // Switch back to Live Canvas tab
+    fireEvent.click(canvasTab);
+    expect(canvasTab.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Canvas")).toBeTruthy();
+  });
+
+  it("preserves user width preferences for workspace side drawers", () => {
+    window.localStorage.setItem("iae.sidebar.projects.width", "340");
+    window.localStorage.setItem("iae.sidebar.ai.width", "380");
+
+    render(<WorkspaceShell />);
+
+    const projectsAside = screen.getByText("Owned Canvas").closest("aside");
+    const aiAside = screen.getByText("AI Assistant").closest("aside");
+
+    expect(projectsAside?.getAttribute("style")).toContain("width: 340px");
+    expect(aiAside?.getAttribute("style")).toContain("width: 380px");
+  });
 });

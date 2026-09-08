@@ -37,6 +37,8 @@ export type CanvasSaveStatus =
   | "offline"
   | "error";
 
+export type ConnectionHealth = "online" | "offline" | "connecting";
+
 type YKeyValueChange =
   | { action: "add"; newValue: TLRecord }
   | { action: "update"; oldValue: TLRecord; newValue: TLRecord }
@@ -83,12 +85,17 @@ export function useYjsTldrawStore(
 ): {
   storeWithStatus: TLStoreWithStatus | null;
   saveStatus: CanvasSaveStatus;
+  connectionHealth: ConnectionHealth;
+  collaboratorCount: number;
   onEditorReady: (editor: Editor) => void;
 } {
   const { getToken } = useAuth();
   const [storeWithStatus, setStoreWithStatus] =
     useState<TLStoreWithStatus | null>(null);
   const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("loading");
+  const [connectionHealth, setConnectionHealth] =
+    useState<ConnectionHealth>("connecting");
+  const [collaboratorCount, setCollaboratorCount] = useState<number>(0);
   const syncToYjsEnabledRef = useRef(false);
   const presenceSessionRef = useRef<{
     store: TLStore;
@@ -116,6 +123,8 @@ export function useYjsTldrawStore(
       clearPresence();
       setStoreWithStatus(null);
       setSaveStatus("loading");
+      setConnectionHealth("offline");
+      setCollaboratorCount(0);
       return;
     }
 
@@ -318,12 +327,41 @@ export function useYjsTldrawStore(
           { source: "user", scope: "document" },
         );
 
+        const updateCollaboratorCount = () => {
+          if (!provider || cancelled) {
+            setCollaboratorCount(0);
+            return;
+          }
+          const states = provider.awareness.getStates();
+          let count = 0;
+          states.forEach((state) => {
+            if (
+              state &&
+              typeof state === "object" &&
+              Object.keys(state).length > 0
+            ) {
+              count += 1;
+            }
+          });
+          setCollaboratorCount(Math.max(1, count));
+        };
+
+        provider.awareness.on("change", updateCollaboratorCount);
+        updateCollaboratorCount();
+
         provider.on("status", ({ status }: { status: string }) => {
           if (cancelled) {
             return;
           }
 
           isConnected = status === "connected";
+          setConnectionHealth(isConnected ? "online" : "offline");
+
+          if (!isConnected) {
+            setCollaboratorCount(0);
+          } else {
+            updateCollaboratorCount();
+          }
 
           setStoreWithStatus((current) => {
             if (!current || current.status !== "synced-remote") {
@@ -355,6 +393,8 @@ export function useYjsTldrawStore(
 
         if (!cancelled) {
           hasSyncedOnce = true;
+          setConnectionHealth("online");
+          updateCollaboratorCount();
           presenceSessionRef.current = {
             store,
             awareness: provider.awareness as AwarenessLike,
@@ -369,6 +409,8 @@ export function useYjsTldrawStore(
         }
       } catch (error) {
         if (!cancelled) {
+          setConnectionHealth("offline");
+          setCollaboratorCount(0);
           setStoreWithStatus({
             status: "error",
             error:
@@ -414,5 +456,11 @@ export function useYjsTldrawStore(
     };
   }, [identity, presenceEpoch]);
 
-  return { storeWithStatus, saveStatus, onEditorReady };
+  return {
+    storeWithStatus,
+    saveStatus,
+    connectionHealth,
+    collaboratorCount,
+    onEditorReady,
+  };
 }

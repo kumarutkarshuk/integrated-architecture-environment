@@ -26,6 +26,8 @@ interface ProjectSidebarProps {
   error: string | null;
   currentUserId: string | null;
   isOpen: boolean;
+  width?: number;
+  onStartResize?: (side: "left" | "right", clientX: number) => void;
   onToggleOpen: () => void;
   onSelectProject: (projectId: string) => void;
   onCreateBlankProject: (name: string) => Promise<void>;
@@ -40,6 +42,8 @@ export function ProjectSidebar({
   error,
   currentUserId,
   isOpen,
+  width,
+  onStartResize,
   onToggleOpen,
   onSelectProject,
   onCreateBlankProject,
@@ -156,6 +160,8 @@ export function ProjectSidebar({
       side="left"
       isOpen={isOpen}
       openWidthClass="w-64"
+      width={width}
+      onStartResize={onStartResize}
       onToggleOpen={onToggleOpen}
       headerEnd={
         <UserButton appearance={clerkAppearance} afterSignOutUrl="/" />

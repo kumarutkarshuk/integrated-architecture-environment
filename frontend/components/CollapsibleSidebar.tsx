@@ -13,7 +13,9 @@ interface CollapsibleSidebarProps {
   title: string;
   side: "left" | "right";
   isOpen: boolean;
-  openWidthClass: string;
+  openWidthClass?: string;
+  width?: number;
+  onStartResize?: (side: "left" | "right", clientX: number) => void;
   onToggleOpen: () => void;
   headerEnd?: ReactNode;
   children: ReactNode;
@@ -23,7 +25,9 @@ export function CollapsibleSidebar({
   title,
   side,
   isOpen,
-  openWidthClass,
+  openWidthClass = "w-64",
+  width,
+  onStartResize,
   onToggleOpen,
   headerEnd,
   children,
@@ -35,7 +39,7 @@ export function CollapsibleSidebar({
   if (!isOpen) {
     return (
       <aside
-        className={`flex h-full w-9 shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar`}
+        className={`flex h-full w-9 shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar transition-[width,opacity] duration-200 ease-in-out`}
       >
         <Button
           type="button"
@@ -53,7 +57,10 @@ export function CollapsibleSidebar({
 
   return (
     <aside
-      className={`flex h-full ${openWidthClass} shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar`}
+      style={width ? { width: `${width}px` } : undefined}
+      className={`relative flex h-full ${
+        width ? "" : openWidthClass
+      } shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar transition-[width,opacity] duration-200 ease-in-out`}
     >
       <div className="flex items-center justify-between border-b border-sidebar-border px-3 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -74,6 +81,19 @@ export function CollapsibleSidebar({
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+
+      {onStartResize && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${title}`}
+          tabIndex={0}
+          onMouseDown={(event) => onStartResize(side, event.clientX)}
+          className={`absolute top-0 bottom-0 ${
+            side === "left" ? "-right-1" : "-left-1"
+          } w-2 cursor-col-resize hover:bg-accent/60 active:bg-accent transition-colors z-20`}
+        />
+      )}
     </aside>
   );
 }

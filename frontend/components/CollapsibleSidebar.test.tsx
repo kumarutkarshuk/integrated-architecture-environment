@@ -108,4 +108,30 @@ describe("CollapsibleSidebar", () => {
     expect(toggleAi).not.toHaveBeenCalled();
     expect(screen.getByText("AI panel")).toBeTruthy();
   });
+
+  it("applies custom width and exposes resize handle when onStartResize is provided", () => {
+    const onStartResize = vi.fn();
+
+    render(
+      <CollapsibleSidebar
+        title="Projects"
+        side="left"
+        isOpen
+        width={320}
+        onStartResize={onStartResize}
+        onToggleOpen={() => undefined}
+      >
+        <p>Project list</p>
+      </CollapsibleSidebar>,
+    );
+
+    const aside = screen.getByText("Project list").closest("aside");
+    expect(aside?.getAttribute("style")).toContain("width: 320px");
+
+    const resizer = screen.getByRole("separator", { name: "Resize Projects" });
+    expect(resizer).toBeTruthy();
+
+    fireEvent.mouseDown(resizer, { clientX: 320 });
+    expect(onStartResize).toHaveBeenCalledWith("left", 320);
+  });
 });
