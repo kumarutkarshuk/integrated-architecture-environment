@@ -36,7 +36,7 @@ export function WorkspaceTitlebar({
               className="flex min-w-0 items-center gap-1 truncate font-medium text-foreground/90"
               title={canvasLabel}
             >
-              <Layers className="h-3 w-3 shrink-0 text-accent" />
+              {/* <Layers className="h-3 w-3 shrink-0 text-accent" /> */}
               <span className="truncate">{canvasLabel}</span>
             </span>
           </>

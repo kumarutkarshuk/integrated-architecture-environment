@@ -1,5 +1,5 @@
 import { act, render, screen, within } from "@testing-library/react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, MutableRefObject } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ExportSpecPanel, ExportSpecToolbar } from "./ExportSpecToolbar";
 
@@ -27,7 +27,9 @@ function renderExport(
     ...overrides,
   };
 
-  return render(
+  const closeRef: MutableRefObject<(() => void) | null> = { current: null };
+
+  const view = render(
     <>
       <ExportSpecToolbar
         canExport={props.canExport}
@@ -43,10 +45,13 @@ function renderExport(
           onClear={props.onClear}
           onCopy={props.onCopy}
           onDownload={props.onDownload}
+          closeRef={closeRef}
         />
       )}
     </>,
   );
+
+  return { ...view, closeRef };
 }
 
 function clickButton(name: string | RegExp, container?: HTMLElement) {
@@ -77,9 +82,10 @@ describe("ExportSpecToolbar", () => {
 
   it("asks twice before closing the exported Spec", () => {
     const onClear = vi.fn();
-    renderExport({ spec, onClear });
-
-    clickButton("Close");
+    const view = renderExport({ spec, onClear });
+    act(() => {
+      view.closeRef.current?.();
+    });
     expect(onClear).not.toHaveBeenCalled();
     expect(screen.getByText("Are you sure?")).toBeTruthy();
 
@@ -97,7 +103,9 @@ describe("ExportSpecToolbar", () => {
     const onClear = vi.fn();
     const view = renderExport({ spec, onClear });
 
-    clickButton("Close");
+    act(() => {
+      view.closeRef.current?.();
+    });
     clickButton("Yes, close", screen.getByRole("alertdialog"));
     clickButton("Yes, I reviewed the gaps", screen.getByRole("alertdialog"));
 

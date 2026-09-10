@@ -56,7 +56,9 @@ export function LandingHero() {
             Integrated Architecture Environment
           </h1>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted md:text-base">
-            AI turns a prompt into a live topology you can edit and export.
+            Transform prompts into live, editable system topologies, collaborate
+            in real time on a shared canvas, export Markdown specs for coding
+            agents.
           </p>
           <Button asChild size="sm" className="mt-5">
             <Link href="/workspace">Open Workspace</Link>

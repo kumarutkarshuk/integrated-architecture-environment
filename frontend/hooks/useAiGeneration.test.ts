@@ -432,6 +432,98 @@ describe("useAiGeneration polling", () => {
       "project-1",
       "preview-1",
     );
+    expect(result.current.isApplying).toBe(true);
+    expect(result.current.isBusy).toBe(true);
+    expect(result.current.selectedPreviewId).toBe("preview-1");
+  });
+
+  it("shows applying state immediately when apply starts", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    applyAiPreviewMock.mockImplementation(() => new Promise(() => {}));
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    act(() => {
+      void result.current.applySelectedPreview();
+    });
+
+    expect(result.current.isApplying).toBe(true);
+    expect(result.current.isBusy).toBe(true);
+  });
+
+  it("stays applying until the live canvas is ready", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    applyAiPreviewMock.mockResolvedValue(projectWith("ready"));
+    const preview = projectWith("preview");
+    const ready = projectWith("ready");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ project, liveCanvasReady }) =>
+        useAiGeneration(
+          project,
+          refreshProject,
+          updateProjectInList,
+          null,
+          liveCanvasReady,
+        ),
+      { initialProps: { project: preview, liveCanvasReady: false } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      await result.current.applySelectedPreview();
+    });
+
+    expect(result.current.isApplying).toBe(true);
+    expect(result.current.previews).toHaveLength(1);
+
+    rerender({ project: ready, liveCanvasReady: false });
+    expect(result.current.isApplying).toBe(true);
+
+    rerender({ project: ready, liveCanvasReady: true });
+    await flushEffects();
+
+    expect(result.current.isApplying).toBe(false);
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.previews).toHaveLength(0);
+    expect(result.current.selectedPreviewId).toBeNull();
+  });
+
+  it("stops applying when apply fails", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    applyAiPreviewMock.mockRejectedValueOnce(new Error("Apply failed"));
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    await act(async () => {
+      await result.current.applySelectedPreview();
+    });
+
+    expect(result.current.isApplying).toBe(false);
+    expect(result.current.isBusy).toBe(false);
+    expect(result.current.previews).toHaveLength(1);
+    expect(toastErrorMock).toHaveBeenCalledWith("Apply failed");
   });
 
   it("shows a toast when regenerate fails", async () => {

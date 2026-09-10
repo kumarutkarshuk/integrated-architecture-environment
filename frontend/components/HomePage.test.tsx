@@ -39,23 +39,36 @@ describe("HomePage", () => {
 
     expect(
       screen.getAllByRole("link", { name: /Open Workspace/i }).length,
-    ).toBeGreaterThan(1);
+    ).toBeGreaterThan(0);
 
     expect(screen.getByLabelText("Overview")).toBeDefined();
     expect(
       screen.getByRole("button", { name: "AI Assistant View" }),
     ).toBeDefined();
-    expect(screen.queryByText("AI Assistant")).toBeNull();
-    expect(screen.getAllByText("Idle").length).toBeGreaterThan(1);
+    expect(screen.getByText("AI Assistant")).toBeDefined();
+    expect(screen.queryByText("Idle")).toBeNull();
+    expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("link", { name: "Utkarsh Kumar" }),
+    ).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "GitHub" })[0].getAttribute("href")).toBe(
+      "https://github.com/kumarutkarshuk/integrated-architecture-environment",
+    );
+    expect(
+      screen.getAllByRole("link", { name: "Utkarsh Kumar" })[0].getAttribute("href"),
+    ).toBe("https://utkarshkumar.vercel.app/");
   });
 
   it("opens the AI assistant from the right activity bar", () => {
     render(<HomePage />);
 
+    expect(screen.getByText("AI Assistant")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse AI Assistant" }));
     expect(screen.queryByText("AI Assistant")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "AI Assistant View" }));
     expect(screen.getByText("AI Assistant")).toBeDefined();
-    expect(screen.getByText("AI topology")).toBeDefined();
+    expect(screen.getByLabelText("AI chat preview")).toBeDefined();
   });
 });

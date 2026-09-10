@@ -1,9 +1,12 @@
 "use client";
 
-import { Layers, Plus, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { Layers, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiErrorMessage, type ApiProject } from "../lib/api";
+import { FadeIn } from "./FadeIn";
+import { useStaggerReveal } from "../hooks/useStaggerReveal";
+import { AiCue } from "./AiCue";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import {
   AlertDialog,
@@ -42,9 +45,18 @@ export function ProjectSidebar({
   onRequestCreatePrompt,
   onDeleteProject,
 }: ProjectSidebarProps) {
+  const listRef = useRef<HTMLUListElement>(null);
   const [projectPendingDelete, setProjectPendingDelete] =
     useState<ApiProject | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const projectIds = projects.map((project) => project.id).join("|");
+
+  useStaggerReveal(listRef, {
+    itemsKey: projectIds,
+    enabled: isOpen && !isLoading && !error && projects.length > 0,
+    fromX: -8,
+    fromY: 8,
+  });
 
   function openDeleteDialog(event: React.MouseEvent, project: ApiProject) {
     event.stopPropagation();
@@ -95,20 +107,23 @@ export function ProjectSidebar({
         <Button
           type="button"
           size="sm"
+          disabled={isLoading}
           className="h-8 w-full justify-start gap-2 px-2 font-mono text-xs bg-accent text-white hover:bg-accent/90"
           onClick={onRequestCreateBlank}
         >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
+          <Layers className="h-3.5 w-3.5 shrink-0" />
           New blank project
         </Button>
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="h-8 w-full justify-start gap-2 px-2 font-mono text-xs border border-sidebar-border bg-hover hover:bg-sidebar"
+          disabled={isLoading}
+          className="relative h-8 w-full justify-start gap-2 px-2 font-mono text-xs border border-sky-400/35 bg-hover hover:bg-sidebar"
           onClick={onRequestCreatePrompt}
         >
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+          <AiCue duration={5} />
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400 animate-ai-sparkle" />
           New prompt project
         </Button>
       </div>
@@ -121,17 +136,19 @@ export function ProjectSidebar({
         {error && <p className="px-2 py-1 text-xs text-red-400">{error}</p>}
 
         {!isLoading && !error && projects.length === 0 && (
-          <p className="px-2 py-1 text-xs text-muted">No projects yet</p>
+          <FadeIn fromX={-8} className="px-2 py-1 text-xs text-muted">
+            No projects yet
+          </FadeIn>
         )}
 
-        <ul className="space-y-1">
+        <ul ref={listRef} className="space-y-1">
           {projects.map((project) => {
             const isSelected = project.id === selectedProjectId;
             const canDelete = currentUserId === project.ownerId;
             const meta = `${project.mode} · ${project.status}`;
 
             return (
-              <li key={project.id}>
+              <li key={project.id} data-stagger-item={project.id}>
                 <div
                   className={`group relative flex items-center justify-between rounded px-2 py-1.5 transition-colors ${
                     isSelected

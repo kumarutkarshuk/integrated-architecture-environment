@@ -52,6 +52,9 @@
 - Landing page and UI
 - AI animations and labels
 - in app accepting invitations
+- unique project names and limited projects
+- supabase and resend issues 
+- unauthorized issue
 
 # Design
 

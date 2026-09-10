@@ -24,7 +24,7 @@ export function BorderBeam({
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-0 rounded-[inherit]",
+        "pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]",
         "animate-border-beam",
         className,
       )}
@@ -32,6 +32,7 @@ export function BorderBeam({
         {
           "--duration": `${duration}s`,
           "--delay": `-${delay}s`,
+          borderRadius: "inherit",
           padding: borderWidth,
           background: `conic-gradient(from var(--beam-angle), transparent 68%, ${colorFrom} 80%, ${colorTo} 88%, transparent 100%)`,
           WebkitMask:

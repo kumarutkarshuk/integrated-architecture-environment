@@ -47,6 +47,7 @@ export function ExportSpecToolbar({
       type="button"
       variant="outline"
       size="sm"
+      className="h-6 rounded-md px-2 font-mono text-[11px]"
       disabled={!actionsEnabled || isExporting}
       onClick={onExport}
     >
@@ -234,15 +235,6 @@ export function ExportSpecPanel({
           before you treat this as current.
         </p>
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!spec}
-            onClick={confirm.requestClose}
-          >
-            Close
-          </Button>
           <Button
             type="button"
             variant="outline"

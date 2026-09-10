@@ -17,7 +17,7 @@ export function CanvasSaveStatusLabel({ status }: CanvasSaveStatusLabelProps) {
       : "bg-muted";
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded bg-sidebar px-2 py-0.5 font-mono text-[11px] border border-sidebar-border shadow-xs">
+    <span className="inline-flex h-6 items-center gap-1.5 rounded-md border border-sidebar-border bg-sidebar px-2 font-mono text-[11px]">
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       {status === "loading" && <span className="text-muted">Loading canvas...</span>}
       {status === "saving" && <span className="text-amber-400">Saving...</span>}

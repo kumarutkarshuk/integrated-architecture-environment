@@ -24,10 +24,6 @@ export function deriveWorkspaceShellStatus(args: {
   }
 
   if (args.canvasActionsEnabled) {
-    if (args.saveStatus === "saving") {
-      return "saving";
-    }
-
     if (args.saveStatus === "offline") {
       return "offline";
     }
@@ -58,27 +54,17 @@ export function presentShellStatus(status: ShellStatus): {
   switch (status) {
     case "live":
     case "saved":
+    case "saving":
       return { label: "CRDT Live", dotColor: "bg-emerald-400", pulse: true };
     case "connecting":
       return { label: "Connecting", dotColor: "bg-amber-400", pulse: true };
     case "offline":
-      return { label: "Offline", dotColor: "bg-amber-400", pulse: false };
-    case "saving":
-      return {
-        label: "Saving",
-        dotColor: "bg-amber-400 animate-pulse",
-        pulse: false,
-      };
+      return { label: "Disconnected", dotColor: "bg-amber-400", pulse: false };
     case "error":
       return { label: "Error", dotColor: "bg-red-400", pulse: false };
     case "preview":
-      return { label: "Preview", dotColor: "bg-sky-400", pulse: false };
     case "generating":
-      return {
-        label: "Generating",
-        dotColor: "bg-sky-400 animate-pulse",
-        pulse: true,
-      };
+      return { label: "Idle", dotColor: "bg-muted", pulse: false };
     case "loading":
       return {
         label: "Loading",

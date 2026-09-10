@@ -20,10 +20,9 @@ import "tldraw/tldraw.css";
 
 interface PreviewCanvasProps {
   records: Record<string, unknown>;
-  label: string;
 }
 
-export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
+export function PreviewCanvas({ records }: PreviewCanvasProps) {
   const recordsKey = JSON.stringify(records);
   const normalizedRecords = useMemo(
     () =>
@@ -81,14 +80,6 @@ export function PreviewCanvas({ records, label }: PreviewCanvasProps) {
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div className="pointer-events-none absolute inset-x-3 top-3 z-10">
-        <div
-          title={`Preview: ${label}`}
-          className="truncate rounded bg-titlebar/90 px-2 py-1 text-xs text-muted"
-        >
-          Preview: {label}
-        </div>
-      </div>
       <Tldraw
         store={storeWithStatus.store}
         options={TLDRAW_OPTIONS}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ApiCollaborator } from "../lib/api";
+import { useStaggerReveal } from "../hooks/useStaggerReveal";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -18,12 +19,17 @@ interface InviteToolbarProps {
   canInvite: boolean;
   actionsEnabled: boolean;
   isSending: boolean;
+  currentUserEmail: string | null;
   collaborators: ApiCollaborator[];
   isLoadingCollaborators: boolean;
   resendingInviteId: string | null;
   onOpen: () => void;
   onInvite: (email: string) => void;
   onResend: (inviteId: string) => void;
+}
+
+function sameEmail(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
 function statusLabel(status: ApiCollaborator["status"]): string {
@@ -48,6 +54,7 @@ export function InviteToolbar({
   canInvite,
   actionsEnabled,
   isSending,
+  currentUserEmail,
   collaborators,
   isLoadingCollaborators,
   resendingInviteId,
@@ -55,9 +62,23 @@ export function InviteToolbar({
   onInvite,
   onResend,
 }: InviteToolbarProps) {
+  const listRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const collaboratorKey = collaborators
+    .map((person) =>
+      person.status === "pending"
+        ? person.inviteId
+        : `${person.role}:${person.email}`,
+    )
+    .join("|");
+
+  useStaggerReveal(listRef, {
+    itemsKey: collaboratorKey,
+    enabled: open && collaborators.length > 0,
+    fromY: 6,
+  });
   const waitingToResend = collaborators.some(
     (person) =>
       person.status === "pending" &&
@@ -104,11 +125,12 @@ export function InviteToolbar({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center">
       <Button
         type="button"
         variant="outline"
         size="sm"
+        className="h-6 rounded-md px-2 font-mono text-[11px]"
         disabled={!actionsEnabled}
         onClick={() => handleOpenChange(true)}
       >
@@ -144,7 +166,10 @@ export function InviteToolbar({
               {isLoadingCollaborators && collaborators.length === 0 ? (
                 <p className="text-sm text-muted">Loading...</p>
               ) : (
-                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                <ul
+                  ref={listRef}
+                  className="max-h-48 space-y-2 overflow-y-auto"
+                >
                   {collaborators.map((person) => {
                     const waitLabel =
                       person.status === "pending" && person.resendAvailableAt
@@ -154,14 +179,18 @@ export function InviteToolbar({
                       person.status === "pending" &&
                       (person.canResend ||
                         (person.resendAvailableAt !== null && !waitLabel));
+                    const isCurrentUser =
+                      currentUserEmail !== null &&
+                      sameEmail(person.email, currentUserEmail);
+                    const itemId =
+                      person.status === "pending"
+                        ? person.inviteId
+                        : `${person.role}:${person.email}`;
 
                     return (
                       <li
-                        key={
-                          person.status === "pending"
-                            ? person.inviteId
-                            : `${person.role}:${person.email}`
-                        }
+                        key={itemId}
+                        data-stagger-item={itemId}
                         className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border px-2 py-1.5"
                       >
                         <div className="min-w-0">
@@ -170,11 +199,13 @@ export function InviteToolbar({
                             title={person.displayName ?? person.email}
                           >
                             {person.displayName ?? person.email}
+                            {isCurrentUser ? " (you)" : ""}
                           </p>
                           <p className="text-xs text-muted">
                             {person.displayName ? `${person.email} · ` : ""}
                             {statusLabel(person.status)}
                             {person.role === "owner" ? " · Owner" : ""}
+                            {isCurrentUser ? " · You" : ""}
                           </p>
                         </div>
                         {showResend && person.status === "pending" && (

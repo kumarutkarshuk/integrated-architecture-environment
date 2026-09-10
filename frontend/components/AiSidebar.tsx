@@ -1,20 +1,16 @@
 "use client";
 
-import { Bot, Check, Clock, Layers, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot } from "lucide-react";
+import { useRef } from "react";
 import type { ApiProject } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
+import { FadeIn } from "./FadeIn";
+import { useStaggerReveal } from "../hooks/useStaggerReveal";
 import { BorderBeam } from "./ui/border-beam";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Textarea } from "./ui/textarea";
+import { cn } from "@/lib/utils";
 
 type AiGenerationState = ReturnType<typeof useAiGeneration>;
 
@@ -23,11 +19,8 @@ interface AiSidebarProps {
   ai: AiGenerationState;
 }
 
-function formatPreviewTime(createdAt: string): string {
-  return new Date(createdAt).toLocaleString();
-}
-
 export function AiSidebar({ project, ai }: AiSidebarProps) {
+  const listRef = useRef<HTMLDivElement>(null);
   const {
     prompt,
     setPrompt,
@@ -35,175 +28,158 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
     selectedPreviewId,
     setSelectedPreviewId,
     isBusy,
+    isApplying,
     isGenerating,
     generationFailed,
     regenerate,
     applySelectedPreview,
   } = ai;
 
-  if (!project) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-xs font-mono text-muted">
-        Select a project to use AI generation
-      </div>
-    );
+  const previewIds = previews.map((preview) => preview.id).join("|");
+  useStaggerReveal(listRef, {
+    itemsKey: `${previewIds}|${selectedPreviewId ? "apply" : ""}`,
+    enabled: previews.length > 0,
+    fromX: 8,
+    fromY: 8,
+  });
+
+  if (
+    !project ||
+    ((project.mode !== "prompt" || project.status === "ready") && !isApplying)
+  ) {
+    return <ChatComingSoon />;
   }
 
-  if (project.mode !== "prompt" || project.status === "ready") {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs font-mono text-muted">
-        <Bot className="h-8 w-8 text-muted/50" />
-        <p>Coming in v2</p>
-        <p className="text-[10px] text-muted/70">
-          AI chat-assisted canvas modifications will arrive in the next release.
-        </p>
-      </div>
-    );
-  }
+  const canRegenerate =
+    !isBusy && !isApplying && !isGenerating && Boolean(prompt.trim());
+  const showApply = Boolean(selectedPreviewId) || isApplying;
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3 font-mono text-xs">
-      {/* Copilot Prompt Card */}
-      <Card className="relative overflow-hidden border-sidebar-border bg-sidebar/90">
-        {isGenerating && (
-          <BorderBeam
-            size={180}
-            duration={8}
-            colorFrom="#007acc"
-            colorTo="#38bdf8"
-            borderWidth={1.5}
-          />
+    <div className="flex min-h-0 flex-1 flex-col font-mono text-xs">
+      <div
+        ref={listRef}
+        className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
+      >
+        {generationFailed && previews.length === 0 && (
+          <p className="text-xs text-red-400" data-stagger-item="failed">
+            Generation failed. Update your prompt and try again.
+          </p>
         )}
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-1.5 text-accent font-semibold">
-            <Sparkles className="h-3.5 w-3.5" />
-            <CardTitle className="text-xs">Prompt</CardTitle>
-          </div>
-          <CardDescription className="text-[11px] text-muted">
-            Describe the system you want designed. Tweak and regenerate until
-            you like a preview.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="ai-prompt" className="text-[11px] text-muted">
-                Design prompt
-              </Label>
-              <kbd className="text-[9px] text-muted/70 rounded bg-hover px-1 py-0.5">
-                ⌘↵
-              </kbd>
-            </div>
-            <Textarea
-              id="ai-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Design a todo API with auth and Postgres"
-              disabled={isBusy}
-              className="text-xs min-h-20 bg-panel border-sidebar-border focus-visible:ring-accent"
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                  if (!isBusy && prompt.trim() && !isGenerating) {
-                    void regenerate();
-                  }
-                }
-              }}
-            />
-          </div>
-          <Button
-            type="button"
-            className="w-full text-xs h-8 bg-accent hover:bg-accent/90 text-white font-mono"
-            disabled={isBusy || !prompt.trim() || isGenerating}
-            onClick={() => void regenerate()}
+
+        {previews.length > 0 && (
+          <RadioGroup
+            value={selectedPreviewId ?? undefined}
+            onValueChange={(value) => {
+              if (isApplying) {
+                return;
+              }
+              setSelectedPreviewId(value);
+            }}
+            className="space-y-1.5"
           >
-            {isGenerating ? (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-white animate-ping" />
-                Generating...
-              </span>
-            ) : (
-              "Regenerate preview"
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Previews Selection Card */}
-      <Card className="border-sidebar-border bg-sidebar/90">
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-1.5 text-foreground font-semibold">
-            <Layers className="h-3.5 w-3.5 text-muted" />
-            <CardTitle className="text-xs">Previews</CardTitle>
-          </div>
-          <CardDescription className="text-[11px] text-muted">
-            Pick a completed preview to apply to the canvas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isGenerating && previews.length === 0 && (
-            <div className="flex items-center gap-2 text-xs text-sky-400 py-1">
-              <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-              <p>AI is generating your first preview...</p>
-            </div>
-          )}
-
-          {generationFailed && previews.length === 0 && (
-            <p className="text-xs text-red-400">
-              Generation failed. Update your prompt and try again.
-            </p>
-          )}
-
-          {!isGenerating && !generationFailed && previews.length === 0 && (
-            <p className="text-xs text-muted">No completed previews yet.</p>
-          )}
-
-          {previews.length > 0 && (
-            <RadioGroup
-              value={selectedPreviewId ?? undefined}
-              onValueChange={setSelectedPreviewId}
-              className="space-y-1.5"
-            >
-              {previews.map((preview) => {
-                const isSelected = selectedPreviewId === preview.id;
-                return (
-                  <label
-                    key={preview.id}
-                    className={`flex cursor-pointer items-start gap-2.5 rounded border p-2.5 transition-colors ${
-                      isSelected
-                        ? "border-accent bg-hover/80 text-foreground"
-                        : "border-sidebar-border bg-panel hover:bg-hover text-foreground/80"
-                    }`}
+            {previews.map((preview) => {
+              const isSelected = selectedPreviewId === preview.id;
+              return (
+                <label
+                  key={preview.id}
+                  data-stagger-item={preview.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors",
+                    isApplying && "pointer-events-none opacity-80",
+                    isSelected
+                      ? "border-accent/70 bg-selection/40 text-foreground"
+                      : "border-sidebar-border bg-panel text-foreground/80 hover:bg-hover",
+                  )}
+                >
+                  <RadioGroupItem value={preview.id} className="sr-only" />
+                  <p
+                    className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug"
+                    title={preview.prompt ?? "Untitled preview"}
                   >
-                    <RadioGroupItem value={preview.id} className="mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="line-clamp-2 text-xs font-medium leading-snug"
-                        title={preview.prompt ?? "Untitled preview"}
-                      >
-                        {preview.prompt ?? "Untitled preview"}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1 text-[10px] text-muted">
-                        <Clock className="h-2.5 w-2.5" />
-                        {formatPreviewTime(preview.createdAt)}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
-            </RadioGroup>
-          )}
+                    {preview.prompt ?? "Untitled preview"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted hover:text-foreground"
+                    disabled={!preview.prompt || isApplying}
+                    aria-label="Add prompt to the text box"
+                    title="Add prompt to the text box"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (preview.prompt) {
+                        setPrompt(preview.prompt);
+                      }
+                    }}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                </label>
+              );
+            })}
+          </RadioGroup>
+        )}
 
+        {showApply && (
           <Button
             type="button"
-            className="w-full text-xs h-8 font-mono"
-            variant={selectedPreviewId ? "default" : "secondary"}
-            disabled={isBusy || !selectedPreviewId || isGenerating}
+            size="sm"
+            className="mt-2 h-7 w-full text-xs"
+            data-stagger-item="apply"
+            disabled={isBusy || isApplying}
             onClick={() => void applySelectedPreview()}
           >
-            Apply selected preview
+            {isApplying ? "Applying..." : "Apply preview"}
           </Button>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      <div className="border-t border-sidebar-border p-2">
+        <div className="relative overflow-hidden rounded-lg border border-sidebar-border bg-panel">
+          {isGenerating && <BorderBeam duration={8} borderWidth={1.5} />}
+          <Textarea
+            id="ai-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Describe the system..."
+            disabled={isBusy || isApplying || isGenerating}
+            className="relative min-h-20 resize-none border-0 bg-transparent px-2.5 py-2 text-[11px] leading-relaxed shadow-none focus-visible:ring-0"
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                if (canRegenerate) {
+                  void regenerate();
+                }
+              }
+            }}
+          />
+          <div className="relative flex justify-end border-t border-sidebar-border p-1.5">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-7 p-0"
+              disabled={!canRegenerate}
+              onClick={() => void regenerate()}
+              aria-label="Regenerate preview"
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ChatComingSoon() {
+  return (
+    <FadeIn
+      fromX={8}
+      className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs font-mono text-muted"
+    >
+      <Bot className="h-8 w-8 text-muted/50" aria-hidden />
+      <p>Chat coming soon...</p>
+    </FadeIn>
   );
 }

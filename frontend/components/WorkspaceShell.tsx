@@ -2,7 +2,7 @@
 
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { FileCode2, FileText, FolderPlus, Layers, Sparkles, X } from "lucide-react";
+import { FileCode2, FileText, Layers, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useCreateInvite } from "../hooks/useCreateInvite";
@@ -16,9 +16,11 @@ import {
   useSidebarOpen,
 } from "../hooks/useSidebarOpen";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
+import { useStaggerReveal } from "../hooks/useStaggerReveal";
 import { isLiveCanvasOnline } from "../lib/canvas";
 import { deriveWorkspaceShellStatus } from "../lib/shellStatus";
 import { ActivityBar } from "./ActivityBar";
+import { AiCue } from "./AiCue";
 import { AiSidebar } from "./AiSidebar";
 import { CanvasSaveStatusLabel } from "./CanvasSaveStatusLabel";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
@@ -76,12 +78,6 @@ export function WorkspaceShell() {
     ? (initialPromptByProjectId[selectedProject.id] ?? null)
     : null;
 
-  const ai = useAiGeneration(
-    selectedProject,
-    refreshProject,
-    updateProjectInList,
-    initialPrompt,
-  );
   const exportSpec = useExportSpec(selectedProject);
   const invite = useCreateInvite(selectedProject, user);
 
@@ -103,17 +99,29 @@ export function WorkspaceShell() {
     presenceIdentity,
   );
   const canvasActionsEnabled = isLiveCanvasOnline(storeWithStatus, saveStatus);
+  const ai = useAiGeneration(
+    selectedProject,
+    refreshProject,
+    updateProjectInList,
+    initialPrompt,
+    canvasActionsEnabled || saveStatus === "error",
+  );
 
   const previewRecords =
     ai.isGenerating ? null : (ai.selectedPreview?.result?.records ?? null);
 
   const specTabVisible = Boolean(exportSpec.spec) || exportSpec.isExporting;
+  const isProjectsListLoading = isUserLoading || isProjectsLoading;
   const canvasLabel = selectedProject
     ? `${selectedProject.name}.canvas`
     : "welcome.canvas";
+  const specTabLabel = selectedProject
+    ? `${selectedProject.name}.md`
+    : "spec.md";
 
   const isPreviewing = Boolean(
-    selectedProject && selectedProject.status !== "ready",
+    selectedProject &&
+      (selectedProject.status !== "ready" || ai.isApplying),
   );
   const shellStatus = deriveWorkspaceShellStatus({
     hasProject: Boolean(selectedProject),
@@ -211,14 +219,26 @@ export function WorkspaceShell() {
         <ProjectSidebar
           projects={projects}
           selectedProjectId={selectedProjectId}
-          isLoading={isUserLoading || isProjectsLoading}
+          isLoading={isProjectsListLoading}
           error={userError ?? projectsError}
           currentUserId={user?.id ?? null}
           isOpen={isProjectsSidebarOpen}
           onToggleOpen={toggleProjectsSidebar}
           onSelectProject={selectProject}
-          onRequestCreateBlank={() => setCreateMode("blank")}
-          onRequestCreatePrompt={() => setCreateMode("prompt")}
+          onRequestCreateBlank={() => {
+            if (isProjectsListLoading) {
+              return;
+            }
+
+            setCreateMode("blank");
+          }}
+          onRequestCreatePrompt={() => {
+            if (isProjectsListLoading) {
+              return;
+            }
+
+            setCreateMode("prompt");
+          }}
           onDeleteProject={handleDeleteProject}
         />
 
@@ -250,15 +270,11 @@ export function WorkspaceShell() {
                   <button
                     type="button"
                     onClick={() => setEditorTab("spec")}
-                    title={exportSpec.downloadFileName}
+                    title={specTabLabel}
                     className="flex h-full min-w-0 cursor-pointer items-center gap-2 px-3 font-mono text-xs hover:text-foreground"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                    <span className="truncate">
-                      {exportSpec.isExporting && !exportSpec.spec
-                        ? "exporting-spec.md"
-                        : exportSpec.downloadFileName}
-                    </span>
+                    <span className="truncate">{specTabLabel}</span>
                   </button>
                   {exportSpec.spec && (
                     <button
@@ -275,39 +291,46 @@ export function WorkspaceShell() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex h-full items-center gap-1.5">
               {selectedProject && editorTab === "canvas" && (
-                <span className="hidden font-mono text-[11px] text-muted md:inline">
+                <span className="hidden h-6 items-center rounded-md border border-sidebar-border bg-sidebar px-2 font-mono text-[11px] text-muted md:inline-flex">
                   {selectedProject.status === "ready" ? "Canvas" : "Preview"}
                 </span>
               )}
 
-              <InviteToolbar
-                canInvite={invite.canInvite}
-                actionsEnabled={canvasActionsEnabled}
-                isSending={invite.isSending}
-                collaborators={invite.collaborators}
-                isLoadingCollaborators={invite.isLoadingCollaborators}
-                resendingInviteId={invite.resendingInviteId}
-                onOpen={() => {
-                  void invite.loadCollaborators();
-                }}
-                onInvite={(email) => {
-                  void invite.invite(email);
-                }}
-                onResend={(inviteId) => {
-                  void invite.resend(inviteId);
-                }}
-              />
+              {editorTab === "canvas" && (
+                <>
+                  {selectedProject?.status === "ready" && (
+                    <InviteToolbar
+                      canInvite={invite.canInvite}
+                      actionsEnabled={canvasActionsEnabled}
+                      isSending={invite.isSending}
+                      currentUserEmail={user?.email ?? null}
+                      collaborators={invite.collaborators}
+                      isLoadingCollaborators={invite.isLoadingCollaborators}
+                      resendingInviteId={invite.resendingInviteId}
+                      onOpen={() => {
+                        void invite.loadCollaborators();
+                      }}
+                      onInvite={(email) => {
+                        void invite.invite(email);
+                      }}
+                      onResend={(inviteId) => {
+                        void invite.resend(inviteId);
+                      }}
+                    />
+                  )}
 
-              <ExportSpecToolbar
-                canExport={exportSpec.canExport}
-                actionsEnabled={canvasActionsEnabled}
-                isExporting={exportSpec.isExporting}
-                onExport={() => {
-                  void exportSpec.exportSpec();
-                }}
-              />
+                  <ExportSpecToolbar
+                    canExport={exportSpec.canExport}
+                    actionsEnabled={canvasActionsEnabled}
+                    isExporting={exportSpec.isExporting}
+                    onExport={() => {
+                      void exportSpec.exportSpec();
+                    }}
+                  />
+                </>
+              )}
 
               {selectedProject?.status === "ready" && editorTab === "canvas" && (
                 <CanvasSaveStatusLabel status={saveStatus} />
@@ -320,66 +343,33 @@ export function WorkspaceShell() {
               editorTab === "canvas" ? "flex min-h-0 flex-1 flex-col" : "hidden"
             }
           >
-            {!selectedProject && (
+            {!selectedProject && isProjectsListLoading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs font-mono">
+                <div className="flex items-center gap-2 text-sky-400">
+                  <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
+                  <p className="text-muted">Loading projects...</p>
+                </div>
+              </div>
+            )}
+
+            {!selectedProject && !isProjectsListLoading && (
               <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden p-6 text-center select-none">
                 <GridPattern
                   width={32}
                   height={32}
                   className="opacity-30 mask-[radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"
                 />
-                <div className="relative z-10 max-w-md space-y-4">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar/80 shadow-md">
-                    <Layers className="h-6 w-6 text-accent" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">
-                      Integrated Architecture Environment
-                    </h2>
-                    <p className="mt-1 text-xs text-muted">
-                      Select or create a project to start designing
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-left font-mono text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setCreateMode("blank")}
-                      className="cursor-pointer rounded-lg border border-sidebar-border bg-sidebar/70 p-3 text-left hover:border-accent/50 hover:bg-hover transition-colors"
-                    >
-                      <div className="flex items-center gap-1.5 font-semibold text-accent">
-                        <FolderPlus className="h-3.5 w-3.5" />
-                        <span>New Canvas</span>
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted">
-                        Start with a blank multiplayer Tldraw canvas.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCreateMode("prompt")}
-                      className="cursor-pointer rounded-lg border border-sidebar-border bg-sidebar/70 p-3 text-left hover:border-accent/50 hover:bg-hover transition-colors"
-                    >
-                      <div className="flex items-center gap-1.5 font-semibold text-sky-400">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>AI Prompt</span>
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted">
-                        Synthesize complete system topology via Groq.
-                      </p>
-                    </button>
-                  </div>
-                </div>
+                <WorkspaceEmptyStart
+                  onCreateBlank={() => setCreateMode("blank")}
+                  onCreatePrompt={() => setCreateMode("prompt")}
+                />
               </div>
             )}
 
             {selectedProject &&
               selectedProject.status !== "ready" &&
               previewRecords && (
-                <PreviewCanvas
-                  records={previewRecords}
-                  label={ai.selectedPreview?.prompt ?? selectedProject.name}
-                />
+                <PreviewCanvas records={previewRecords} />
               )}
 
             {selectedProject &&
@@ -405,13 +395,15 @@ export function WorkspaceShell() {
                         Check your connection and try again.
                       </p>
                     </>
-                  ) : ai.isGenerating ? (
+                  ) : (
                     <div className="flex items-center gap-2 text-sky-400">
                       <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
-                      <p className="text-muted">Generating preview...</p>
+                      <p className="text-muted">
+                        {ai.isGenerating
+                          ? "Generating preview..."
+                          : "Waiting for preview..."}
+                      </p>
                     </div>
-                  ) : (
-                    <p className="text-muted">Waiting for preview...</p>
                   )}
                 </div>
               )}
@@ -467,11 +459,7 @@ export function WorkspaceShell() {
         />
       </div>
 
-      <WorkspaceStatusBar
-        status={shellStatus}
-        collaboratorCount={invite.joinedCount}
-        projectName={selectedProject?.name}
-      />
+      <WorkspaceStatusBar projectName={selectedProject?.name} />
 
       <CreateProjectDialog
         mode={createMode}
@@ -479,6 +467,67 @@ export function WorkspaceShell() {
         onCreateBlankProject={handleCreateBlankProject}
         onCreatePromptProject={handleCreatePromptProject}
       />
+    </div>
+  );
+}
+
+function WorkspaceEmptyStart({
+  onCreateBlank,
+  onCreatePrompt,
+}: {
+  onCreateBlank: () => void;
+  onCreatePrompt: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useStaggerReveal(ref, {
+    itemsKey: "empty-start",
+    enabled: true,
+    fromY: 10,
+  });
+
+  return (
+    <div ref={ref} className="relative z-10 max-w-md space-y-4">
+      <div data-stagger-item="copy">
+        <h2 className="text-base font-semibold text-foreground">
+          Integrated Architecture Environment
+        </h2>
+        <p className="mt-1 text-xs text-muted">
+          Select or create a project to start designing
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-left font-mono text-xs">
+        <button
+          type="button"
+          data-stagger-item="blank"
+          onClick={onCreateBlank}
+          className="cursor-pointer rounded-lg border border-sidebar-border bg-sidebar/70 p-3 text-left transition-colors hover:border-accent/50 hover:bg-hover"
+        >
+          <div className="flex items-center gap-1.5 font-semibold text-accent">
+            <Layers className="h-3.5 w-3.5" />
+            <span>New Canvas</span>
+          </div>
+          <p className="mt-1 text-[10px] text-muted">
+            Start with a blank multiplayer workspace.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          data-stagger-item="prompt"
+          onClick={onCreatePrompt}
+          className="relative cursor-pointer rounded-lg border border-sky-400/35 bg-sidebar/70 p-3 text-left transition-colors hover:border-sky-400/60 hover:bg-hover"
+        >
+          <AiCue duration={7} />
+          <div className="relative flex items-center gap-1.5 font-semibold text-sky-400">
+            <Sparkles className="h-3.5 w-3.5 animate-ai-sparkle" />
+            <span>AI Prompt</span>
+          </div>
+          <p className="relative mt-1 text-[10px] text-muted">
+            Synthesize complete system topology using AI.
+          </p>
+        </button>
+      </div>
     </div>
   );
 }

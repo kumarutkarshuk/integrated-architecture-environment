@@ -66,6 +66,25 @@ describe("ProjectSidebar", () => {
     expect(screen.queryByRole("button", { name: "Open Projects" })).toBeNull();
   });
 
+  it("disables create buttons while projects are loading", () => {
+    renderSidebar("user-owner", { isLoading: true });
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "New blank project",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "New prompt project",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
   it("opens create dialogs from the project list actions", () => {
     const onRequestCreateBlank = vi.fn();
     const onRequestCreatePrompt = vi.fn();
@@ -81,6 +100,17 @@ describe("ProjectSidebar", () => {
       screen.getByRole("button", { name: "New prompt project" }),
     );
     expect(onRequestCreatePrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("always shows an AI cue on the new prompt project button", () => {
+    renderSidebar("user-owner");
+
+    const promptButton = screen.getByRole("button", {
+      name: "New prompt project",
+    });
+
+    expect(promptButton.querySelector(".animate-border-beam")).toBeTruthy();
+    expect(promptButton.querySelector(".animate-ai-sparkle")).toBeTruthy();
   });
 
   it("lets the owner delete their Project", () => {

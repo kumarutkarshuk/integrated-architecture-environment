@@ -5,7 +5,7 @@ import {
 } from "./shellStatus";
 
 describe("shellStatus", () => {
-  it("shows preview instead of idle while a project is generating or previewing", () => {
+  it("shows idle on preview and generating while a project is not ready", () => {
     expect(
       presentShellStatus(
         deriveWorkspaceShellStatus({
@@ -16,7 +16,7 @@ describe("shellStatus", () => {
           saveStatus: "loading",
         }),
       ).label,
-    ).toBe("Preview");
+    ).toBe("Idle");
 
     expect(
       presentShellStatus(
@@ -28,10 +28,10 @@ describe("shellStatus", () => {
           saveStatus: "loading",
         }),
       ).label,
-    ).toBe("Generating");
+    ).toBe("Idle");
   });
 
-  it("uses the same live label for the titlebar and status bar", () => {
+  it("uses the live label for the titlebar", () => {
     const status = deriveWorkspaceShellStatus({
       hasProject: true,
       projectReady: true,
@@ -41,5 +41,33 @@ describe("shellStatus", () => {
     });
 
     expect(presentShellStatus(status).label).toBe("CRDT Live");
+  });
+
+  it("shows disconnected instead of offline on the titlebar", () => {
+    expect(
+      presentShellStatus(
+        deriveWorkspaceShellStatus({
+          hasProject: true,
+          projectReady: true,
+          isGenerating: false,
+          canvasActionsEnabled: false,
+          saveStatus: "offline",
+        }),
+      ).label,
+    ).toBe("Disconnected");
+  });
+
+  it("keeps the live label while the canvas is saving", () => {
+    expect(
+      presentShellStatus(
+        deriveWorkspaceShellStatus({
+          hasProject: true,
+          projectReady: true,
+          isGenerating: false,
+          canvasActionsEnabled: true,
+          saveStatus: "saving",
+        }),
+      ).label,
+    ).toBe("CRDT Live");
   });
 });
