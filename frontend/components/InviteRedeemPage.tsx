@@ -26,7 +26,7 @@ export function InviteRedeemPage({ token }: InviteRedeemPageProps) {
 
   useEffect(() => {
     if (redeem.projectId) {
-      router.replace(`/?project=${redeem.projectId}`);
+      router.replace(`/workspace?project=${redeem.projectId}`);
     }
   }, [redeem.projectId, router]);
 

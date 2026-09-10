@@ -592,17 +592,23 @@ describe("Invite create and redeem", () => {
     });
   });
 
-  it("hides Collaborator listing from a non-owner", async () => {
-    const ownerHeader = authHeader("clerk_hide_owner", "hideowner@example.com");
+  it("lets an editor list joined Collaborators without pending Invites", async () => {
+    const ownerHeader = authHeader("clerk_list_owner", "listjoinedowner@example.com");
     const editorHeader = authHeader(
-      "clerk_hide_editor",
-      "hideeditor@example.com",
+      "clerk_list_editor",
+      "listjoinededitor@example.com",
     );
 
     const created = await request(app)
       .post("/api/projects")
       .set("Authorization", ownerHeader)
-      .send({ name: "Owner Only", mode: "blank" })
+      .send({ name: "Shared List", mode: "blank" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", ownerHeader)
+      .send({ email: "pending-hidden@example.com" })
       .expect(201);
 
     await request(app)
@@ -611,7 +617,7 @@ describe("Invite create and redeem", () => {
       .expect(200);
 
     const editor = await prisma.user.findUnique({
-      where: { clerkId: "clerk_hide_editor" },
+      where: { clerkId: "clerk_list_editor" },
     });
 
     await prisma.collaborator.create({
@@ -622,9 +628,27 @@ describe("Invite create and redeem", () => {
       },
     });
 
-    await request(app)
+    const listed = await request(app)
       .get(`/api/projects/${created.body.id}/collaborators`)
       .set("Authorization", editorHeader)
-      .expect(403);
+      .expect(200);
+
+    expect(listed.body).toEqual([
+      expect.objectContaining({
+        email: "listjoinedowner@example.com",
+        role: "owner",
+        status: "joined",
+      }),
+      expect.objectContaining({
+        email: "listjoinededitor@example.com",
+        role: "editor",
+        status: "joined",
+      }),
+    ]);
+    expect(
+      listed.body.some(
+        (person: { status: string }) => person.status === "pending",
+      ),
+    ).toBe(false);
   });
 });

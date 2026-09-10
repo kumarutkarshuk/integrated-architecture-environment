@@ -22,7 +22,7 @@ describe("CollapsibleSidebar", () => {
     ).toBeTruthy();
   });
 
-  it("hides children and still shows an open control when collapsed", () => {
+  it("renders nothing when collapsed", () => {
     render(
       <CollapsibleSidebar
         title="AI Assistant"
@@ -37,13 +37,13 @@ describe("CollapsibleSidebar", () => {
 
     expect(screen.queryByText("AI panel")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Open AI Assistant" }),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: "Open AI Assistant" }),
+    ).toBeNull();
   });
 
-  it("collapses and expands from its own control", () => {
+  it("collapses from its own header control", () => {
     const onToggleOpen = vi.fn();
-    const { rerender } = render(
+    render(
       <CollapsibleSidebar
         title="Projects"
         side="left"
@@ -57,22 +57,6 @@ describe("CollapsibleSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
     expect(onToggleOpen).toHaveBeenCalledTimes(1);
-
-    rerender(
-      <CollapsibleSidebar
-        title="Projects"
-        side="left"
-        isOpen={false}
-        openWidthClass="w-64"
-        onToggleOpen={onToggleOpen}
-      >
-        <p>Project list</p>
-      </CollapsibleSidebar>,
-    );
-
-    expect(screen.queryByText("Project list")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Open Projects" }));
-    expect(onToggleOpen).toHaveBeenCalledTimes(2);
   });
 
   it("collapses each sidebar on its own", () => {
@@ -108,4 +92,29 @@ describe("CollapsibleSidebar", () => {
     expect(toggleAi).not.toHaveBeenCalled();
     expect(screen.getByText("AI panel")).toBeTruthy();
   });
+
+  it("keeps the collapse control visible and disabled when locked open", () => {
+    const onToggleOpen = vi.fn();
+    render(
+      <CollapsibleSidebar
+        title="AI Assistant"
+        side="right"
+        isOpen
+        lockOpen
+        openWidthClass="w-72"
+        onToggleOpen={onToggleOpen}
+      >
+        <p>AI panel</p>
+      </CollapsibleSidebar>,
+    );
+
+    const collapse = screen.getByRole("button", {
+      name: "Collapse AI Assistant",
+    });
+    expect(collapse).toHaveProperty("disabled", true);
+
+    fireEvent.click(collapse);
+    expect(onToggleOpen).not.toHaveBeenCalled();
+  });
+
 });

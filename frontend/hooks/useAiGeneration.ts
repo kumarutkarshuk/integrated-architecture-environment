@@ -21,6 +21,7 @@ export function useAiGeneration(
   refreshProject: (projectId: string) => Promise<ApiProject>,
   updateProjectInList: (project: ApiProject) => void,
   initialPrompt?: string | null,
+  liveCanvasReady = false,
 ) {
   const { getToken } = useAuth();
   const [prompt, setPrompt] = useState("");
@@ -29,6 +30,7 @@ export function useAiGeneration(
     null,
   );
   const [isBusy, setIsBusy] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [previewWaitTimedOut, setPreviewWaitTimedOut] = useState(false);
   const activeProjectIdRef = useRef<string | null>(null);
@@ -42,71 +44,74 @@ export function useAiGeneration(
 
   projectRef.current = project;
 
-  const loadPreviews = useCallback(async (options?: { selectNewest?: boolean }) => {
-    const currentProject = projectRef.current;
-    if (
-      !currentProject ||
-      currentProject.mode !== "prompt" ||
-      currentProject.status !== "preview"
-    ) {
-      return;
-    }
-
-    const projectId = currentProject.id;
-
-    try {
-      const token = await getToken();
-      if (!token) {
+  const loadPreviews = useCallback(
+    async (options?: { selectNewest?: boolean }) => {
+      const currentProject = projectRef.current;
+      if (
+        !currentProject ||
+        currentProject.mode !== "prompt" ||
+        currentProject.status !== "preview"
+      ) {
         return;
       }
 
-      const nextPreviews = await fetchAiPreviews(token, projectId);
-      if (activeProjectIdRef.current !== projectId) {
-        return;
-      }
+      const projectId = currentProject.id;
 
-      setPreviews(nextPreviews);
-      setPreviewWaitTimedOut(false);
-      const selectNewest =
-        options?.selectNewest ?? selectNewestAfterRegenerateRef.current;
-      setSelectedPreviewId((current) => {
-        if (
-          !selectNewest &&
-          current &&
-          nextPreviews.some((preview) => preview.id === current)
-        ) {
-          return current;
+      try {
+        const token = await getToken();
+        if (!token) {
+          return;
         }
-        return nextPreviews[0]?.id ?? null;
-      });
-      if (selectNewest) {
-        selectNewestAfterRegenerateRef.current = false;
-        setIsRegenerating(false);
-        setIsBusy(false);
-      }
 
-      const latestPrompt = nextPreviews[0]?.prompt;
-      if (latestPrompt) {
-        setPrompt(latestPrompt);
-      }
-    } catch (loadError) {
-      if (activeProjectIdRef.current !== projectId) {
-        return;
-      }
+        const nextPreviews = await fetchAiPreviews(token, projectId);
+        if (activeProjectIdRef.current !== projectId) {
+          return;
+        }
 
-      if (isProjectNotFoundError(loadError)) {
-        setPreviews([]);
-        setSelectedPreviewId(null);
-        return;
-      }
+        setPreviews(nextPreviews);
+        setPreviewWaitTimedOut(false);
+        const selectNewest =
+          options?.selectNewest ?? selectNewestAfterRegenerateRef.current;
+        setSelectedPreviewId((current) => {
+          if (
+            !selectNewest &&
+            current &&
+            nextPreviews.some((preview) => preview.id === current)
+          ) {
+            return current;
+          }
+          return nextPreviews[0]?.id ?? null;
+        });
+        if (selectNewest) {
+          selectNewestAfterRegenerateRef.current = false;
+          setIsRegenerating(false);
+          setIsBusy(false);
+        }
 
-      toast.error(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load previews",
-      );
-    }
-  }, [getToken]);
+        const latestPrompt = nextPreviews[0]?.prompt;
+        if (latestPrompt) {
+          setPrompt(latestPrompt);
+        }
+      } catch (loadError) {
+        if (activeProjectIdRef.current !== projectId) {
+          return;
+        }
+
+        if (isProjectNotFoundError(loadError)) {
+          setPreviews([]);
+          setSelectedPreviewId(null);
+          return;
+        }
+
+        toast.error(
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load previews",
+        );
+      }
+    },
+    [getToken],
+  );
 
   loadPreviewsRef.current = loadPreviews;
 
@@ -118,6 +123,7 @@ export function useAiGeneration(
       setPreviewWaitTimedOut(false);
       selectNewestAfterRegenerateRef.current = false;
       setIsRegenerating(false);
+      setIsApplying(false);
       setIsBusy(false);
       return;
     }
@@ -127,6 +133,7 @@ export function useAiGeneration(
     setPreviewWaitTimedOut(false);
     selectNewestAfterRegenerateRef.current = false;
     setIsRegenerating(false);
+    setIsApplying(false);
     setIsBusy(false);
 
     if (initialPrompt?.trim()) {
@@ -139,7 +146,11 @@ export function useAiGeneration(
   }, [project?.id, project?.mode, initialPrompt]);
 
   useEffect(() => {
-    if (!project || project.mode !== "prompt" || project.status !== "generating") {
+    if (
+      !project ||
+      project.mode !== "prompt" ||
+      project.status !== "generating"
+    ) {
       return;
     }
 
@@ -170,8 +181,7 @@ export function useAiGeneration(
   }, [project?.id, project?.status, refreshProject, updateProjectInList]);
 
   const generationFailed = project?.status === "failed";
-  const isGenerating =
-    isRegenerating || project?.status === "generating";
+  const isGenerating = isRegenerating || project?.status === "generating";
 
   useEffect(() => {
     if (project?.status !== "failed") {
@@ -180,6 +190,7 @@ export function useAiGeneration(
 
     selectNewestAfterRegenerateRef.current = false;
     setIsRegenerating(false);
+    setIsApplying(false);
     setIsBusy(false);
   }, [project?.id, project?.status]);
 
@@ -248,14 +259,22 @@ export function useAiGeneration(
           : "Failed to regenerate preview",
       );
     }
-  }, [getToken, project, prompt, refreshProject, updateProjectInList, loadPreviews]);
+  }, [
+    getToken,
+    project,
+    prompt,
+    refreshProject,
+    updateProjectInList,
+    loadPreviews,
+  ]);
 
   const applySelectedPreview = useCallback(async () => {
-    if (!project || !selectedPreviewId) {
+    if (!project || !selectedPreviewId || isApplying) {
       return;
     }
 
     setIsBusy(true);
+    setIsApplying(true);
 
     try {
       const token = await getToken();
@@ -269,18 +288,27 @@ export function useAiGeneration(
         selectedPreviewId,
       );
       updateProjectInList(updated);
-      setPreviews([]);
-      setSelectedPreviewId(null);
     } catch (actionError) {
+      setIsApplying(false);
+      setIsBusy(false);
       toast.error(
         actionError instanceof Error
           ? actionError.message
           : "Failed to apply preview",
       );
-    } finally {
-      setIsBusy(false);
     }
-  }, [getToken, project, selectedPreviewId, updateProjectInList]);
+  }, [getToken, isApplying, project, selectedPreviewId, updateProjectInList]);
+
+  useEffect(() => {
+    if (!isApplying || !liveCanvasReady) {
+      return;
+    }
+
+    setIsApplying(false);
+    setIsBusy(false);
+    setPreviews([]);
+    setSelectedPreviewId(null);
+  }, [isApplying, liveCanvasReady]);
 
   return {
     prompt,
@@ -290,6 +318,7 @@ export function useAiGeneration(
     selectedPreviewId,
     setSelectedPreviewId,
     isBusy,
+    isApplying,
     isGenerating,
     generationFailed,
     previewWaitTimedOut,

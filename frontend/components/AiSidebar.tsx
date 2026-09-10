@@ -1,18 +1,16 @@
 "use client";
 
+import { ArrowDown, ArrowUp, Bot } from "lucide-react";
+import { useRef } from "react";
 import type { ApiProject } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
+import { FadeIn } from "./FadeIn";
+import { useStaggerReveal } from "../hooks/useStaggerReveal";
+import { BorderBeam } from "./ui/border-beam";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Textarea } from "./ui/textarea";
+import { cn } from "@/lib/utils";
 
 type AiGenerationState = ReturnType<typeof useAiGeneration>;
 
@@ -21,11 +19,8 @@ interface AiSidebarProps {
   ai: AiGenerationState;
 }
 
-function formatPreviewTime(createdAt: string): string {
-  return new Date(createdAt).toLocaleString();
-}
-
 export function AiSidebar({ project, ai }: AiSidebarProps) {
+  const listRef = useRef<HTMLDivElement>(null);
   const {
     prompt,
     setPrompt,
@@ -33,118 +28,158 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
     selectedPreviewId,
     setSelectedPreviewId,
     isBusy,
+    isApplying,
     isGenerating,
     generationFailed,
     regenerate,
     applySelectedPreview,
   } = ai;
 
-  if (!project) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted">
-        Select a project to use AI generation
-      </div>
-    );
+  const previewIds = previews.map((preview) => preview.id).join("|");
+  useStaggerReveal(listRef, {
+    itemsKey: `${previewIds}|${selectedPreviewId ? "apply" : ""}`,
+    enabled: previews.length > 0,
+    fromX: 8,
+    fromY: 8,
+  });
+
+  if (
+    !project ||
+    ((project.mode !== "prompt" || project.status === "ready") && !isApplying)
+  ) {
+    return <ChatComingSoon />;
   }
 
-  if (project.mode !== "prompt" || project.status === "ready") {
-    return (
-      <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted">
-        Coming in v2
-      </div>
-    );
-  }
+  const canRegenerate =
+    !isBusy && !isApplying && !isGenerating && Boolean(prompt.trim());
+  const showApply = Boolean(selectedPreviewId) || isApplying;
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
-      <Card>
-        <CardHeader>
-          <CardTitle>Prompt</CardTitle>
-          <CardDescription>
-            Describe the system you want designed. Tweak and regenerate until
-            you like a preview.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="ai-prompt">Design prompt</Label>
-            <Textarea
-              id="ai-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Design a todo API with auth and Postgres"
-              disabled={isBusy}
-            />
-          </div>
-          <Button
-            type="button"
-            className="w-full"
-            disabled={isBusy || !prompt.trim() || isGenerating}
-            onClick={() => void regenerate()}
+    <div className="flex min-h-0 flex-1 flex-col font-mono text-xs">
+      <div
+        ref={listRef}
+        className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
+      >
+        {generationFailed && previews.length === 0 && (
+          <p className="text-xs text-red-400" data-stagger-item="failed">
+            Generation failed. Update your prompt and try again.
+          </p>
+        )}
+
+        {previews.length > 0 && (
+          <RadioGroup
+            value={selectedPreviewId ?? undefined}
+            onValueChange={(value) => {
+              if (isApplying) {
+                return;
+              }
+              setSelectedPreviewId(value);
+            }}
+            className="space-y-1.5"
           >
-            {isGenerating ? "Generating..." : "Regenerate preview"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Previews</CardTitle>
-          <CardDescription>
-            Pick a completed preview to apply to the canvas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isGenerating && previews.length === 0 && (
-            <p className="text-sm text-muted">
-              AI is generating your first preview...
-            </p>
-          )}
-
-          {generationFailed && previews.length === 0 && (
-            <p className="text-sm text-red-400">
-              Generation failed. Update your prompt and try again.
-            </p>
-          )}
-
-          {!isGenerating && !generationFailed && previews.length === 0 && (
-            <p className="text-sm text-muted">No completed previews yet.</p>
-          )}
-
-          {previews.length > 0 && (
-            <RadioGroup
-              value={selectedPreviewId ?? undefined}
-              onValueChange={setSelectedPreviewId}
-            >
-              {previews.map((preview) => (
+            {previews.map((preview) => {
+              const isSelected = selectedPreviewId === preview.id;
+              return (
                 <label
                   key={preview.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-md border border-sidebar-border p-3 hover:bg-hover"
+                  data-stagger-item={preview.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors",
+                    isApplying && "pointer-events-none opacity-80",
+                    isSelected
+                      ? "border-accent/70 bg-selection/40 text-foreground"
+                      : "border-sidebar-border bg-panel text-foreground/80 hover:bg-hover",
+                  )}
                 >
-                  <RadioGroupItem value={preview.id} className="mt-1" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {preview.prompt ?? "Untitled preview"}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {formatPreviewTime(preview.createdAt)}
-                    </p>
-                  </div>
+                  <RadioGroupItem value={preview.id} className="sr-only" />
+                  <p
+                    className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug"
+                    title={preview.prompt ?? "Untitled preview"}
+                  >
+                    {preview.prompt ?? "Untitled preview"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted hover:text-foreground"
+                    disabled={!preview.prompt || isApplying}
+                    aria-label="Add prompt to the text box"
+                    title="Add prompt to the text box"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (preview.prompt) {
+                        setPrompt(preview.prompt);
+                      }
+                    }}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
                 </label>
-              ))}
-            </RadioGroup>
-          )}
+              );
+            })}
+          </RadioGroup>
+        )}
 
+        {showApply && (
           <Button
             type="button"
-            className="w-full"
-            disabled={isBusy || !selectedPreviewId || isGenerating}
+            size="sm"
+            className="mt-2 h-7 w-full text-xs"
+            data-stagger-item="apply"
+            disabled={isBusy || isApplying}
             onClick={() => void applySelectedPreview()}
           >
-            Apply selected preview
+            {isApplying ? "Applying..." : "Apply preview"}
           </Button>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      <div className="border-t border-sidebar-border p-2">
+        <div className="relative overflow-hidden rounded-lg border border-sidebar-border bg-panel">
+          {isGenerating && <BorderBeam duration={8} borderWidth={1.5} />}
+          <Textarea
+            id="ai-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Describe the system..."
+            disabled={isBusy || isApplying || isGenerating}
+            className="relative min-h-20 resize-none border-0 bg-transparent px-2.5 py-2 text-[11px] leading-relaxed shadow-none focus-visible:ring-0"
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                if (canRegenerate) {
+                  void regenerate();
+                }
+              }
+            }}
+          />
+          <div className="relative flex justify-end border-t border-sidebar-border p-1.5">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-7 p-0"
+              disabled={!canRegenerate}
+              onClick={() => void regenerate()}
+              aria-label="Regenerate preview"
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ChatComingSoon() {
+  return (
+    <FadeIn
+      fromX={8}
+      className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs font-mono text-muted"
+    >
+      <Bot className="h-8 w-8 text-muted/50" aria-hidden />
+      <p>Chat coming soon...</p>
+    </FadeIn>
   );
 }

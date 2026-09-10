@@ -105,4 +105,24 @@ describe("useSidebarOpen", () => {
     expect(ai.current.isOpen).toBe(true);
     expect(window.localStorage.getItem("iae.sidebar.ai.open")).toBeNull();
   });
+
+  it("writes an explicit open state to the given key", () => {
+    const { result } = renderHook(() =>
+      useSidebarOpen("iae.sidebar.ai.open"),
+    );
+
+    act(() => {
+      result.current.setOpen(false);
+    });
+
+    expect(result.current.isOpen).toBe(false);
+    expect(window.localStorage.getItem("iae.sidebar.ai.open")).toBe("false");
+
+    act(() => {
+      result.current.setOpen(true);
+    });
+
+    expect(result.current.isOpen).toBe(true);
+    expect(window.localStorage.getItem("iae.sidebar.ai.open")).toBe("true");
+  });
 });

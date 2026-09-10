@@ -41,7 +41,7 @@ describe("useOpenProject", () => {
     });
 
     expect(result.current.selectedProjectId).toBe("project-2");
-    expect(replace).toHaveBeenCalledWith("/?project=project-2");
+    expect(replace).toHaveBeenCalledWith("/workspace?project=project-2");
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -90,7 +90,7 @@ describe("useOpenProject", () => {
     });
 
     expect(result.current.selectedProjectId).toBeNull();
-    expect(replace).toHaveBeenCalledWith("/");
+    expect(replace).toHaveBeenCalledWith("/workspace");
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -200,7 +200,7 @@ describe("useOpenProject", () => {
     });
 
     expect(result.current.selectedProjectId).toBeNull();
-    expect(replace).toHaveBeenCalledWith("/");
+    expect(replace).toHaveBeenCalledWith("/workspace");
     expect(push).not.toHaveBeenCalled();
   });
 });

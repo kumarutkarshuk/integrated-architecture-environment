@@ -2,6 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceShell } from "./WorkspaceShell";
 
+const workspaceState = vi.hoisted(() => ({
+  isUserLoading: false,
+  isProjectsLoading: false,
+  selectedProjectId: "project-1" as string | null,
+  projectMode: "blank" as "blank" | "prompt",
+  projectStatus: "ready" as "ready" | "generating" | "preview",
+  spec: null as { markdown: string; gaps_summary: string } | null,
+}));
+
 vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div>Account</div>,
 }));
@@ -21,7 +30,7 @@ vi.mock("../hooks/useCurrentUser", () => ({
       email: "ada@example.com",
       displayName: "Ada",
     },
-    isLoading: false,
+    isLoading: workspaceState.isUserLoading,
     error: null,
   }),
 }));
@@ -32,13 +41,13 @@ vi.mock("../hooks/useProjects", () => ({
       {
         id: "project-1",
         name: "Owned Canvas",
-        mode: "blank",
-        status: "ready",
+        mode: workspaceState.projectMode,
+        status: workspaceState.projectStatus,
         createdAt: "2026-09-06T00:00:00.000Z",
         ownerId: "user-1",
       },
     ],
-    isLoading: false,
+    isLoading: workspaceState.isProjectsLoading,
     error: null,
     createBlankProject: async () => undefined,
     createPromptProject: async () => undefined,
@@ -50,7 +59,7 @@ vi.mock("../hooks/useProjects", () => ({
 
 vi.mock("../hooks/useOpenProject", () => ({
   useOpenProject: () => ({
-    selectedProjectId: "project-1",
+    selectedProjectId: workspaceState.selectedProjectId,
     selectProject: () => undefined,
     clearOpenProject: () => undefined,
   }),
@@ -65,6 +74,7 @@ vi.mock("../hooks/useAiGeneration", () => ({
     selectedPreviewId: null,
     setSelectedPreviewId: () => undefined,
     isBusy: false,
+    isApplying: false,
     isGenerating: false,
     generationFailed: false,
     previewWaitTimedOut: false,
@@ -75,10 +85,12 @@ vi.mock("../hooks/useAiGeneration", () => ({
 }));
 
 vi.mock("../hooks/useExportSpec", () => ({
+  formatSpecFile: (spec: { markdown: string; gaps_summary: string }) =>
+    `${spec.markdown}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`,
   useExportSpec: () => ({
     canExport: true,
     isExporting: false,
-    spec: null,
+    spec: workspaceState.spec,
     downloadFileName: "owned-canvas-spec.md",
     exportSpec: async () => undefined,
     clearSpec: () => undefined,
@@ -92,6 +104,7 @@ vi.mock("../hooks/useCreateInvite", () => ({
     canInvite: true,
     isSending: false,
     collaborators: [],
+    joinedCount: 0,
     isLoadingCollaborators: false,
     resendingInviteId: null,
     loadCollaborators: async () => undefined,
@@ -113,6 +126,12 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
 
 describe("WorkspaceShell", () => {
   beforeEach(() => {
+    workspaceState.isUserLoading = false;
+    workspaceState.isProjectsLoading = false;
+    workspaceState.selectedProjectId = "project-1";
+    workspaceState.projectMode = "blank";
+    workspaceState.projectStatus = "ready";
+    workspaceState.spec = null;
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => store.get(key) ?? null,
@@ -132,6 +151,25 @@ describe("WorkspaceShell", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows loading text and disables create while projects load", () => {
+    workspaceState.isProjectsLoading = true;
+    workspaceState.selectedProjectId = null;
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getAllByText("Loading projects...").length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "New blank project",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(screen.queryByText("New Canvas")).toBeNull();
+  });
+
   it("starts with both sidebars open", () => {
     render(<WorkspaceShell />);
 
@@ -146,8 +184,9 @@ describe("WorkspaceShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
 
-    expect(screen.getByRole("button", { name: "Open Projects" })).toBeTruthy();
+    expect(screen.queryByText("Projects")).toBeNull();
     expect(screen.queryByText("Owned Canvas")).toBeNull();
+    expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(screen.getByText("AI Assistant")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -156,10 +195,10 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "Collapse AI Assistant" }),
     );
 
-    expect(
-      screen.getByRole("button", { name: "Open AI Assistant" }),
-    ).toBeTruthy();
     expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "AI Assistant View" }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
@@ -171,12 +210,53 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Open Projects" })).toBeTruthy();
+      expect(screen.queryByText("Projects")).toBeNull();
     });
+    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Open AI Assistant" }),
+      screen.getByRole("button", { name: "AI Assistant View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
+  });
+
+  it("names the spec tab after the project and hides Invite and Export Spec", () => {
+    workspaceState.spec = {
+      markdown: "# Spec",
+      gaps_summary: "None",
+    };
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getByTitle("Owned Canvas.md")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export Spec" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Close exported spec" }),
+    ).toBeTruthy();
+  });
+
+  it("hides Invite on preview and always shows a solo session", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "generating";
+
+    render(<WorkspaceShell />);
+
+    expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
+    expect(screen.getByText("Idle")).toBeTruthy();
+    expect(screen.getByText("Solo session")).toBeTruthy();
+    expect(screen.queryByText("CRDT Live")).toBeNull();
+  });
+
+  it("always shows an AI cue on the empty canvas AI Prompt card", () => {
+    workspaceState.selectedProjectId = null;
+
+    render(<WorkspaceShell />);
+
+    const promptCard = screen.getByRole("button", { name: /AI Prompt/ });
+    expect(promptCard.querySelector(".animate-border-beam")).toBeTruthy();
+    expect(promptCard.querySelector(".animate-ai-sparkle")).toBeTruthy();
   });
 });

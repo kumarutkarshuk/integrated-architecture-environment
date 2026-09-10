@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelRightClose } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "./ui/button";
 
@@ -15,6 +10,7 @@ interface CollapsibleSidebarProps {
   isOpen: boolean;
   openWidthClass: string;
   onToggleOpen: () => void;
+  lockOpen?: boolean;
   headerEnd?: ReactNode;
   children: ReactNode;
 }
@@ -25,30 +21,15 @@ export function CollapsibleSidebar({
   isOpen,
   openWidthClass,
   onToggleOpen,
+  lockOpen = false,
   headerEnd,
   children,
 }: CollapsibleSidebarProps) {
-  const OpenIcon = side === "left" ? PanelLeftOpen : PanelRightOpen;
   const CloseIcon = side === "left" ? PanelLeftClose : PanelRightClose;
   const borderClass = side === "left" ? "border-r" : "border-l";
 
   if (!isOpen) {
-    return (
-      <aside
-        className={`flex h-full w-9 shrink-0 flex-col ${borderClass} border-sidebar-border bg-sidebar`}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="m-1 h-7 w-7 p-0"
-          aria-label={`Open ${title}`}
-          onClick={onToggleOpen}
-        >
-          <OpenIcon className="size-4" />
-        </Button>
-      </aside>
-    );
+    return null;
   }
 
   return (
@@ -67,7 +48,16 @@ export function CollapsibleSidebar({
             size="sm"
             className="h-7 w-7 p-0"
             aria-label={`Collapse ${title}`}
-            onClick={onToggleOpen}
+            title={
+              lockOpen ? `${title} stays open in preview` : `Collapse ${title}`
+            }
+            disabled={lockOpen}
+            onClick={() => {
+              if (lockOpen) {
+                return;
+              }
+              onToggleOpen();
+            }}
           >
             <CloseIcon className="size-4" />
           </Button>

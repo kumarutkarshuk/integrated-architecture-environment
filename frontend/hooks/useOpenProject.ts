@@ -52,7 +52,7 @@ export function useOpenProject(
 
     appliedUrlProject.current = null;
     setSelectedProjectId(null);
-    router.replace("/");
+    router.replace("/workspace");
   }, [
     hasLoadedProjects,
     projectFromUrl,
@@ -64,14 +64,14 @@ export function useOpenProject(
   const selectProject = useCallback(
     (projectId: string) => {
       setSelectedProjectId(projectId);
-      router.replace(`/?project=${projectId}`);
+      router.replace(`/workspace?project=${projectId}`);
     },
     [router],
   );
 
   const clearOpenProject = useCallback(() => {
     setSelectedProjectId(null);
-    router.replace("/");
+    router.replace("/workspace");
   }, [router]);
 
   return {

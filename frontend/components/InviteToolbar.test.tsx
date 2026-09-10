@@ -10,6 +10,7 @@ function renderToolbar(
     canInvite: true,
     actionsEnabled: true,
     isSending: false,
+    currentUserEmail: "owner@example.com",
     collaborators: [],
     isLoadingCollaborators: false,
     resendingInviteId: null,
@@ -95,11 +96,37 @@ describe("InviteToolbar", () => {
     });
 
     const dialog = openDialog();
-    expect(within(dialog).getByText("owner@example.com · Joined · Owner")).toBeTruthy();
+    expect(within(dialog).getByText("Owner (you)")).toBeTruthy();
+    expect(within(dialog).getByText("owner@example.com · Joined · Owner · You")).toBeTruthy();
     expect(within(dialog).getByText("Pending")).toBeTruthy();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Resend" }));
     expect(onResend).toHaveBeenCalledWith("invite-1");
+  });
+
+  it("marks the current User in the Collaborators list", () => {
+    renderToolbar({
+      currentUserEmail: "Ada@example.com",
+      collaborators: [
+        {
+          email: "ada@example.com",
+          displayName: "Ada",
+          role: "owner",
+          status: "joined",
+        },
+        {
+          email: "editor@example.com",
+          displayName: "Lin",
+          role: "editor",
+          status: "joined",
+        },
+      ],
+    });
+
+    const dialog = openDialog();
+    expect(within(dialog).getByText("Ada (you)")).toBeTruthy();
+    expect(within(dialog).getByText("Lin")).toBeTruthy();
+    expect(within(dialog).queryByText("Lin (you)")).toBeNull();
   });
 
   it("hides Resend when the send limit is reached", () => {
