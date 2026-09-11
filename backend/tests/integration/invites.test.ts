@@ -9,6 +9,7 @@ import { clearCanvasPersistenceTimers } from "../../src/canvas/persistence.js";
 import { clearCanvasDocs } from "../../src/canvas/yjs-ws-utils.js";
 import { prisma } from "../../src/db.js";
 import {
+  configureMailerFromEnv,
   createTestMailer,
   resetMailer,
   setMailer,
@@ -18,6 +19,29 @@ import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
+const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_HOST", "SMTP_PORT", "SMTP_FROM"] as const;
+const previousSmtpEnv = new Map<string, string | undefined>();
+
+function useUnconfiguredSmtpMailer() {
+  for (const key of smtpEnvKeys) {
+    if (!previousSmtpEnv.has(key)) {
+      previousSmtpEnv.set(key, process.env[key]);
+    }
+    delete process.env[key];
+  }
+  configureMailerFromEnv();
+}
+
+function restoreSmtpEnv() {
+  for (const [key, value] of previousSmtpEnv) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+  previousSmtpEnv.clear();
+}
 
 async function allowResend(inviteId: string) {
   await prisma.projectInvite.update({
@@ -115,6 +139,7 @@ describe("Invite create and redeem", () => {
   });
 
   afterEach(() => {
+    restoreSmtpEnv();
     resetMailer();
     clearCanvasPersistenceTimers();
     clearCanvasDocs();
@@ -146,11 +171,34 @@ describe("Invite create and redeem", () => {
     expect(sent[0]).toMatchObject({
       to: "editor@example.com",
       projectName: "Shared Canvas",
+      inviterName: "Owner",
     });
     expect(sent[0].inviteUrl).toMatch(
       /^http:\/\/localhost:3000\/invite\/[a-f0-9]{64}$/,
     );
     expect(tokenFromInviteUrl(sent[0].inviteUrl)).toHaveLength(64);
+  });
+
+  it("names the owner email in the Invite payload when they have no display name", async () => {
+    const header = authHeader("clerk_invite_email_owner", "owner-email@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "editor@example.com" })
+      .expect(201);
+
+    expect(testMailer.getSent()[0]).toMatchObject({
+      to: "editor@example.com",
+      projectName: "Shared Canvas",
+      inviterName: "owner-email@example.com",
+    });
   });
 
   it("rejects Invite create from a non-owner Collaborator", async () => {
@@ -536,6 +584,14 @@ describe("Invite create and redeem", () => {
       error: "Invite resend limit reached (3 sends)",
     });
     expect(testMailer.getSent()).toHaveLength(3);
+    expect(testMailer.getSent()[1]).toMatchObject({
+      to: "pending@example.com",
+      projectName: "Shared Canvas",
+      inviterName: "resendowner@example.com",
+    });
+    expect(testMailer.getSent()[2].inviteUrl).not.toBe(
+      testMailer.getSent()[0].inviteUrl,
+    );
 
     const oldToken = tokenFromInviteUrl(testMailer.getSent()[0].inviteUrl);
     const stale = await request(app)
@@ -650,5 +706,74 @@ describe("Invite create and redeem", () => {
         (person: { status: string }) => person.status === "pending",
       ),
     ).toBe(false);
+  });
+
+  it("returns 502 and rolls back Invite create when SMTP user and pass are missing", async () => {
+    const header = authHeader("clerk_smtp_create_owner", "smtpcreate@example.com");
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    useUnconfiguredSmtpMailer();
+
+    const response = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "editor@example.com" })
+      .expect(502);
+
+    expect(response.body.error).toBe(
+      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+    );
+    expect(testMailer.getSent()).toHaveLength(0);
+
+    const pending = await prisma.projectInvite.findMany({
+      where: { projectId: created.body.id },
+    });
+    expect(pending).toEqual([]);
+  });
+
+  it("returns 502 and rolls back Invite resend when SMTP user and pass are missing", async () => {
+    const header = authHeader("clerk_smtp_resend_owner", "smtpresend@example.com");
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Shared Canvas", mode: "blank" })
+      .expect(201);
+
+    const invited = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "pending@example.com" })
+      .expect(201);
+
+    const original = await prisma.projectInvite.findUniqueOrThrow({
+      where: { id: invited.body.id },
+    });
+
+    await allowResend(invited.body.id);
+    useUnconfiguredSmtpMailer();
+
+    const response = await request(app)
+      .post(
+        `/api/projects/${created.body.id}/invites/${invited.body.id}/resend`,
+      )
+      .set("Authorization", header)
+      .expect(502);
+
+    expect(response.body.error).toBe(
+      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+    );
+    expect(testMailer.getSent()).toHaveLength(1);
+
+    const rolledBack = await prisma.projectInvite.findUniqueOrThrow({
+      where: { id: invited.body.id },
+    });
+    expect(rolledBack).toMatchObject({
+      token: original.token,
+      sendCount: 1,
+    });
   });
 });

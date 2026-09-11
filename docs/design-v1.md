@@ -17,7 +17,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 | Clerk auth (Google + email + OTP) | Live cursors |
 | Project CRUD (`prompt` + `blank` modes) | User chat |
 | Multi-user canvas (owner + editor) | Canvas comments |
-| Email-bound invites via Resend | AI modify selection |
+| Email-bound invites via Gmail SMTP | AI modify selection |
 | AI generate: preview → tweak prompt → regenerate → pick → apply | Full AI chat sidebar |
 | AI export spec (best-effort + gaps summary) | Templates |
 | Yjs real-time sync on Express WS | Regenerate entire canvas after apply |
@@ -38,7 +38,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 ## Collaboration
 
 - Roles: `owner`, `editor` (no viewer in v1)
-- Email-bound invite link sent via Resend
+- Email-bound invite link sent via Gmail SMTP
 - Redeem: Clerk sign-in → verify email match → `collaborator` row created
 
 ## AI
@@ -58,7 +58,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 ## Tech additions (beyond prompt.md)
 
 - Upstash Redis — rate limiting
-- Resend — invite emails
+- Gmail SMTP — invite emails
 
 ## Build tickets
 

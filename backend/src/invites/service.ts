@@ -83,15 +83,22 @@ function resendGate(invite: { sendCount: number; lastSentAt: Date }): InviteResu
   return { ok: true, value: undefined };
 }
 
+function inviterNameFor(user: User): string {
+  const displayName = user.displayName?.trim();
+  return displayName || user.email;
+}
+
 async function sendInviteEmail(
   email: string,
   projectName: string,
   token: string,
+  inviter: User,
 ): Promise<void> {
   await getMailer().sendInvite({
     to: email,
     projectName,
     inviteUrl: `${inviteOrigin()}/invite/${token}`,
+    inviterName: inviterNameFor(inviter),
   });
 }
 
@@ -253,7 +260,7 @@ export async function createProjectInvite(
   }
 
   try {
-    await sendInviteEmail(email, project.name, invite.token);
+    await sendInviteEmail(email, project.name, invite.token, user);
   } catch (error) {
     await prisma.projectInvite.delete({ where: { id: invite.id } });
     const message =
@@ -352,7 +359,7 @@ export async function resendProjectInvite(
   }
 
   try {
-    await sendInviteEmail(invite.email, project.name, token);
+    await sendInviteEmail(invite.email, project.name, token, user);
   } catch (error) {
     await prisma.projectInvite.update({
       where: { id: invite.id },

@@ -1,11 +1,47 @@
+import nodemailer from "nodemailer";
+
 export interface InviteEmail {
   to: string;
   projectName: string;
   inviteUrl: string;
+  inviterName: string;
 }
 
 export interface Mailer {
   sendInvite(email: InviteEmail): Promise<void>;
+}
+
+export const PRODUCT_NAME = "Integrated Architecture Environment";
+
+const DEFAULT_SMTP_HOST = "smtp.gmail.com";
+const DEFAULT_SMTP_PORT = 465;
+const SMTP_REQUIRED_ERROR =
+  "SMTP_USER and SMTP_PASS are required to send Invite emails";
+
+export function renderInviteEmail(email: InviteEmail): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const inviter = escapeHtml(email.inviterName);
+  const project = escapeHtml(email.projectName);
+  const recipient = escapeHtml(email.to);
+  const inviteUrl = escapeHtml(email.inviteUrl);
+
+  return {
+    subject: `You were invited to ${email.projectName}`,
+    html: `<p>You were invited to ${escapeHtml(PRODUCT_NAME)}.</p><p>${inviter} invited you to collaborate on <strong>${project}</strong> as an editor.</p><p>Sign in with ${recipient} to accept this Invite. The link expires in 7 days.</p><p><a href="${inviteUrl}">Open invite</a></p>`,
+    text: [
+      `You were invited to ${PRODUCT_NAME}.`,
+      "",
+      `${email.inviterName} invited you to collaborate on ${email.projectName} as an editor.`,
+      "",
+      `Sign in with ${email.to} to accept this Invite. The link expires in 7 days.`,
+      "",
+      "Open invite:",
+      email.inviteUrl,
+    ].join("\n"),
+  };
 }
 
 export function createTestMailer(): {
@@ -28,24 +64,37 @@ export function createTestMailer(): {
   };
 }
 
-export function createResendMailer(options: {
-  apiKey: string;
-  from: string;
+function createSmtpMailer(options: {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  fromName: string;
+  fromAddress: string;
 }): Mailer {
+  const transporter = nodemailer.createTransport({
+    host: options.host,
+    port: options.port,
+    secure: options.port === 465,
+    auth: {
+      user: options.user,
+      pass: options.pass,
+    },
+  });
+
   return {
     async sendInvite(email) {
-      const { Resend } = await import("resend");
-      const resend = new Resend(options.apiKey);
-      const result = await resend.emails.send({
-        from: options.from,
+      const rendered = renderInviteEmail(email);
+      await transporter.sendMail({
+        from: {
+          name: options.fromName,
+          address: options.fromAddress,
+        },
         to: email.to,
-        subject: `You were invited to ${email.projectName}`,
-        html: `<p>You were invited to collaborate on <strong>${escapeHtml(email.projectName)}</strong>.</p><p><a href="${email.inviteUrl}">Open invite</a></p>`,
+        subject: rendered.subject,
+        text: rendered.text,
+        html: rendered.html,
       });
-
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
     },
   };
 }
@@ -53,20 +102,31 @@ export function createResendMailer(options: {
 function createUnconfiguredMailer(): Mailer {
   return {
     async sendInvite() {
-      throw new Error("RESEND_API_KEY is required to send Invite emails");
+      throw new Error(SMTP_REQUIRED_ERROR);
     },
   };
 }
 
 function createMailerFromEnv(): Mailer {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) {
     return createUnconfiguredMailer();
   }
 
-  return createResendMailer({
-    apiKey,
-    from: process.env.RESEND_FROM_EMAIL ?? "IAE <beth.t@example.com>",
+  const parsedPort = Number.parseInt(process.env.SMTP_PORT ?? "", 10);
+  const port =
+    Number.isInteger(parsedPort) && parsedPort > 0
+      ? parsedPort
+      : DEFAULT_SMTP_PORT;
+
+  return createSmtpMailer({
+    host: process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST,
+    port,
+    user,
+    pass,
+    fromName: PRODUCT_NAME,
+    fromAddress: process.env.SMTP_FROM?.trim() || user,
   });
 }
 

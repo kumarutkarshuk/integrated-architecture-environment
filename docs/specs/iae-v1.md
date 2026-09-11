@@ -55,7 +55,7 @@ Build **Integrated Architecture Environment (IAE) v1**: a VS Code–inspired web
 - **AI jobs**: Trigger.dev background tasks. OpenRouter/Groq for inference.
 - **Database**: Supabase/Postgres via Prisma.
 - **Rate limiting**: Upstash Redis — 5 `generate` and 10 `export_spec` jobs per user per day (global across projects).
-- **Email**: Resend for invite delivery.
+- **Email**: Gmail SMTP (nodemailer) for Invite delivery.
 
 ### Domain model
 
@@ -124,7 +124,7 @@ Export spec result shape on `ai_generation.result`:
 
 - **Backend scaffold**: Express app, Prisma schema, Clerk auth middleware, Docker + GitHub Actions CI.
 - **User + Project module**: CRUD, collaborator checks, status transitions.
-- **Invite module**: create invite, send via Resend, redeem with email verification.
+- **Invite module**: create invite, send via Gmail SMTP, redeem with email verification.
 - **Canvas sync module**: Yjs provider on Express WS, room auth scoped to project collaborators, snapshot persist hook.
 - **AI module**: Trigger.dev tasks for generate and export_spec, job polling endpoints, apply-preview logic.
 - **Rate limit module**: Upstash counter checks before job enqueue.
@@ -141,7 +141,7 @@ Export spec result shape on `ai_generation.result`:
 5. canvas_snapshot persist
 6. Trigger.dev + generate + preview/apply
 7. Export spec job + toolbar button
-8. Invites (Resend + redeem)
+8. Invites (Gmail SMTP + redeem)
 9. Upstash rate limiting
 10. Right sidebar iteration UI
 
@@ -153,7 +153,7 @@ Export spec result shape on `ai_generation.result`:
 
 - Clerk JWT verification (inject test claims)
 - Trigger.dev job enqueue (capture payload, don't run)
-- Resend (capture email, don't send)
+- Mailer (capture email, don't send)
 - Upstash Redis (in-memory or test instance)
 - OpenRouter/Groq (return fixture responses)
 
