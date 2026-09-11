@@ -17,7 +17,7 @@ describe("Invite email renderer", () => {
       expect(part).toContain("Alex Rivera");
       expect(part).toContain("Checkout");
       expect(part).toContain("as an editor");
-      expect(part).toContain("editor@example.com");
+      expect(part).toContain("Sign in with editor@example.com");
       expect(part).toContain("7 days");
       expect(part).toContain("http://localhost:3000/invite/abc123");
     }

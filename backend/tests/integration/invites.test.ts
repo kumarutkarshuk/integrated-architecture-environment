@@ -9,7 +9,6 @@ import { clearCanvasPersistenceTimers } from "../../src/canvas/persistence.js";
 import { clearCanvasDocs } from "../../src/canvas/yjs-ws-utils.js";
 import { prisma } from "../../src/db.js";
 import {
-  configureMailerFromEnv,
   createTestMailer,
   resetMailer,
   setMailer,
@@ -19,7 +18,7 @@ import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
-const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_HOST", "SMTP_PORT", "SMTP_FROM"] as const;
+const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const;
 const previousSmtpEnv = new Map<string, string | undefined>();
 
 function useUnconfiguredSmtpMailer() {
@@ -29,7 +28,7 @@ function useUnconfiguredSmtpMailer() {
     }
     delete process.env[key];
   }
-  configureMailerFromEnv();
+  resetMailer();
 }
 
 function restoreSmtpEnv() {

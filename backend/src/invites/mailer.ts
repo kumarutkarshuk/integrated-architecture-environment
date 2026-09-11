@@ -13,8 +13,8 @@ export interface Mailer {
 
 export const PRODUCT_NAME = "Integrated Architecture Environment";
 
-const DEFAULT_SMTP_HOST = "smtp.gmail.com";
-const DEFAULT_SMTP_PORT = 465;
+const SMTP_HOST = "smtp.gmail.com";
+const SMTP_PORT = 465;
 const SMTP_REQUIRED_ERROR =
   "SMTP_USER and SMTP_PASS are required to send Invite emails";
 
@@ -65,17 +65,14 @@ export function createTestMailer(): {
 }
 
 function createSmtpMailer(options: {
-  host: string;
-  port: number;
   user: string;
   pass: string;
-  fromName: string;
   fromAddress: string;
 }): Mailer {
   const transporter = nodemailer.createTransport({
-    host: options.host,
-    port: options.port,
-    secure: options.port === 465,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: true,
     auth: {
       user: options.user,
       pass: options.pass,
@@ -87,7 +84,7 @@ function createSmtpMailer(options: {
       const rendered = renderInviteEmail(email);
       await transporter.sendMail({
         from: {
-          name: options.fromName,
+          name: PRODUCT_NAME,
           address: options.fromAddress,
         },
         to: email.to,
@@ -114,18 +111,9 @@ function createMailerFromEnv(): Mailer {
     return createUnconfiguredMailer();
   }
 
-  const parsedPort = Number.parseInt(process.env.SMTP_PORT ?? "", 10);
-  const port =
-    Number.isInteger(parsedPort) && parsedPort > 0
-      ? parsedPort
-      : DEFAULT_SMTP_PORT;
-
   return createSmtpMailer({
-    host: process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST,
-    port,
     user,
     pass,
-    fromName: PRODUCT_NAME,
     fromAddress: process.env.SMTP_FROM?.trim() || user,
   });
 }
