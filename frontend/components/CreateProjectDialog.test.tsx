@@ -218,4 +218,58 @@ describe("CreateProjectDialog", () => {
       );
     });
   });
+
+  it("shows the server message when creating a blank Project hits a name clash", async () => {
+    const onCreateBlankProject = vi.fn(async () => {
+      throw new Error("A Project with this name already exists");
+    });
+    render(
+      <CreateProjectDialog
+        mode="blank"
+        onClose={() => undefined}
+        onCreateBlankProject={onCreateBlankProject}
+        onCreatePromptProject={async () => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Checkout" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create blank project" }),
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "A Project with this name already exists",
+      );
+    });
+  });
+
+  it("shows the server message when creating a blank Project hits the daily limit", async () => {
+    const onCreateBlankProject = vi.fn(async () => {
+      throw new Error("Daily Project create limit reached (10 per day)");
+    });
+    render(
+      <CreateProjectDialog
+        mode="blank"
+        onClose={() => undefined}
+        onCreateBlankProject={onCreateBlankProject}
+        onCreatePromptProject={async () => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Checkout" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create blank project" }),
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Daily Project create limit reached (10 per day)",
+      );
+    });
+  });
 });

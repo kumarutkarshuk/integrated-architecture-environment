@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { AiRateLimitError, consumeAiQuota } from "../ai/rate-limit.js";
 import { createAndEnqueueGenerateJob } from "../ai/start-generate-job.js";
@@ -11,9 +12,21 @@ import {
   resendProjectInvite,
 } from "../invites/service.js";
 import { requireOwner } from "../projects/access.js";
+import {
+  consumeProjectCreateQuota,
+  peekProjectCreateQuota,
+  ProjectCreateRateLimitError,
+} from "../projects/create-quota.js";
 import { softDeleteProject } from "../projects/soft-delete.js";
 
-export const projectsRouter = Router();
+const PROJECT_NAME_CLASH_ERROR = "A Project with this name already exists";
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
 
 const projectSelect = {
   id: true,
@@ -23,6 +36,55 @@ const projectSelect = {
   createdAt: true,
   ownerId: true,
 } as const;
+
+async function liveProjectNameTaken(
+  ownerId: string,
+  name: string,
+): Promise<boolean> {
+  const existing = await prisma.project.findFirst({
+    where: {
+      ownerId,
+      ...notDeleted,
+      name: { equals: name, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+
+  return existing !== null;
+}
+
+async function createOwnedProject(data: {
+  name: string;
+  mode: "blank" | "prompt";
+  status: "ready" | "generating";
+  ownerId: string;
+}) {
+  try {
+    const project = await prisma.project.create({
+      data: {
+        name: data.name,
+        mode: data.mode,
+        status: data.status,
+        ownerId: data.ownerId,
+        collaborators: {
+          create: {
+            userId: data.ownerId,
+            role: "owner",
+          },
+        },
+      },
+      select: projectSelect,
+    });
+    return { ok: true as const, project };
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { ok: false as const };
+    }
+    throw error;
+  }
+}
+
+export const projectsRouter = Router();
 
 projectsRouter.get("/", async (req, res) => {
   const user = (req as AuthenticatedRequest).user;
@@ -70,39 +132,51 @@ projectsRouter.post("/", async (req, res) => {
     return;
   }
 
-  if (mode === "prompt") {
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      res.status(400).json({ error: "Prompt is required for prompt mode" });
+  const trimmedName = name.trim();
+  const trimmedPrompt =
+    typeof prompt === "string" ? prompt.trim() : "";
+
+  if (mode === "prompt" && !trimmedPrompt) {
+    res.status(400).json({ error: "Prompt is required for prompt mode" });
+    return;
+  }
+
+  if (await liveProjectNameTaken(user.id, trimmedName)) {
+    res.status(409).json({ error: PROJECT_NAME_CLASH_ERROR });
+    return;
+  }
+
+  try {
+    await peekProjectCreateQuota(user.id);
+    if (mode === "prompt") {
+      await consumeAiQuota(user.id, "generate");
+    }
+    await consumeProjectCreateQuota(user.id);
+  } catch (error) {
+    if (
+      error instanceof ProjectCreateRateLimitError ||
+      error instanceof AiRateLimitError
+    ) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
+    throw error;
+  }
 
-    try {
-      await consumeAiQuota(user.id, "generate");
-    } catch (error) {
-      if (error instanceof AiRateLimitError) {
-        res.status(error.status).json({ error: error.message });
-        return;
-      }
-      throw error;
-    }
-
-    const project = await prisma.project.create({
-      data: {
-        name: name.trim(),
-        mode: "prompt",
-        status: "generating",
-        ownerId: user.id,
-        collaborators: {
-          create: {
-            userId: user.id,
-            role: "owner",
-          },
-        },
-      },
-      select: projectSelect,
+  if (mode === "prompt") {
+    const created = await createOwnedProject({
+      name: trimmedName,
+      mode: "prompt",
+      status: "generating",
+      ownerId: user.id,
     });
+    if (!created.ok) {
+      res.status(409).json({ error: PROJECT_NAME_CLASH_ERROR });
+      return;
+    }
+    const project = created.project;
 
-    await createAndEnqueueGenerateJob(project.id, user.id, prompt);
+    await createAndEnqueueGenerateJob(project.id, user.id, trimmedPrompt);
 
     const refreshed = await prisma.project.findFirst({
       where: { id: project.id, ...notDeleted },
@@ -113,23 +187,18 @@ projectsRouter.post("/", async (req, res) => {
     return;
   }
 
-  const project = await prisma.project.create({
-    data: {
-      name: name.trim(),
-      mode: "blank",
-      status: "ready",
-      ownerId: user.id,
-      collaborators: {
-        create: {
-          userId: user.id,
-          role: "owner",
-        },
-      },
-    },
-    select: projectSelect,
+  const created = await createOwnedProject({
+    name: trimmedName,
+    mode: "blank",
+    status: "ready",
+    ownerId: user.id,
   });
+  if (!created.ok) {
+    res.status(409).json({ error: PROJECT_NAME_CLASH_ERROR });
+    return;
+  }
 
-  res.status(201).json(project);
+  res.status(201).json(created.project);
 });
 
 projectsRouter.get("/:id/collaborators", async (req, res) => {

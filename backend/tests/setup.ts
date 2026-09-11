@@ -7,6 +7,11 @@ import {
   resetAiRateLimiter,
   setAiRateLimiter,
 } from "../src/ai/rate-limit.js";
+import {
+  createMemoryProjectCreateRateLimiter,
+  resetProjectCreateRateLimiter,
+  setProjectCreateRateLimiter,
+} from "../src/projects/create-quota.js";
 
 configureGenerateService({
   groqModel: "openai/gpt-oss-20b",
@@ -19,10 +24,13 @@ configureExportSpecService({
 });
 
 const testAiRateLimiter = createMemoryAiRateLimiter();
+const testProjectCreateRateLimiter = createMemoryProjectCreateRateLimiter();
 
 beforeEach(async () => {
   testAiRateLimiter.reset();
   setAiRateLimiter(testAiRateLimiter.limiter);
+  testProjectCreateRateLimiter.reset();
+  setProjectCreateRateLimiter(testProjectCreateRateLimiter.limiter);
   clearCanvasPersistenceTimers();
   await prisma.aiGeneration.deleteMany();
   await prisma.canvasSnapshot.deleteMany();
@@ -34,5 +42,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   resetAiRateLimiter();
+  resetProjectCreateRateLimiter();
   await prisma.$disconnect();
 });
