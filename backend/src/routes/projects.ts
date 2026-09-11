@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
+import { captureEvent } from "../analytics.js";
 import { AiRateLimitError, consumeAiQuota } from "../ai/rate-limit.js";
 import { createAndEnqueueGenerateJob } from "../ai/start-generate-job.js";
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
@@ -183,6 +184,14 @@ projectsRouter.post("/", async (req, res) => {
       select: projectSelect,
     });
 
+    captureEvent(user.clerkId, "project_created", {
+      mode: "prompt",
+      projectId: project.id,
+    });
+    captureEvent(user.clerkId, "ai_generation_started", {
+      projectId: project.id,
+    });
+
     res.status(201).json(refreshed ?? project);
     return;
   }
@@ -197,6 +206,11 @@ projectsRouter.post("/", async (req, res) => {
     res.status(409).json({ error: PROJECT_NAME_CLASH_ERROR });
     return;
   }
+
+  captureEvent(user.clerkId, "project_created", {
+    mode: "blank",
+    projectId: created.project.id,
+  });
 
   res.status(201).json(created.project);
 });
@@ -237,6 +251,8 @@ projectsRouter.post("/:id/invites", async (req, res) => {
     return;
   }
 
+  captureEvent(user.clerkId, "invite_sent", { projectId: req.params.id });
+
   res.status(201).json(result.value);
 });
 
@@ -258,6 +274,8 @@ projectsRouter.post("/:id/invites/:inviteId/resend", async (req, res) => {
     res.status(result.status).json({ error: result.error });
     return;
   }
+
+  captureEvent(user.clerkId, "invite_resent", { projectId: req.params.id });
 
   res.json(result.value);
 });
@@ -310,5 +328,6 @@ projectsRouter.delete("/:id", async (req, res) => {
   teardownCanvasDoc(projectId);
 
   await softDeleteProject(projectId);
+  captureEvent(user.clerkId, "project_deleted", { projectId });
   res.status(204).send();
 });

@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config.js";
+import { captureEvent } from "../analytics.js";
 import { prisma } from "../db.js";
 import { getInferenceProvider } from "./inference-provider.js";
 import type { GenerateResult } from "./types.js";
@@ -64,15 +65,21 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
 export async function failGenerateJob(aiGenerationId: string): Promise<void> {
   const job = await prisma.aiGeneration.findUnique({
     where: { id: aiGenerationId },
+    include: { user: { select: { clerkId: true } } },
   });
 
-  if (!job || job.type !== "generate" || job.status === "completed") {
+  if (!job || job.type !== "generate" || job.status === "completed" || job.status === "failed") {
     return;
   }
 
   await prisma.aiGeneration.update({
     where: { id: aiGenerationId },
     data: { status: "failed" },
+  });
+
+  captureEvent(job.user.clerkId, "ai_generation_failed", {
+    projectId: job.projectId,
+    aiGenerationId: job.id,
   });
 
   const completedPreviewCount = await prisma.aiGeneration.count({

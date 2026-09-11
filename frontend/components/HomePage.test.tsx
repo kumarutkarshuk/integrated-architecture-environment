@@ -17,6 +17,7 @@ if (typeof window !== "undefined" && !window.matchMedia) {
   });
 }
 
+import { identifySignedInUser, initSignedInAnalytics } from "../lib/analytics";
 import { HomePage } from "./HomePage";
 
 vi.mock("@clerk/nextjs", () => ({
@@ -25,6 +26,11 @@ vi.mock("@clerk/nextjs", () => ({
     isLoaded: true,
   }),
   UserButton: () => <div>Account</div>,
+}));
+
+vi.mock("../lib/analytics", () => ({
+  identifySignedInUser: vi.fn(),
+  initSignedInAnalytics: vi.fn(),
 }));
 
 describe("HomePage", () => {
@@ -57,6 +63,8 @@ describe("HomePage", () => {
     expect(
       screen.getAllByRole("link", { name: "Utkarsh Kumar" })[0].getAttribute("href"),
     ).toBe("https://utkarshkumar.vercel.app/");
+    expect(initSignedInAnalytics).not.toHaveBeenCalled();
+    expect(identifySignedInUser).not.toHaveBeenCalled();
   });
 
   it("opens the AI assistant from the right activity bar", () => {
