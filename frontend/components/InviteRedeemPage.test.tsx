@@ -69,4 +69,19 @@ describe("InviteRedeemPage", () => {
 
     expect(replace).toHaveBeenCalledWith("/workspace?project=project-42");
   });
+
+  it("sends a signed-out User to sign-in with the Invite path", () => {
+    useAuth.mockReturnValue({ isLoaded: true, isSignedIn: false });
+    useRedeemInvite.mockReturnValue({
+      isRedeeming: false,
+      projectId: null,
+      error: null,
+    });
+
+    render(<InviteRedeemPage token="invite-token" />);
+
+    expect(replace).toHaveBeenCalledWith(
+      "/sign-in?redirect_url=%2Finvite%2Finvite-token",
+    );
+  });
 });

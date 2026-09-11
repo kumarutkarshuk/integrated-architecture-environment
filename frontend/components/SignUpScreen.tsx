@@ -3,15 +3,17 @@
 import { SignUp } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { toAppRedirectUrl } from "../lib/appRedirectUrl";
 import { clerkAppearance } from "../lib/clerkAppearance";
 
 function SignUpForm() {
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect_url") ?? "/workspace";
+  const redirectPath = searchParams.get("redirect_url") ?? "/workspace";
+  const redirectUrl = toAppRedirectUrl(redirectPath);
   const signInUrl =
-    redirectUrl === "/workspace"
+    redirectPath === "/workspace"
       ? "/sign-in"
-      : `/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`;
+      : `/sign-in?redirect_url=${encodeURIComponent(redirectPath)}`;
 
   return (
     <SignUp
