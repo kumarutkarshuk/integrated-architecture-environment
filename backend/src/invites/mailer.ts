@@ -108,7 +108,10 @@ function createMailerFromEnv(): Mailer {
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS;
   if (!user || !pass) {
-    return createUnconfiguredMailer();
+    if (process.env.NODE_ENV === "test") {
+      return createUnconfiguredMailer();
+    }
+    throw new Error("SMTP_USER and SMTP_PASS are required");
   }
 
   return createSmtpMailer({
