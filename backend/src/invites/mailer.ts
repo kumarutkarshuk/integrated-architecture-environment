@@ -11,7 +11,7 @@ export interface Mailer {
   sendInvite(email: InviteEmail): Promise<void>;
 }
 
-export const PRODUCT_NAME = "Integrated Architecture Environment";
+export const PRODUCT_NAME = "Integrated Architecture Environment (IAE)";
 
 const SMTP_HOST = "smtp.gmail.com";
 const SMTP_PORT = 465;
