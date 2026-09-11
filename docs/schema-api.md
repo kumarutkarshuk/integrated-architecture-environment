@@ -142,6 +142,6 @@ Checked before enqueueing Trigger.dev jobs.
 | 5 | canvas_snapshot persist (debounced upsert) |
 | 6 | Trigger.dev + generate + preview/apply flow |
 | 7 | Export spec job + toolbar button |
-| 8 | Invites (Resend + redeem → collaborator row) |
+| 8 | Invites (Gmail SMTP + redeem → collaborator row) |
 | 9 | Upstash rate limiting |
 | 10 | Right sidebar (iteration pre-apply; dormant post-apply) |

@@ -14,6 +14,13 @@ export function loadConfig(): AppConfig {
     throw new Error("CLERK_SECRET_KEY is required");
   }
 
+  if (
+    (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS) &&
+    process.env.NODE_ENV !== "test"
+  ) {
+    throw new Error("SMTP_USER and SMTP_PASS are required");
+  }
+
   return {
     port: Number(process.env.PORT ?? 4000),
     corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
