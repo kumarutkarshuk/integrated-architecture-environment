@@ -407,7 +407,7 @@ describe("Product analytics", () => {
     expect(testAnalytics.getExceptions()).toHaveLength(1);
     expect(testAnalytics.getExceptions()[0]).toMatchObject({
       distinctId: "clerk_analytics_smtp",
-      properties: { source: "api", status: 502 },
+      properties: { source: "invite_mail", status: 502 },
     });
     expectNoRecipientEmail(recipient);
   });

@@ -11,11 +11,14 @@ export function useSignedInAnalytics(): void {
   const { isLoaded, isSignedIn, userId } = useAuth();
 
   useEffect(() => {
+    initSignedInAnalytics();
+  }, []);
+
+  useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) {
       return;
     }
 
-    initSignedInAnalytics();
     identifySignedInUser(userId);
   }, [isLoaded, isSignedIn, userId]);
 }

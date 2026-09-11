@@ -1,10 +1,5 @@
 import cors from "cors";
-import express, {
-  type ErrorRequestHandler,
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
+import express, { type ErrorRequestHandler } from "express";
 import { captureException } from "./analytics.js";
 import { createAuthMiddleware, type AuthenticatedRequest } from "./auth/middleware.js";
 import { createClerkTokenVerifier } from "./auth/clerk-token-verifier.js";
@@ -14,26 +9,6 @@ import { aiRouter } from "./routes/ai.js";
 import { invitesRouter } from "./routes/invites.js";
 import { projectsRouter } from "./routes/projects.js";
 import { usersRouter } from "./routes/users.js";
-
-function attachApiErrorLogging(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  const sendJson = res.json.bind(res);
-  res.json = ((body?: unknown) => {
-    if (res.statusCode >= 500 && !res.locals.analyticsErrorLogged) {
-      res.locals.analyticsErrorLogged = true;
-      const user = (req as AuthenticatedRequest).user;
-      captureException(new Error(`API ${res.statusCode}`), user?.clerkId, {
-        source: "api",
-        status: res.statusCode,
-      });
-    }
-    return sendJson(body);
-  }) as typeof res.json;
-  next();
-}
 
 const handleUncaughtRouteError: ErrorRequestHandler = (
   error,
@@ -48,7 +23,6 @@ const handleUncaughtRouteError: ErrorRequestHandler = (
 
   const user = (req as AuthenticatedRequest).user;
   captureException(error, user?.clerkId, { source: "uncaught", status: 500 });
-  res.locals.analyticsErrorLogged = true;
   console.error("Unhandled route error", error);
   res.status(500).json({ error: "Internal server error" });
 };
@@ -67,7 +41,6 @@ export function createApp(config: AppConfig) {
     }),
   );
   app.use(express.json());
-  app.use(attachApiErrorLogging);
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });

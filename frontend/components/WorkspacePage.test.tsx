@@ -65,7 +65,6 @@ describe("WorkspacePage", () => {
 
     render(<WorkspacePage />);
 
-    expect(initSignedInAnalytics).not.toHaveBeenCalled();
     expect(identifySignedInUser).not.toHaveBeenCalled();
   });
 });

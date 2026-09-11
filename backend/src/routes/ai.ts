@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { captureEvent } from "../analytics.js";
+import { captureEvent, captureException } from "../analytics.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
 import { AiRateLimitError } from "../ai/rate-limit.js";
@@ -174,6 +174,7 @@ aiRouter.post("/export-spec", async (req, res) => {
       return;
     }
     console.error("Failed to start Export Spec", error);
+    captureException(error, user.clerkId, { source: "api", status: 500 });
     res.status(500).json({ error: "Failed to start Export Spec" });
   }
 });
