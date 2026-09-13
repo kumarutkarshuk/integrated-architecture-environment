@@ -32,7 +32,7 @@ export function AgentAllowPanel({
       <div className="flex items-start justify-between gap-3 rounded-lg border border-sidebar-border bg-panel p-2.5">
         <div className="min-w-0 space-y-1">
           <Label htmlFor="allow-agent" className="text-xs font-medium">
-            Allow agent to edit this canvas
+            Allow a local agent to edit this canvas
           </Label>
           <p className="text-[10px] leading-relaxed text-muted">
             Note: Reload turns it off.
@@ -53,7 +53,7 @@ export function AgentAllowPanel({
 
       <div className="space-y-2">
         <p className="text-[10px] leading-relaxed text-muted">
-          Add this WebMCP config to Cursor, Claude Code, or Codex and keep this tab open.
+          Add this MCP config to Cursor, Claude Code, or Codex and keep this tab open.
         </p>
         <SetupBlock title="Cursor" code={cursorRelayConfig(origin)} />
         <SetupBlock title="Claude Code" code={claudeCodeRelayCommand(origin)} />

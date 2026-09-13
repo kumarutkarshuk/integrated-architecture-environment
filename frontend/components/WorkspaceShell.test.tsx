@@ -142,7 +142,7 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
   }),
 }));
 
-const clipboardWriteText = vi.fn(async () => undefined);
+const clipboardWriteText = vi.fn(async (_text: string) => undefined);
 
 describe("WorkspaceShell", () => {
   beforeEach(() => {
@@ -308,11 +308,10 @@ describe("WorkspaceShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy Cursor setup" }));
 
     await waitFor(() => {
-      expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        expect.stringContaining("mcpServers"),
+      );
     });
-    expect(String(clipboardWriteText.mock.calls[0]?.[0])).toContain(
-      "mcpServers",
-    );
   });
 
   it("shows Allow agent on a ready prompt Project", () => {
