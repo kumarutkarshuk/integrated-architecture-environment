@@ -3,8 +3,10 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { FileCode2, FileText, Layers, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Editor } from "tldraw";
 import { useAiGeneration } from "../hooks/useAiGeneration";
+import { useCanvasAgent } from "../hooks/useCanvasAgent";
 import { useCreateInvite } from "../hooks/useCreateInvite";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useExportSpec } from "../hooks/useExportSpec";
@@ -69,6 +71,7 @@ export function WorkspaceShell() {
   >({});
   const [createMode, setCreateMode] = useState<CreateProjectMode | null>(null);
   const [editorTab, setEditorTab] = useState<"canvas" | "spec">("canvas");
+  const [canvasEditor, setCanvasEditor] = useState<Editor | null>(null);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -99,6 +102,23 @@ export function WorkspaceShell() {
     canvasEnabled,
     presenceIdentity,
   );
+  const { allowed: agentAllowed, setAllowed: setAgentAllowed } = useCanvasAgent(
+    selectedProject?.status ?? null,
+    canvasEditor,
+  );
+
+  const handleEditorReady = useCallback(
+    (editor: Editor) => {
+      onEditorReady(editor);
+      setCanvasEditor(editor);
+    },
+    [onEditorReady],
+  );
+
+  useEffect(() => {
+    setCanvasEditor(null);
+  }, [selectedProjectId, canvasEnabled]);
+
   const canvasActionsEnabled = isLiveCanvasOnline(storeWithStatus, saveStatus);
   const ai = useAiGeneration(
     selectedProject,
@@ -417,7 +437,7 @@ export function WorkspaceShell() {
                   projectName={selectedProject.name}
                   storeWithStatus={storeWithStatus}
                   saveStatus={saveStatus}
-                  onEditorReady={onEditorReady}
+                  onEditorReady={handleEditorReady}
                 />
               )}
           </div>
@@ -451,7 +471,12 @@ export function WorkspaceShell() {
           lockOpen={isPreviewing}
           onToggleOpen={toggleAiSidebar}
         >
-          <AiSidebar ai={ai} project={selectedProject} />
+          <AiSidebar
+            ai={ai}
+            project={selectedProject}
+            agentAllowed={agentAllowed}
+            onAgentAllowedChange={setAgentAllowed}
+          />
         </CollapsibleSidebar>
 
         <RightActivityBar

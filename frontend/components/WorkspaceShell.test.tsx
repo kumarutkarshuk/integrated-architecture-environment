@@ -7,7 +7,7 @@ const workspaceState = vi.hoisted(() => ({
   isProjectsLoading: false,
   selectedProjectId: "project-1" as string | null,
   projectMode: "blank" as "blank" | "prompt",
-  projectStatus: "ready" as "ready" | "generating" | "preview",
+  projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
   spec: null as { markdown: string; gaps_summary: string } | null,
 }));
 
@@ -17,6 +17,17 @@ vi.mock("@clerk/nextjs", () => ({
 
 vi.mock("./ProjectCanvas", () => ({
   ProjectCanvas: () => <div>Canvas</div>,
+}));
+
+vi.mock("../lib/canvas-agent/webmcp", () => ({
+  mountWebMcpRelayEmbed: () => undefined,
+  registerCanvasReadTool: async () => undefined,
+}));
+
+vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
+  createTldrawEditorPort: () => ({
+    getCurrentPageShapes: () => [],
+  }),
 }));
 
 vi.mock("./PreviewCanvas", () => ({
@@ -258,5 +269,87 @@ describe("WorkspaceShell", () => {
     const promptCard = screen.getByRole("button", { name: /AI Prompt/ });
     expect(promptCard.querySelector(".animate-border-beam")).toBeTruthy();
     expect(promptCard.querySelector(".animate-ai-sparkle")).toBeTruthy();
+  });
+
+  it("shows Allow agent and relay steps on a ready blank Project, not chat-coming-soon", () => {
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Cursor")).toBeTruthy();
+    expect(screen.getByText("Claude Code")).toBeTruthy();
+    expect(screen.getByText("Codex")).toBeTruthy();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("shows Allow agent on a ready prompt Project", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "ready";
+
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
+  });
+
+  it("keeps Preview iteration on a prompt Project that is not ready", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("keeps Preview iteration while generating or failed", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "generating";
+
+    const { unmount } = render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+
+    unmount();
+    workspaceState.projectStatus = "failed";
+    render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+  });
+
+  it("starts Allow off and stays off after a remount", () => {
+    const { unmount } = render(<WorkspaceShell />);
+    const allowSwitch = screen.getByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    });
+
+    expect(allowSwitch.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(allowSwitch);
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    unmount();
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
   });
 });
