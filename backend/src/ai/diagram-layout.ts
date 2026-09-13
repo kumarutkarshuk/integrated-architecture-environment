@@ -3,7 +3,7 @@ import type { DiagramComponent, DiagramConnection } from "./diagram-plan.js";
 const DEFAULT_WIDTH = 220;
 const DEFAULT_HEIGHT = 100;
 const H_GAP = 180;
-const V_GAP = 100;
+const V_GAP = 140;
 const CANVAS_PADDING = 120;
 
 export interface LayoutBox {
@@ -27,8 +27,8 @@ export function layoutDiagramComponents(
       label: component.label,
       x: 0,
       y: 0,
-      w: component.w ?? estimateWidth(component.label),
-      h: component.h ?? DEFAULT_HEIGHT,
+      w: estimateWidth(component.label),
+      h: DEFAULT_HEIGHT,
     });
   }
 

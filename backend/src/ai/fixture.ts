@@ -20,6 +20,10 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
         meta: { generatedFrom: slug },
       }),
     },
+    plan: {
+      components: [{ id: "preview-box", label, kind: "service" }],
+      connections: [],
+    },
   };
 }
 

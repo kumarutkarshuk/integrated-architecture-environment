@@ -7,6 +7,8 @@ import { clearCanvasPersistenceTimers, configureCanvasPersistence } from "../../
 import { readRecordsFromDoc } from "../../src/canvas/snapshot.js";
 import { createApp } from "../../src/app.js";
 import { runGenerateJob, failGenerateJob } from "../../src/ai/generate-service.js";
+import { InvalidDiagramPlanError } from "../../src/ai/diagram-plan.js";
+import { buildGeoShape, buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
 import {
   createTestJobRunner,
   resetJobRunner,
@@ -100,6 +102,8 @@ describe("AI generation preview and apply", () => {
       status: "pending",
       prompt: "Design a todo API",
       model: "openai/gpt-oss-20b",
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
     });
 
     expect(testJobRunner.getEnqueued()).toEqual([
@@ -141,6 +145,8 @@ describe("AI generation preview and apply", () => {
     expect(generations[0]?.deletedAt).toBeNull();
     expect(generations[0]?.prompt).toBe("Design a queue");
     expect(generations[0]?.model).toBe("openai/gpt-oss-20b");
+    expect(generations[0]?.promptVersion).toBe("generate-diagram.v2");
+    expect(generations[0]?.provider).toBe("groq");
 
     const project = await prisma.project.findUnique({
       where: { id: created.body.id },
@@ -629,5 +635,234 @@ describe("AI generation preview and apply", () => {
       .expect(200);
 
     expect(project.body.status).toBe("preview");
+  });
+
+  it("stores the Plan and traces on a completed generate AI Generation", async () => {
+    const header = authHeader("clerk_plan_store", "planstore@example.com");
+    const plan = {
+      components: [
+        { id: "web", label: "Web", kind: "client" as const },
+        { id: "api", label: "API", kind: "service" as const },
+      ],
+      connections: [{ from: "web", to: "api", style: "sync" as const, label: "request" }],
+    };
+    const generated = buildRecordsFromDiagramPlan(plan);
+
+    setInferenceProvider({
+      async generate() {
+        return { ...generated, plan };
+      },
+      async exportSpec() {
+        throw new Error("export_spec should not run for generate");
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Plan Project",
+        mode: "prompt",
+        prompt: "Design a web API",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    const stored = await prisma.aiGeneration.findUnique({
+      where: { id: jobId },
+    });
+
+    expect(stored).toMatchObject({
+      status: "completed",
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
+      plan,
+      result: { records: generated.records },
+    });
+
+    const polled = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(polled.body).toMatchObject({
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
+      plan,
+    });
+
+    const previews = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/previews`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(previews.body[0]).toMatchObject({
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
+    });
+    expect(previews.body[0].plan).toBeUndefined();
+  });
+
+  it("fails an invalid Plan immediately after one inference call", async () => {
+    const header = authHeader("clerk_bad_plan", "badplan@example.com");
+    let inferenceCalls = 0;
+
+    setInferenceProvider({
+      async generate() {
+        inferenceCalls += 1;
+        throw new InvalidDiagramPlanError("unknown kind");
+      },
+      async exportSpec() {
+        throw new Error("export_spec should not run for generate");
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Bad Plan Project",
+        mode: "prompt",
+        prompt: "Design anything",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    expect(inferenceCalls).toBe(1);
+
+    const failed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(failed.body).toMatchObject({
+      status: "failed",
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
+      plan: null,
+    });
+
+    const project = await request(app)
+      .get(`/api/projects/${created.body.id}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(project.body.status).toBe("failed");
+  });
+
+  it("fails generate when inference returns records without a Plan", async () => {
+    const header = authHeader("clerk_missing_plan", "missingplan@example.com");
+    let inferenceCalls = 0;
+
+    setInferenceProvider({
+      async generate() {
+        inferenceCalls += 1;
+        return {
+          records: {
+            "shape:orphan": buildGeoShape({
+              id: "shape:orphan",
+              label: "Orphan",
+              x: 0,
+              y: 0,
+              index: "a1",
+            }),
+          },
+        };
+      },
+      async exportSpec() {
+        throw new Error("export_spec should not run for generate");
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Missing Plan",
+        mode: "prompt",
+        prompt: "Need a plan",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    expect(inferenceCalls).toBe(1);
+
+    const failed = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(failed.body.status).toBe("failed");
+    expect(failed.body.plan).toBeNull();
+  });
+
+  it("applies the stored tldraw records instead of rebuilding from the Plan", async () => {
+    const header = authHeader("clerk_apply_records", "applyrecords@example.com");
+    const storedRecords = {
+      "shape:stored-preview": buildGeoShape({
+        id: "shape:stored-preview",
+        label: "Stored Preview",
+        x: 40,
+        y: 60,
+        index: "a1",
+        color: "red",
+      }),
+    };
+
+    setInferenceProvider({
+      async generate() {
+        return {
+          records: storedRecords,
+          plan: {
+            components: [{ id: "api", label: "API", kind: "service" }],
+            connections: [],
+          },
+        };
+      },
+      async exportSpec() {
+        throw new Error("export_spec should not run for generate");
+      },
+    });
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Apply Records",
+        mode: "prompt",
+        prompt: "Keep stored records",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/ai/apply`)
+      .set("Authorization", header)
+      .send({ aiGenerationId: jobId })
+      .expect(200);
+
+    const snapshot = await prisma.canvasSnapshot.findUnique({
+      where: { projectId: created.body.id },
+    });
+
+    expect(snapshot?.tldrawJson).toEqual({
+      records: expect.objectContaining({
+        "shape:stored-preview": expect.objectContaining({
+          typeName: "shape",
+          props: expect.objectContaining({ color: "red" }),
+        }),
+      }),
+    });
+    expect(
+      (snapshot?.tldrawJson as { records: Record<string, unknown> }).records["shape:api"],
+    ).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config.js";
 
-const envKeys = ["NODE_ENV", "CLERK_SECRET_KEY", "SMTP_USER", "SMTP_PASS"] as const;
+const envKeys = ["NODE_ENV", "CLERK_SECRET_KEY", "SMTP_USER", "SMTP_PASS", "GROQ_MODEL"] as const;
 
 describe("loadConfig", () => {
   const previous = new Map<string, string | undefined>();
@@ -43,5 +43,19 @@ describe("loadConfig", () => {
     setEnv("SMTP_PASS", undefined);
 
     expect(loadConfig().isTest).toBe(true);
+  });
+
+  it("defaults to openai/gpt-oss-120b when GROQ_MODEL is unset", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_MODEL", undefined);
+
+    expect(loadConfig().groqModel).toBe("openai/gpt-oss-120b");
+  });
+
+  it("lets GROQ_MODEL override the default", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_MODEL", "openai/gpt-oss-20b");
+
+    expect(loadConfig().groqModel).toBe("openai/gpt-oss-20b");
   });
 });

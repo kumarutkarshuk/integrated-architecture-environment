@@ -1,15 +1,42 @@
+export const COMPONENT_KINDS = [
+  "client",
+  "service",
+  "store",
+  "queue",
+  "storage",
+  "external",
+] as const;
+
+export type ComponentKind = (typeof COMPONENT_KINDS)[number];
+
+export const CONNECTION_STYLES = ["sync", "async", "data"] as const;
+
+export type ConnectionStyle = (typeof CONNECTION_STYLES)[number];
+
+export class InvalidDiagramPlanError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidDiagramPlanError";
+  }
+}
+
+export class InvalidInferenceJsonError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidInferenceJsonError";
+  }
+}
+
 export interface DiagramComponent {
   id: string;
   label: string;
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
+  kind: ComponentKind;
 }
 
 export interface DiagramConnection {
   from: string;
   to: string;
+  style: ConnectionStyle;
   label?: string;
 }
 
@@ -18,43 +45,66 @@ export interface DiagramPlan {
   connections: DiagramConnection[];
 }
 
+const KIND_ALIASES: Record<string, ComponentKind> = {
+  client: "client",
+  ui: "client",
+  frontend: "client",
+  service: "service",
+  store: "store",
+  database: "store",
+  db: "store",
+  queue: "queue",
+  broker: "queue",
+  pubsub: "queue",
+  storage: "storage",
+  s3: "storage",
+  blob: "storage",
+  external: "external",
+};
+
+const STYLE_ALIASES: Record<string, ConnectionStyle> = {
+  sync: "sync",
+  async: "async",
+  dashed: "async",
+  data: "data",
+  dotted: "data",
+};
+
 export function parseDiagramPlan(raw: unknown): DiagramPlan {
   if (!raw || typeof raw !== "object") {
-    throw new Error("Diagram plan must be an object");
+    throw new InvalidDiagramPlanError("Diagram plan must be an object");
   }
 
   const value = raw as Record<string, unknown>;
   if (!Array.isArray(value.components)) {
-    throw new Error("Diagram plan must include a components array");
+    throw new InvalidDiagramPlanError("Diagram plan must include a components array");
   }
 
   const components = value.components.map((entry, index) => {
     if (!entry || typeof entry !== "object") {
-      throw new Error(`Component at index ${index} must be an object`);
+      throw new InvalidDiagramPlanError(`Component at index ${index} must be an object`);
     }
 
     const component = entry as Record<string, unknown>;
     const id = readString(component.id, `components[${index}].id`);
     const label = readString(component.label, `components[${index}].label`);
+    const kind = canonicalizeKind(component.kind, `components[${index}].kind`);
 
     return {
       id: slugifyComponentId(id),
       label: label.trim(),
-      x: readOptionalNumber(component.x, `components[${index}].x`),
-      y: readOptionalNumber(component.y, `components[${index}].y`),
-      w: readOptionalNumber(component.w, `components[${index}].w`),
-      h: readOptionalNumber(component.h, `components[${index}].h`),
+      kind,
     };
   });
 
   if (components.length === 0) {
-    throw new Error("Diagram plan must include at least one component");
+    throw new InvalidDiagramPlanError("Diagram plan must include at least one component");
   }
 
   const componentIds = new Set<string>();
   for (const component of components) {
     if (componentIds.has(component.id)) {
-      throw new Error(`Duplicate component id: ${component.id}`);
+      throw new InvalidDiagramPlanError(`Duplicate component id: ${component.id}`);
     }
     componentIds.add(component.id);
   }
@@ -74,12 +124,14 @@ function parseConnections(
   }
 
   if (!Array.isArray(raw)) {
-    throw new Error("Diagram plan connections must be an array");
+    throw new InvalidDiagramPlanError("Diagram plan connections must be an array");
   }
+
+  const seenPairs = new Set<string>();
 
   return raw.map((entry, index) => {
     if (!entry || typeof entry !== "object") {
-      throw new Error(`Connection at index ${index} must be an object`);
+      throw new InvalidDiagramPlanError(`Connection at index ${index} must be an object`);
     }
 
     const connection = entry as Record<string, unknown>;
@@ -95,16 +147,44 @@ function parseConnections(
     );
 
     if (from === to) {
-      throw new Error(`Connection cannot point from a component to itself: ${from}`);
+      throw new InvalidDiagramPlanError(
+        `Connection cannot point from a component to itself: ${from}`,
+      );
     }
+
+    const pairKey = `${from}->${to}`;
+    if (seenPairs.has(pairKey)) {
+      throw new InvalidDiagramPlanError(`Duplicate connection from ${from} to ${to}`);
+    }
+    seenPairs.add(pairKey);
+
+    const style = canonicalizeStyle(connection.style, `connections[${index}].style`);
 
     const label =
       connection.label === undefined || connection.label === null
         ? undefined
         : readString(connection.label, `connections[${index}].label`).trim();
 
-    return { from, to, label };
+    return { from, to, style, label };
   });
+}
+
+function canonicalizeKind(value: unknown, field: string): ComponentKind {
+  const raw = readString(value, field).trim().toLowerCase();
+  const kind = KIND_ALIASES[raw];
+  if (!kind) {
+    throw new InvalidDiagramPlanError(`${field} has unknown kind: ${raw}`);
+  }
+  return kind;
+}
+
+function canonicalizeStyle(value: unknown, field: string): ConnectionStyle {
+  const raw = readString(value, field).trim().toLowerCase();
+  const style = STYLE_ALIASES[raw];
+  if (!style) {
+    throw new InvalidDiagramPlanError(`${field} has unknown style: ${raw}`);
+  }
+  return style;
 }
 
 function resolveConnectionComponentId(
@@ -129,22 +209,12 @@ function resolveConnectionComponentId(
     return byLabel.id;
   }
 
-  throw new Error(`Connection references unknown component: ${slug}`);
+  throw new InvalidDiagramPlanError(`Connection references unknown component: ${slug}`);
 }
 
 function readString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${field} must be a non-empty string`);
-  }
-  return value;
-}
-
-function readOptionalNumber(value: unknown, field: string): number | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${field} must be a number`);
+    throw new InvalidDiagramPlanError(`${field} must be a non-empty string`);
   }
   return value;
 }
@@ -158,7 +228,7 @@ export function slugifyComponentId(value: string): string {
     .slice(0, 48);
 
   if (!slug) {
-    throw new Error("Component id must contain letters or numbers");
+    throw new InvalidDiagramPlanError("Component id must contain letters or numbers");
   }
 
   return slug;

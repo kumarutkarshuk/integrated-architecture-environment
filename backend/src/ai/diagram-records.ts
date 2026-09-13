@@ -1,10 +1,35 @@
 import { CANVAS_PAGE_ID } from "../canvas/records.js";
-import { layoutDiagramComponents } from "./diagram-layout.js";
-import type { DiagramConnection, DiagramPlan } from "./diagram-plan.js";
+import { layoutDiagramComponents, type LayoutBox } from "./diagram-layout.js";
+import type {
+  ComponentKind,
+  ConnectionStyle,
+  DiagramConnection,
+  DiagramPlan,
+} from "./diagram-plan.js";
 import type { GenerateResult } from "./types.js";
 
 const DEFAULT_WIDTH = 220;
 const DEFAULT_HEIGHT = 100;
+const ANCHOR_SPREAD_MIN = 0.28;
+const ANCHOR_SPREAD_MAX = 0.72;
+
+const KIND_COLORS: Record<ComponentKind, string> = {
+  client: "blue",
+  service: "violet",
+  store: "green",
+  queue: "orange",
+  storage: "yellow",
+  external: "grey",
+};
+
+const STYLE_DASH: Record<ConnectionStyle, string> = {
+  sync: "solid",
+  async: "dashed",
+  data: "dotted",
+};
+
+type Anchor = { x: number; y: number };
+type EdgeDirection = "right" | "left" | "down" | "up";
 
 export function toRichText(text: string) {
   return {
@@ -28,6 +53,7 @@ export function buildGeoShape(options: {
   w?: number;
   h?: number;
   index: string;
+  color?: string;
   meta?: Record<string, unknown>;
 }): Record<string, unknown> {
   return {
@@ -52,7 +78,7 @@ export function buildGeoShape(options: {
       flipX: false,
       flipY: false,
       labelColor: "black",
-      color: "black",
+      color: options.color ?? "black",
       fill: "solid",
       size: "m",
       font: "draw",
@@ -84,6 +110,7 @@ export function buildRecordsFromDiagramPlan(plan: DiagramPlan): GenerateResult {
       w: box.w,
       h: box.h,
       index: toShapeIndex(index),
+      color: KIND_COLORS[component.kind],
       meta: { generatedFrom: component.id },
     });
   });
@@ -91,6 +118,7 @@ export function buildRecordsFromDiagramPlan(plan: DiagramPlan): GenerateResult {
   plan.connections.forEach((connection, index) => {
     const arrowRecords = buildConnectionRecords(
       connection,
+      plan.connections,
       layout,
       toShapeIndex(plan.components.length + index),
     );
@@ -103,7 +131,8 @@ export function buildRecordsFromDiagramPlan(plan: DiagramPlan): GenerateResult {
 
 function buildConnectionRecords(
   connection: DiagramConnection,
-  layout: Map<string, { x: number; y: number; w: number; h: number }>,
+  connections: DiagramConnection[],
+  layout: Map<string, LayoutBox>,
   index: string,
 ): Record<string, unknown> {
   const from = layout.get(connection.from);
@@ -118,7 +147,7 @@ function buildConnectionRecords(
   const arrowId = `shape:arrow-${connection.from}-to-${connection.to}`;
   const startBindingId = `binding:${connection.from}-to-${connection.to}-start`;
   const endBindingId = `binding:${connection.from}-to-${connection.to}-end`;
-  const anchors = resolveConnectionAnchors(from, to);
+  const anchors = resolveConnectionAnchors(connection, connections, layout);
 
   return {
     [arrowId]: {
@@ -137,7 +166,7 @@ function buildConnectionRecords(
         labelColor: "black",
         color: "black",
         fill: "none",
-        dash: "draw",
+        dash: STYLE_DASH[connection.style],
         size: "m",
         arrowheadStart: "none",
         arrowheadEnd: "arrow",
@@ -146,7 +175,7 @@ function buildConnectionRecords(
         end: { x: 1, y: 0 },
         bend: 0,
         richText: toRichText(connection.label ?? ""),
-        labelPosition: 0.5,
+        labelPosition: anchors.labelPosition,
         scale: 1,
         elbowMidPoint: 0.5,
       },
@@ -188,12 +217,54 @@ function buildConnectionRecords(
 }
 
 function resolveConnectionAnchors(
-  from: { x: number; y: number; w: number; h: number },
-  to: { x: number; y: number; w: number; h: number },
+  connection: DiagramConnection,
+  connections: DiagramConnection[],
+  layout: Map<string, LayoutBox>,
 ): {
-  start: { x: number; y: number };
-  end: { x: number; y: number };
+  start: Anchor;
+  end: Anchor;
+  labelPosition: number;
 } {
+  const from = layout.get(connection.from)!;
+  const to = layout.get(connection.to)!;
+  const direction = edgeDirection(from, to);
+  const base = anchorsForDirection(direction);
+
+  const outgoing = connections.filter((candidate) => {
+    const candidateFrom = layout.get(candidate.from);
+    const candidateTo = layout.get(candidate.to);
+    return (
+      candidate.from === connection.from &&
+      candidateFrom &&
+      candidateTo &&
+      edgeDirection(candidateFrom, candidateTo) === direction
+    );
+  });
+  const incoming = connections.filter((candidate) => {
+    const candidateFrom = layout.get(candidate.from);
+    const candidateTo = layout.get(candidate.to);
+    return (
+      candidate.to === connection.to &&
+      candidateFrom &&
+      candidateTo &&
+      edgeDirection(candidateFrom, candidateTo) === direction
+    );
+  });
+
+  const outgoingIndex = outgoing.findIndex((candidate) => candidate === connection);
+
+  return {
+    start: offsetAnchor(base.start, outgoingIndex, outgoing.length),
+    end: offsetAnchor(
+      base.end,
+      incoming.findIndex((candidate) => candidate === connection),
+      incoming.length,
+    ),
+    labelPosition: spreadValue(outgoingIndex, outgoing.length),
+  };
+}
+
+function edgeDirection(from: LayoutBox, to: LayoutBox): EdgeDirection {
   const fromCenterX = from.x + from.w / 2;
   const fromCenterY = from.y + from.h / 2;
   const toCenterX = to.x + to.w / 2;
@@ -202,30 +273,39 @@ function resolveConnectionAnchors(
   const deltaY = toCenterY - fromCenterY;
 
   if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-    if (deltaX >= 0) {
-      return {
-        start: { x: 1, y: 0.5 },
-        end: { x: 0, y: 0.5 },
-      };
-    }
-
-    return {
-      start: { x: 0, y: 0.5 },
-      end: { x: 1, y: 0.5 },
-    };
+    return deltaX >= 0 ? "right" : "left";
   }
 
-  if (deltaY >= 0) {
-    return {
-      start: { x: 0.5, y: 1 },
-      end: { x: 0.5, y: 0 },
-    };
-  }
+  return deltaY >= 0 ? "down" : "up";
+}
 
-  return {
-    start: { x: 0.5, y: 0 },
-    end: { x: 0.5, y: 1 },
-  };
+function anchorsForDirection(direction: EdgeDirection): { start: Anchor; end: Anchor } {
+  if (direction === "right") {
+    return { start: { x: 1, y: 0.5 }, end: { x: 0, y: 0.5 } };
+  }
+  if (direction === "left") {
+    return { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } };
+  }
+  if (direction === "down") {
+    return { start: { x: 0.5, y: 1 }, end: { x: 0.5, y: 0 } };
+  }
+  return { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } };
+}
+
+function offsetAnchor(anchor: Anchor, index: number, count: number): Anchor {
+  const spread = spreadValue(index, count);
+  if (anchor.x === 0 || anchor.x === 1) {
+    return { x: anchor.x, y: spread };
+  }
+  return { x: spread, y: anchor.y };
+}
+
+function spreadValue(index: number, count: number): number {
+  if (count <= 1) {
+    return 0.5;
+  }
+  const t = index / (count - 1);
+  return ANCHOR_SPREAD_MIN + t * (ANCHOR_SPREAD_MAX - ANCHOR_SPREAD_MIN);
 }
 
 function toShapeIndex(index: number): string {

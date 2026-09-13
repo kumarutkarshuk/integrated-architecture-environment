@@ -1,6 +1,8 @@
 import { createApp } from "./app.js";
 import { configureAnalyticsFromEnv, captureException, shutdownAnalytics } from "./analytics.js";
 import { configureAiRateLimiterFromEnv } from "./ai/rate-limit.js";
+import { configureExportSpecService } from "./ai/export-spec-service.js";
+import { configureGenerateService } from "./ai/generate-service.js";
 import { loadConfig } from "./config.js";
 import { configureMailerFromEnv } from "./invites/mailer.js";
 import { configureProjectCreateRateLimiterFromEnv } from "./projects/create-quota.js";
@@ -11,6 +13,8 @@ configureAnalyticsFromEnv();
 configureMailerFromEnv();
 configureAiRateLimiterFromEnv();
 configureProjectCreateRateLimiterFromEnv();
+configureGenerateService(config);
+configureExportSpecService(config);
 const app = createApp(config);
 const server = createHttpServer(app, config);
 

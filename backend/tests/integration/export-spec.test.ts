@@ -70,6 +70,8 @@ describe("Export Spec job lifecycle", () => {
       status: "pending",
       prompt: "The canvas has no shapes.",
       model: "openai/gpt-oss-20b",
+      promptVersion: "export-spec.v1",
+      provider: "groq",
     });
     expect(response.body.prompt).toBe("The canvas has no shapes.");
 

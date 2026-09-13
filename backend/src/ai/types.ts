@@ -1,3 +1,5 @@
+import type { DiagramPlan } from "./diagram-plan.js";
+
 export const GENERATE_TASK_ID = "generate";
 export const EXPORT_SPEC_TASK_ID = "export-spec";
 
@@ -22,6 +24,7 @@ export interface ExportSpecJobPayload {
 
 export interface GenerateResult {
   records: Record<string, unknown>;
+  plan?: DiagramPlan;
   tokensUsed?: number;
   model?: string;
 }

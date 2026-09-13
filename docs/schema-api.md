@@ -61,6 +61,9 @@ ai_generation
   status        text NOT NULL  -- 'pending' | 'running' | 'completed' | 'failed'
   prompt        text           -- generate: user prompt; export_spec: canvas summary at click
   result        jsonb          -- tldraw shapes (generate) or { markdown, gaps_summary } (export_spec)
+  plan          jsonb          -- generate: parsed Plan { components, connections }; null for export_spec
+  prompt_version text          -- generate-diagram.v2 or export-spec.v1
+  provider      text           -- groq
   model         text           -- LLM id used for the job
   tokens_used   integer
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
@@ -107,7 +110,7 @@ POST   /api/invites/:token/redeem
 POST   /api/projects/:id/ai/generate     -- { prompt }; sets status → generating
 GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs
 POST   /api/projects/:id/ai/apply        -- { aiGenerationId }; sets status → ready
-GET    /api/projects/:id/ai/:jobId       -- job status + result
+GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs include plan; all jobs include prompt_version and provider
 POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
 WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
@@ -116,7 +119,7 @@ WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
 ### Prompt-mode creation flow
 
 1. `POST /api/projects` with `{ name, mode: "prompt", prompt }` → status `generating`.
-2. Trigger.dev runs generate job; stores `prompt` and `model` on `ai_generation` row.
+2. Trigger.dev runs generate job; stores `prompt`, `model`, `prompt_version`, `provider`, parsed `plan`, and tldraw `result` on `ai_generation` row.
 3. On complete → project status `preview`; preview appears in picker.
 4. On first-job fail (no completed unapplied preview) → project status `failed`.
 5. User tweaks prompt → `POST .../ai/generate` again (new row, new prompt). If a later job fails but a completed unapplied preview still exists, status stays `preview`.

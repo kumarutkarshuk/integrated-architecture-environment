@@ -1,11 +1,14 @@
 import type { AppConfig } from "../config.js";
 import { captureEvent } from "../analytics.js";
 import { prisma } from "../db.js";
+import { InvalidDiagramPlanError, InvalidInferenceJsonError } from "./diagram-plan.js";
+import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL } from "./inference-defaults.js";
 import { getInferenceProvider } from "./inference-provider.js";
+import { GENERATE_DIAGRAM_PROMPT_VERSION } from "./prompts/generate-diagram.js";
 import type { GenerateResult } from "./types.js";
 
 let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
-  groqModel: "openai/gpt-oss-20b",
+  groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
 };
 
@@ -18,7 +21,7 @@ export function configureGenerateService(
 export function configureGenerateServiceFromEnv(): void {
   configureGenerateService({
     groqApiKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
+    groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });
 }
@@ -36,6 +39,8 @@ export async function createGenerateJob(
       status: "pending",
       prompt: prompt.trim(),
       model: inferenceConfig.groqModel,
+      promptVersion: GENERATE_DIAGRAM_PROMPT_VERSION,
+      provider: AI_INFERENCE_PROVIDER,
     },
   });
 }
@@ -58,8 +63,20 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
     data: { status: "running" },
   });
 
-  const result = await produceGenerateResult(job.prompt ?? "");
-  await completeGenerateJob(aiGenerationId, result);
+  try {
+    const result = await produceGenerateResult(job.prompt ?? "");
+    if (!result.plan) {
+      await failGenerateJob(aiGenerationId);
+      return;
+    }
+    await completeGenerateJob(aiGenerationId, result);
+  } catch (error) {
+    if (error instanceof InvalidDiagramPlanError || error instanceof InvalidInferenceJsonError) {
+      await failGenerateJob(aiGenerationId);
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function failGenerateJob(aiGenerationId: string): Promise<void> {
@@ -118,6 +135,7 @@ export async function completeGenerateJob(
     data: {
       status: "completed",
       result: { records: result.records } as object,
+      plan: result.plan as object,
       tokensUsed: result.tokensUsed ?? null,
       model: result.model ?? inferenceConfig.groqModel,
     },
