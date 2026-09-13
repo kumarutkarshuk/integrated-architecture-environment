@@ -62,7 +62,7 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
       >
         {generationFailed && previews.length === 0 && (
           <p className="text-xs text-red-400" data-stagger-item="failed">
-            Generation failed. Update your prompt and try again.
+            Generation failed. Please try again.
           </p>
         )}
 
