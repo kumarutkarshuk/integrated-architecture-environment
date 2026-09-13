@@ -7,6 +7,14 @@ import { getInferenceProvider } from "./inference-provider.js";
 import { GENERATE_DIAGRAM_PROMPT_VERSION } from "./prompts/generate-diagram.js";
 import type { GenerateResult } from "./types.js";
 
+export const GENERATE_PLAN_RETRY_ATTEMPTS = 2;
+
+export function shouldSkipGenerateRetry(error: unknown, attemptNumber: number): boolean {
+  const isBadPlanOrJson =
+    error instanceof InvalidDiagramPlanError || error instanceof InvalidInferenceJsonError;
+  return isBadPlanOrJson && attemptNumber >= GENERATE_PLAN_RETRY_ATTEMPTS;
+}
+
 let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
   groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
@@ -63,20 +71,11 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
     data: { status: "running" },
   });
 
-  try {
-    const result = await produceGenerateResult(job.prompt ?? "");
-    if (!result.plan) {
-      await failGenerateJob(aiGenerationId);
-      return;
-    }
-    await completeGenerateJob(aiGenerationId, result);
-  } catch (error) {
-    if (error instanceof InvalidDiagramPlanError || error instanceof InvalidInferenceJsonError) {
-      await failGenerateJob(aiGenerationId);
-      return;
-    }
-    throw error;
+  const result = await produceGenerateResult(job.prompt ?? "");
+  if (!result.plan) {
+    throw new InvalidDiagramPlanError("Generate result is missing a Plan");
   }
+  await completeGenerateJob(aiGenerationId, result);
 }
 
 export async function failGenerateJob(aiGenerationId: string): Promise<void> {

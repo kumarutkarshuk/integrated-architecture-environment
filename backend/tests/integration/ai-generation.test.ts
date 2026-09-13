@@ -705,7 +705,7 @@ describe("AI generation preview and apply", () => {
     expect(previews.body[0].plan).toBeUndefined();
   });
 
-  it("fails an invalid Plan immediately after one inference call", async () => {
+  it("retries an invalid Plan once, then the worker can mark the AI Generation failed", async () => {
     const header = authHeader("clerk_bad_plan", "badplan@example.com");
     let inferenceCalls = 0;
 
@@ -730,9 +730,25 @@ describe("AI generation preview and apply", () => {
       .expect(201);
 
     const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
-    await runGenerateJob(jobId);
+    await expect(runGenerateJob(jobId)).rejects.toThrow("unknown kind");
 
+    const firstAttempt = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/${jobId}`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(firstAttempt.body).toMatchObject({
+      status: "running",
+      promptVersion: "generate-diagram.v2",
+      provider: "groq",
+      plan: null,
+    });
     expect(inferenceCalls).toBe(1);
+
+    await expect(runGenerateJob(jobId)).rejects.toThrow("unknown kind");
+    expect(inferenceCalls).toBe(2);
+
+    await failGenerateJob(jobId);
 
     const failed = await request(app)
       .get(`/api/projects/${created.body.id}/ai/${jobId}`)
@@ -754,7 +770,7 @@ describe("AI generation preview and apply", () => {
     expect(project.body.status).toBe("failed");
   });
 
-  it("fails generate when inference returns records without a Plan", async () => {
+  it("leaves generate running when inference returns records without a Plan so the worker can retry", async () => {
     const header = authHeader("clerk_missing_plan", "missingplan@example.com");
     let inferenceCalls = 0;
 
@@ -789,17 +805,17 @@ describe("AI generation preview and apply", () => {
       .expect(201);
 
     const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
-    await runGenerateJob(jobId);
+    await expect(runGenerateJob(jobId)).rejects.toThrow("Generate result is missing a Plan");
 
     expect(inferenceCalls).toBe(1);
 
-    const failed = await request(app)
+    const running = await request(app)
       .get(`/api/projects/${created.body.id}/ai/${jobId}`)
       .set("Authorization", header)
       .expect(200);
 
-    expect(failed.body.status).toBe("failed");
-    expect(failed.body.plan).toBeNull();
+    expect(running.body.status).toBe("running");
+    expect(running.body.plan).toBeNull();
   });
 
   it("applies the stored tldraw records instead of rebuilding from the Plan", async () => {
