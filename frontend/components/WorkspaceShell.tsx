@@ -524,7 +524,7 @@ export function WorkspaceShell() {
           <AlertDialogHeader>
             <AlertDialogTitle>Another tab is already allowed</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{armConflict?.otherProjectName}&quot; is the Active Project.
+              &quot;{armConflict?.otherProjectName}&quot; is the active project.
               This tab has &quot;{armConflict?.thisProjectName}&quot;. Keep the
               first, switch to this tab, or cancel.
             </AlertDialogDescription>
