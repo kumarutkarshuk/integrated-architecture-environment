@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { useSignedInAnalytics } from "../hooks/useSignedInAnalytics";
 import { WorkspaceShell } from "./WorkspaceShell";
 
 function SignedInWorkspace() {
@@ -22,6 +23,7 @@ function SignedInWorkspace() {
 export function WorkspacePage() {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
+  useSignedInAnalytics();
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {

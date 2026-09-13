@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useRedeemInvite } from "../hooks/useRedeemInvite";
+import { useSignedInAnalytics } from "../hooks/useSignedInAnalytics";
 
 interface InviteRedeemPageProps {
   token: string;
@@ -14,6 +15,7 @@ const EMAIL_MISMATCH_ERROR = "Email does not match this Invite";
 export function InviteRedeemPage({ token }: InviteRedeemPageProps) {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
+  useSignedInAnalytics();
   const redeem = useRedeemInvite(token, Boolean(isLoaded && isSignedIn));
 
   useEffect(() => {

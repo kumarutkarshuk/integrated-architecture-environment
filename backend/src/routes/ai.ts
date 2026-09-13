@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { captureEvent, captureException } from "../analytics.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
 import { AiRateLimitError } from "../ai/rate-limit.js";
@@ -93,6 +94,8 @@ aiRouter.post("/generate", async (req, res) => {
     select: jobSelect,
   });
 
+  captureEvent(user.clerkId, "ai_generation_started", { projectId });
+
   res.status(201).json(latestJob);
 });
 
@@ -163,12 +166,15 @@ aiRouter.post("/export-spec", async (req, res) => {
       select: jobSelect,
     });
 
+    captureEvent(user.clerkId, "spec_exported", { projectId });
+
     res.status(201).json(createdJob);
   } catch (error) {
     if (sendAiRateLimitError(res, error)) {
       return;
     }
     console.error("Failed to start Export Spec", error);
+    captureException(error, user.clerkId, { source: "api", status: 500 });
     res.status(500).json({ error: "Failed to start Export Spec" });
   }
 });
@@ -219,6 +225,11 @@ aiRouter.post("/apply", async (req, res) => {
       createdAt: true,
       ownerId: true,
     },
+  });
+
+  captureEvent(user.clerkId, "preview_applied", {
+    projectId,
+    aiGenerationId,
   });
 
   res.json(project);

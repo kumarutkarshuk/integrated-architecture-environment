@@ -20,6 +20,11 @@ vi.mock("../hooks/useRedeemInvite", () => ({
   useRedeemInvite: (...args: unknown[]) => useRedeemInvite(...args),
 }));
 
+vi.mock("../lib/analytics", () => ({
+  identifySignedInUser: vi.fn(),
+  initSignedInAnalytics: vi.fn(),
+}));
+
 describe("InviteRedeemPage", () => {
   beforeEach(() => {
     useAuth.mockReset();
