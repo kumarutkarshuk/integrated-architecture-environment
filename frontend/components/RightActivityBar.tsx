@@ -22,8 +22,8 @@ export function RightActivityBar({
         side="right"
         active={isAiOpen}
         disabled={!canToggle}
-        title={lockOpen ? "AI Assistant stays open in preview" : "AI Assistant"}
-        aria-label="AI Assistant View"
+        title={lockOpen ? "AI panel stays open in preview" : "AI panel"}
+        aria-label="AI panel View"
         onClick={() => {
           if (!canToggle) {
             return;

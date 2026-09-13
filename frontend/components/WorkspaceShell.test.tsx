@@ -15,6 +15,13 @@ vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div>Account</div>,
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("./ProjectCanvas", () => ({
   ProjectCanvas: () => <div>Canvas</div>,
 }));
@@ -135,6 +142,8 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
   }),
 }));
 
+const clipboardWriteText = vi.fn(async () => undefined);
+
 describe("WorkspaceShell", () => {
   beforeEach(() => {
     workspaceState.isUserLoading = false;
@@ -143,6 +152,7 @@ describe("WorkspaceShell", () => {
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
     workspaceState.spec = null;
+    clipboardWriteText.mockReset();
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => store.get(key) ?? null,
@@ -155,6 +165,10 @@ describe("WorkspaceShell", () => {
       clear: () => {
         store.clear();
       },
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
     });
   });
 
@@ -185,7 +199,7 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     expect(screen.getByText("Projects")).toBeTruthy();
-    expect(screen.getByText("AI Assistant")).toBeTruthy();
+    expect(screen.getByText("AI panel")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
@@ -198,17 +212,17 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("Projects")).toBeNull();
     expect(screen.queryByText("Owned Canvas")).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
-    expect(screen.getByText("AI Assistant")).toBeTruthy();
+    expect(screen.getByText("AI panel")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Collapse AI Assistant" }),
+      screen.getByRole("button", { name: "Collapse AI panel" }),
     );
 
-    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.queryByText("AI panel")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "AI Assistant View" }),
+      screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -223,10 +237,10 @@ describe("WorkspaceShell", () => {
     await waitFor(() => {
       expect(screen.queryByText("Projects")).toBeNull();
     });
-    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.queryByText("AI panel")).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "AI Assistant View" }),
+      screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -271,7 +285,7 @@ describe("WorkspaceShell", () => {
     expect(promptCard.querySelector(".animate-ai-sparkle")).toBeTruthy();
   });
 
-  it("shows Allow agent and relay steps on a ready blank Project, not chat-coming-soon", () => {
+  it("shows Allow agent and client setup on a ready blank Project, not chat-coming-soon", () => {
     render(<WorkspaceShell />);
 
     expect(
@@ -280,7 +294,25 @@ describe("WorkspaceShell", () => {
     expect(screen.getByText("Cursor")).toBeTruthy();
     expect(screen.getByText("Claude Code")).toBeTruthy();
     expect(screen.getByText("Codex")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy Cursor setup" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Copy Claude Code setup" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy Codex setup" })).toBeTruthy();
     expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("copies Cursor setup from the AI panel", async () => {
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Cursor setup" }));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+    });
+    expect(String(clipboardWriteText.mock.calls[0]?.[0])).toContain(
+      "mcpServers",
+    );
   });
 
   it("shows Allow agent on a ready prompt Project", () => {

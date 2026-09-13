@@ -464,7 +464,7 @@ export function WorkspaceShell() {
         </main>
 
         <CollapsibleSidebar
-          title="AI Assistant"
+          title="AI panel"
           side="right"
           isOpen={isAiSidebarOpen}
           openWidthClass="w-72"

@@ -1,7 +1,9 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { Bot, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { FadeIn } from "./FadeIn";
+import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import {
@@ -33,7 +35,7 @@ export function AgentAllowPanel({
             Allow agent to edit this canvas
           </Label>
           <p className="text-[10px] leading-relaxed text-muted">
-            Off until you turn it on in this tab. Reload starts off again.
+            Note: Reload turns it off.
           </p>
           {allowed ? (
             <p className="text-[10px] text-accent">
@@ -51,28 +53,51 @@ export function AgentAllowPanel({
 
       <div className="space-y-2">
         <p className="text-[10px] leading-relaxed text-muted">
-          Add the local WebMCP relay, then keep this tab open. Restrict the
-          widget origin to this app.
+          Add this WebMCP config to Cursor, Claude Code, or Codex and keep this tab open.
         </p>
-        <RelayBlock title="Cursor" code={cursorRelayConfig(origin)} />
-        <RelayBlock title="Claude Code" code={claudeCodeRelayCommand(origin)} />
-        <RelayBlock title="Codex" code={codexRelayConfig(origin)} />
+        <SetupBlock title="Cursor" code={cursorRelayConfig(origin)} />
+        <SetupBlock title="Claude Code" code={claudeCodeRelayCommand(origin)} />
+        <SetupBlock title="Codex" code={codexRelayConfig(origin)} />
       </div>
     </FadeIn>
   );
 }
 
-function RelayBlock({ title, code }: { title: string; code: string }) {
+function SetupBlock({ title, code }: { title: string; code: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-        {title}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+          {title}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 gap-1 px-1.5 text-[10px] text-muted hover:text-foreground"
+          aria-label={`Copy ${title} setup`}
+          onClick={() => {
+            void copySetup(title, code);
+          }}
+        >
+          <Copy className="size-3" />
+          Copy
+        </Button>
+      </div>
       <pre className="overflow-x-auto rounded-md border border-sidebar-border bg-background p-2 text-[10px] leading-relaxed text-foreground/90 whitespace-pre-wrap">
         {code}
       </pre>
     </div>
   );
+}
+
+async function copySetup(title: string, code: string) {
+  try {
+    await navigator.clipboard.writeText(code);
+    toast.success(`Copied ${title} config`);
+  } catch {
+    toast.error("Could not copy");
+  }
 }
 
 export function AgentAllowEmpty() {
@@ -82,7 +107,7 @@ export function AgentAllowEmpty() {
       className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs font-mono text-muted"
     >
       <Bot className="h-8 w-8 text-muted/50" aria-hidden />
-      <p>Open a ready Project to allow an agent.</p>
+      <p>Open a ready project to allow an agent.</p>
     </FadeIn>
   );
 }
