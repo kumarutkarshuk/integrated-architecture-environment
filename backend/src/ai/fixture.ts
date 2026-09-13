@@ -20,6 +20,16 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
         meta: { generatedFrom: slug },
       }),
     },
+    plan: {
+      flows: [
+        {
+          id: "main",
+          label: "Main",
+          components: [{ id: "preview-box", label, kind: "service" }],
+          connections: [],
+        },
+      ],
+    },
   };
 }
 

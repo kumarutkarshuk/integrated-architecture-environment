@@ -41,8 +41,15 @@ const jobSelect = {
   status: true,
   result: true,
   model: true,
+  promptVersion: true,
+  provider: true,
   appliedAt: true,
   createdAt: true,
+} as const;
+
+const jobDetailSelect = {
+  ...jobSelect,
+  plan: true,
 } as const;
 
 aiRouter.post("/generate", async (req, res) => {
@@ -260,7 +267,7 @@ aiRouter.get("/:jobId", async (req, res) => {
       id: req.params.jobId,
       projectId,
     },
-    select: jobSelect,
+    select: jobDetailSelect,
   });
 
   if (!job) {

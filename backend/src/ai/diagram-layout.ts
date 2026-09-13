@@ -1,10 +1,17 @@
-import type { DiagramComponent, DiagramConnection } from "./diagram-plan.js";
+import type {
+  DiagramComponent,
+  DiagramConnection,
+  DiagramPlan,
+} from "./diagram-plan.js";
 
 const DEFAULT_WIDTH = 220;
 const DEFAULT_HEIGHT = 100;
-const H_GAP = 180;
-const V_GAP = 100;
+const H_GAP = 260;
+const V_GAP = 160;
 const CANVAS_PADDING = 120;
+const TITLE_HEIGHT = 56;
+const TITLE_GAP = 16;
+const FLOW_GAP = 200;
 
 export interface LayoutBox {
   id: string;
@@ -13,6 +20,49 @@ export interface LayoutBox {
   y: number;
   w: number;
   h: number;
+}
+
+export interface FlowLayout {
+  id: string;
+  label: string;
+  title: LayoutBox | null;
+  boxes: Map<string, LayoutBox>;
+}
+
+export function layoutDiagramPlan(plan: DiagramPlan): FlowLayout[] {
+  const showTitles = plan.flows.length > 1;
+  let nextY = CANVAS_PADDING;
+  const layouts: FlowLayout[] = [];
+
+  for (const flow of plan.flows) {
+    const local = layoutDiagramComponents(flow.components, flow.connections);
+    const localBoxes = [...local.values()];
+    const localMinY = Math.min(...localBoxes.map((box) => box.y));
+
+    let title: LayoutBox | null = null;
+    if (showTitles) {
+      title = {
+        id: `${flow.id}-title`,
+        label: flow.label,
+        x: CANVAS_PADDING,
+        y: nextY,
+        w: estimateWidth(flow.label),
+        h: TITLE_HEIGHT,
+      };
+      nextY += TITLE_HEIGHT + TITLE_GAP;
+    }
+
+    const shiftY = nextY - localMinY;
+    const boxes = new Map<string, LayoutBox>();
+    for (const [id, box] of local) {
+      boxes.set(id, { ...box, y: box.y + shiftY });
+    }
+
+    nextY = Math.max(...[...boxes.values()].map((box) => box.y + box.h)) + FLOW_GAP;
+    layouts.push({ id: flow.id, label: flow.label, title, boxes });
+  }
+
+  return layouts;
 }
 
 export function layoutDiagramComponents(
@@ -27,8 +77,8 @@ export function layoutDiagramComponents(
       label: component.label,
       x: 0,
       y: 0,
-      w: component.w ?? estimateWidth(component.label),
-      h: component.h ?? DEFAULT_HEIGHT,
+      w: estimateWidth(component.label),
+      h: DEFAULT_HEIGHT,
     });
   }
 

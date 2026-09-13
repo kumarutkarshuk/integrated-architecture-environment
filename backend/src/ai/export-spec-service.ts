@@ -1,13 +1,15 @@
 import type { AppConfig } from "../config.js";
 import { prisma } from "../db.js";
 import { getInferenceProvider } from "./inference-provider.js";
+import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL } from "./inference-defaults.js";
+import { EXPORT_SPEC_PROMPT_VERSION } from "./prompts/export-spec.js";
 import { readProjectCanvasRecords, summarizeCanvasRecords } from "./canvas-summary.js";
 import type { ExportSpecResult } from "./types.js";
 
 const EMPTY_CANVAS_PROMPT = "The canvas has no shapes.";
 
 let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
-  groqModel: "openai/gpt-oss-20b",
+  groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
 };
 
@@ -20,7 +22,7 @@ export function configureExportSpecService(
 export function configureExportSpecServiceFromEnv(): void {
   configureExportSpecService({
     groqApiKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
+    groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });
 }
@@ -36,6 +38,8 @@ export async function createExportSpecJob(projectId: string, userId: string) {
       status: "pending",
       prompt,
       model: inferenceConfig.groqModel,
+      promptVersion: EXPORT_SPEC_PROMPT_VERSION,
+      provider: AI_INFERENCE_PROVIDER,
     },
   });
 }

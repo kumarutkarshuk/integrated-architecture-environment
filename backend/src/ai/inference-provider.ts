@@ -29,6 +29,7 @@ export function createGroqInferenceProvider(config: GroqConfig): InferenceProvid
       const { plan, tokensUsed, model } = await generateDiagramPlanWithGroq(prompt, config);
       return {
         ...buildRecordsFromDiagramPlan(plan),
+        plan,
         tokensUsed,
         model,
       };

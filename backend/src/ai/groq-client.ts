@@ -1,4 +1,4 @@
-import { parseDiagramPlan, type DiagramPlan } from "./diagram-plan.js";
+import { parseDiagramPlan, InvalidInferenceJsonError, type DiagramPlan } from "./diagram-plan.js";
 import { GENERATE_DIAGRAM_SYSTEM_PROMPT } from "./prompts/generate-diagram.js";
 import { EXPORT_SPEC_SYSTEM_PROMPT } from "./prompts/export-spec.js";
 import type { ExportSpecResult } from "./types.js";
@@ -134,7 +134,7 @@ async function requestGroqJsonOnce(
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error("Groq response was not valid JSON");
+    throw new InvalidInferenceJsonError("Groq response was not valid JSON");
   }
 
   return {

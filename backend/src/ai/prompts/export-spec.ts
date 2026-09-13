@@ -1,3 +1,5 @@
+export const EXPORT_SPEC_PROMPT_VERSION = "export-spec.v1";
+
 export const EXPORT_SPEC_SYSTEM_PROMPT = `You write a software architecture spec from a canvas summary.
 
 The canvas is a system design diagram. Some parts may be vague or missing. Be honest about that.

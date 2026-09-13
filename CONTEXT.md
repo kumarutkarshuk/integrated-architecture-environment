@@ -29,8 +29,20 @@ A markdown document of a Project's canvas as it was when a User asked for a Spec
 _Avoid_: Specification doc, export
 
 **AI Generation**:
-A tracked background job that runs an AI action (`generate` or `export_spec`) against a project. Stores the prompt used (user prompt for generate, click-time canvas summary for export_spec), the LLM model, result, and `applied_at` when a generate preview is written to the live canvas.
+A tracked background job that runs an AI action (`generate` or `export_spec`) against a project. It records the prompt used (user prompt for generate, click-time canvas summary for export_spec), which prompt version produced it, the LLM model, the result, and `applied_at` when a generate Preview is written to the live canvas. A generate job also stores a Plan. Users may attach a Rating.
 _Avoid_: AI job, inference request
+
+**Plan**:
+The LLM's list of Flows for a generate AI Generation, before layout turns it into canvas records. A Plan with one path is one Flow.
+_Avoid_: Raw JSON, LLM output, diagram JSON
+
+**Flow**:
+A named cluster of components (with kind) and connections (with style) inside a Plan. Distinct request paths (insert vs retrieve) are separate Flows, even when they use the same kinds of services.
+_Avoid_: Group, swimlane, subgraph
+
+**Rating**:
+A thumbs-up or thumbs-down the User who started an AI Generation gives to that job. At most one Rating per User per AI Generation. It can be switched between up and down, but not cleared. Applying a Preview is not a Rating. Only that User can create or see the Rating in the product.
+_Avoid_: Feedback, vote, thumbs
 
 **Canvas State**:
 The live tldraw document synced in real time via Yjs. Authoritative while a session is active.

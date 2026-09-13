@@ -1,11 +1,22 @@
 import type { AppConfig } from "../config.js";
 import { captureEvent } from "../analytics.js";
 import { prisma } from "../db.js";
+import { InvalidDiagramPlanError, InvalidInferenceJsonError } from "./diagram-plan.js";
+import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL } from "./inference-defaults.js";
 import { getInferenceProvider } from "./inference-provider.js";
+import { GENERATE_DIAGRAM_PROMPT_VERSION } from "./prompts/generate-diagram.js";
 import type { GenerateResult } from "./types.js";
 
+export const GENERATE_PLAN_RETRY_ATTEMPTS = 2;
+
+export function shouldSkipGenerateRetry(error: unknown, attemptNumber: number): boolean {
+  const isBadPlanOrJson =
+    error instanceof InvalidDiagramPlanError || error instanceof InvalidInferenceJsonError;
+  return isBadPlanOrJson && attemptNumber >= GENERATE_PLAN_RETRY_ATTEMPTS;
+}
+
 let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
-  groqModel: "openai/gpt-oss-20b",
+  groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
 };
 
@@ -18,7 +29,7 @@ export function configureGenerateService(
 export function configureGenerateServiceFromEnv(): void {
   configureGenerateService({
     groqApiKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
+    groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });
 }
@@ -36,6 +47,8 @@ export async function createGenerateJob(
       status: "pending",
       prompt: prompt.trim(),
       model: inferenceConfig.groqModel,
+      promptVersion: GENERATE_DIAGRAM_PROMPT_VERSION,
+      provider: AI_INFERENCE_PROVIDER,
     },
   });
 }
@@ -59,6 +72,9 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
   });
 
   const result = await produceGenerateResult(job.prompt ?? "");
+  if (!result.plan) {
+    throw new InvalidDiagramPlanError("Generate result is missing a Plan");
+  }
   await completeGenerateJob(aiGenerationId, result);
 }
 
@@ -118,6 +134,7 @@ export async function completeGenerateJob(
     data: {
       status: "completed",
       result: { records: result.records } as object,
+      plan: result.plan as object,
       tokensUsed: result.tokensUsed ?? null,
       model: result.model ?? inferenceConfig.groqModel,
     },
