@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMemoryArmNetwork } from "../lib/canvas-agent/arm-bus";
 import { WorkspaceShell } from "./WorkspaceShell";
 
 const workspaceState = vi.hoisted(() => ({
@@ -36,6 +37,48 @@ vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
     getCurrentPageShapes: () => [],
   }),
 }));
+
+const armHarness = vi.hoisted(() => {
+  let bus: ReturnType<
+    ReturnType<
+      typeof import("../lib/canvas-agent/arm-bus").createMemoryArmNetwork
+    >["attach"]
+  > | null = null;
+  let network: ReturnType<
+    typeof import("../lib/canvas-agent/arm-bus").createMemoryArmNetwork
+  > | null = null;
+
+  return {
+    getBus() {
+      if (!bus) {
+        throw new Error("arm bus not set");
+      }
+      return bus;
+    },
+    getNetwork() {
+      if (!network) {
+        throw new Error("arm network not set");
+      }
+      return network;
+    },
+    set(
+      nextNetwork: NonNullable<typeof network>,
+      nextBus: NonNullable<typeof bus>,
+    ) {
+      network = nextNetwork;
+      bus = nextBus;
+    },
+  };
+});
+
+vi.mock("../lib/canvas-agent/arm-bus", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../lib/canvas-agent/arm-bus")>();
+  return {
+    ...actual,
+    createBrowserArmBus: () => armHarness.getBus(),
+  };
+});
 
 vi.mock("./PreviewCanvas", () => ({
   PreviewCanvas: () => <div>Preview</div>,
@@ -170,6 +213,8 @@ describe("WorkspaceShell", () => {
       configurable: true,
       value: { writeText: clipboardWriteText },
     });
+    const network = createMemoryArmNetwork();
+    armHarness.set(network, network.attach("workspace-tab"));
   });
 
   afterEach(() => {
@@ -383,4 +428,94 @@ describe("WorkspaceShell", () => {
         .getAttribute("aria-checked"),
     ).toBe("false");
   });
+
+  it("asks keep / switch / cancel with both Project names when a second tab hits Allow", () => {
+    openSecondAllow();
+
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText(/Owned Canvas/)).toBeTruthy();
+    expect(within(dialog).getByText(/Payments/)).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Keep" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Switch" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
+    expect(armHarness.getBus().hasClaim()).toBe(false);
+  });
+
+  it("keeps the first tab armed when Keep is chosen", () => {
+    openSecondAllow();
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(armHarness.getBus().hasClaim()).toBe(false);
+    expect(armHarness.getBus().listArmed()).toEqual([OTHER_ARMED]);
+  });
+
+  it("makes this tab the Active Project when Switch is chosen", () => {
+    openSecondAllow();
+    fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(armHarness.getBus().hasClaim()).toBe(true);
+    expect(armHarness.getBus().listArmed()).toEqual([
+      {
+        tabId: "workspace-tab",
+        projectId: "project-1",
+        projectName: "Owned Canvas",
+      },
+    ]);
+  });
+
+  it("leaves the first tab armed when Cancel is chosen", () => {
+    openSecondAllow();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(armHarness.getBus().hasClaim()).toBe(false);
+    expect(armHarness.getBus().listArmed()).toEqual([OTHER_ARMED]);
+  });
+
+  it("releases the Active Project when Allow is turned off", () => {
+    render(<WorkspaceShell />);
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    );
+    expect(armHarness.getBus().hasClaim()).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    );
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(armHarness.getBus().hasClaim()).toBe(false);
+    expect(armHarness.getBus().listArmed()).toEqual([]);
+  });
 });
+
+const OTHER_ARMED = {
+  tabId: "other-tab",
+  projectId: "project-2",
+  projectName: "Payments",
+};
+
+function openSecondAllow() {
+  armHarness.getNetwork().seed([OTHER_ARMED]);
+  render(<WorkspaceShell />);
+  fireEvent.click(
+    screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+  );
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createMemoryArmNetwork, type ArmBus } from "./arm-bus";
 import {
   createCanvasAgentSession,
   type CanvasAgentPageShape,
@@ -13,26 +14,43 @@ function createHarness(options?: {
   allowed?: boolean;
   shapes?: CanvasAgentPageShape[];
   editor?: null;
+  armBus?: ArmBus;
+  network?: ReturnType<typeof createMemoryArmNetwork>;
+  project?: { id: string; name: string };
 }) {
   let status: string | null = options?.status ?? "ready";
-  let allowed = options?.allowed ?? true;
   let shapes = options?.shapes ?? [];
   const editorMissing = options?.editor === null;
+  const project = options?.project ?? {
+    id: "project-1",
+    name: "Owned Canvas",
+  };
+  const network = options?.network ?? createMemoryArmNetwork();
+  const armBus = options?.armBus ?? network.attach("tab-1");
+  if (options?.allowed !== false && !armBus.hasClaim()) {
+    armBus.claim(project);
+  }
 
   const session = createCanvasAgentSession({
     getProjectStatus: () => status,
-    isAllowed: () => allowed,
     getEditor: () =>
       editorMissing ? null : { getCurrentPageShapes: () => shapes },
+    armBus,
   });
 
   return {
     session,
+    armBus,
+    network,
     setStatus(next: string | null) {
       status = next;
     },
     setAllowed(next: boolean) {
-      allowed = next;
+      if (next) {
+        armBus.claim(project);
+        return;
+      }
+      armBus.release();
     },
     setShapes(next: CanvasAgentPageShape[]) {
       shapes = next;
@@ -296,5 +314,59 @@ describe("canvas-agent session", () => {
 
     expect(() => session.readCanvasState()).toThrow("not ready");
     expect(session.shouldRegisterTools()).toBe(true);
+  });
+
+  it("fails to read when two tabs look armed and names both Projects", async () => {
+    const network = createMemoryArmNetwork();
+    network.seed([
+      {
+        tabId: "tab-a",
+        projectId: "project-1",
+        projectName: "Checkout",
+      },
+      {
+        tabId: "tab-b",
+        projectId: "project-2",
+        projectName: "Payments",
+      },
+    ]);
+    const { session } = createHarness({
+      network,
+      armBus: network.attach("tab-a"),
+      allowed: false,
+    });
+
+    expect(session.shouldRegisterTools()).toBe(true);
+    await session.syncArms();
+    expect(() => session.readCanvasState()).toThrow(
+      '"Checkout" and "Payments" are both Active Projects.',
+    );
+  });
+
+  it("keeps tools registered and readable while this tab is in the background", () => {
+    const { session } = createHarness();
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+
+    expect(session.shouldRegisterTools()).toBe(true);
+    expect(session.readCanvasState()).toEqual({
+      components: [],
+      connections: [],
+      flowTitles: [],
+      notEditable: [],
+    });
+  });
+
+  it("unregisters and refuses to read after another tab takes over", () => {
+    const { session, network } = createHarness();
+    const other = network.attach("tab-2");
+
+    other.takeOver({ id: "project-2", name: "Payments" });
+
+    expect(session.shouldRegisterTools()).toBe(false);
+    expect(() => session.readCanvasState()).toThrow("not allowed");
   });
 });

@@ -50,6 +50,7 @@ export async function registerCanvasReadTool(
       inputSchema: { type: "object", properties: {} },
       async execute() {
         try {
+          await session.syncArms();
           const view = session.readCanvasState();
           return {
             content: [{ type: "text", text: JSON.stringify(view) }],

@@ -1,3 +1,4 @@
+import type { ArmBus, ArmedProject } from "./arm-bus";
 import {
   kindFromColor,
   styleFromDash,
@@ -67,30 +68,48 @@ export type CompactCanvasState = {
 
 export type CanvasAgentSession = {
   shouldRegisterTools(): boolean;
+  syncArms(): Promise<void>;
   readCanvasState(): CompactCanvasState;
 };
 
 export function createCanvasAgentSession(deps: {
   getProjectStatus: () => string | null;
-  isAllowed: () => boolean;
   getEditor: () => CanvasAgentEditorPort | null;
+  armBus: ArmBus;
 }): CanvasAgentSession {
   return {
     shouldRegisterTools() {
-      return isReady(deps.getProjectStatus()) && deps.isAllowed();
+      return isReady(deps.getProjectStatus()) && deps.armBus.hasClaim();
+    },
+    syncArms() {
+      return deps.armBus.sync();
     },
     readCanvasState() {
+      assertExclusiveActiveProject(deps.armBus);
       const editor = deps.getEditor();
       if (!isReady(deps.getProjectStatus()) || !editor) {
         throw new CanvasAgentError("not ready");
       }
-      if (!deps.isAllowed()) {
+      if (!deps.armBus.hasClaim()) {
         throw new CanvasAgentError("not allowed");
       }
 
       return compactCanvasState(editor.getCurrentPageShapes());
     },
   };
+}
+
+function assertExclusiveActiveProject(armBus: ArmBus): void {
+  const armed = armBus.listArmed();
+  if (armed.length < 2) {
+    return;
+  }
+  throw new CanvasAgentError(dualActiveProjectMessage(armed));
+}
+
+function dualActiveProjectMessage(armed: ArmedProject[]): string {
+  const names = armed.map((claim) => `"${claim.projectName}"`).join(" and ");
+  return `${names} are both Active Projects.`;
 }
 
 function isReady(status: string | null): boolean {

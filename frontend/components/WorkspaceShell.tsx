@@ -37,6 +37,15 @@ import { InviteToolbar } from "./InviteToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
 import { ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
+import { Button } from "./ui/button";
 import { GridPattern } from "./ui/grid-pattern";
 import { WorkspaceStatusBar } from "./WorkspaceStatusBar";
 import { WorkspaceTitlebar } from "./WorkspaceTitlebar";
@@ -102,9 +111,17 @@ export function WorkspaceShell() {
     canvasEnabled,
     presenceIdentity,
   );
-  const { allowed: agentAllowed, setAllowed: setAgentAllowed } = useCanvasAgent(
+  const {
+    allowed: agentAllowed,
+    requestAllowed: requestAgentAllowed,
+    armConflict,
+    resolveArmConflict,
+  } = useCanvasAgent(
     selectedProject?.status ?? null,
     canvasEditor,
+    selectedProject
+      ? { id: selectedProject.id, name: selectedProject.name }
+      : null,
   );
 
   const handleEditorReady = useCallback(
@@ -475,7 +492,7 @@ export function WorkspaceShell() {
             ai={ai}
             project={selectedProject}
             agentAllowed={agentAllowed}
-            onAgentAllowedChange={setAgentAllowed}
+            onAgentAllowedChange={requestAgentAllowed}
           />
         </CollapsibleSidebar>
 
@@ -494,6 +511,51 @@ export function WorkspaceShell() {
         onCreateBlankProject={handleCreateBlankProject}
         onCreatePromptProject={handleCreatePromptProject}
       />
+
+      <AlertDialog
+        open={armConflict !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            resolveArmConflict("cancel");
+          }
+        }}
+      >
+        <AlertDialogContent className="border-sidebar-border bg-sidebar text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Another tab is already allowed</AlertDialogTitle>
+            <AlertDialogDescription>
+              &quot;{armConflict?.otherProjectName}&quot; is the Active Project.
+              This tab has &quot;{armConflict?.thisProjectName}&quot;. Keep the
+              first, switch to this tab, or cancel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => resolveArmConflict("cancel")}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => resolveArmConflict("keep")}
+            >
+              Keep
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => resolveArmConflict("switch")}
+            >
+              Switch
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
