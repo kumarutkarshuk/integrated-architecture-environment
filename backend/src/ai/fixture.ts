@@ -21,8 +21,14 @@ export function buildFixtureGenerateResult(prompt: string): GenerateResult {
       }),
     },
     plan: {
-      components: [{ id: "preview-box", label, kind: "service" }],
-      connections: [],
+      flows: [
+        {
+          id: "main",
+          label: "Main",
+          components: [{ id: "preview-box", label, kind: "service" }],
+          connections: [],
+        },
+      ],
     },
   };
 }

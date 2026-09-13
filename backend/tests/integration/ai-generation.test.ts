@@ -7,7 +7,7 @@ import { clearCanvasPersistenceTimers, configureCanvasPersistence } from "../../
 import { readRecordsFromDoc } from "../../src/canvas/snapshot.js";
 import { createApp } from "../../src/app.js";
 import { runGenerateJob, failGenerateJob } from "../../src/ai/generate-service.js";
-import { InvalidDiagramPlanError } from "../../src/ai/diagram-plan.js";
+import { InvalidDiagramPlanError, parseDiagramPlan } from "../../src/ai/diagram-plan.js";
 import { buildGeoShape, buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
 import {
   createTestJobRunner,
@@ -102,7 +102,7 @@ describe("AI generation preview and apply", () => {
       status: "pending",
       prompt: "Design a todo API",
       model: "openai/gpt-oss-20b",
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
     });
 
@@ -145,7 +145,7 @@ describe("AI generation preview and apply", () => {
     expect(generations[0]?.deletedAt).toBeNull();
     expect(generations[0]?.prompt).toBe("Design a queue");
     expect(generations[0]?.model).toBe("openai/gpt-oss-20b");
-    expect(generations[0]?.promptVersion).toBe("generate-diagram.v2");
+    expect(generations[0]?.promptVersion).toBe("generate-diagram.v3");
     expect(generations[0]?.provider).toBe("groq");
 
     const project = await prisma.project.findUnique({
@@ -639,13 +639,13 @@ describe("AI generation preview and apply", () => {
 
   it("stores the Plan and traces on a completed generate AI Generation", async () => {
     const header = authHeader("clerk_plan_store", "planstore@example.com");
-    const plan = {
+    const plan = parseDiagramPlan({
       components: [
         { id: "web", label: "Web", kind: "client" as const },
         { id: "api", label: "API", kind: "service" as const },
       ],
       connections: [{ from: "web", to: "api", style: "sync" as const, label: "request" }],
-    };
+    });
     const generated = buildRecordsFromDiagramPlan(plan);
 
     setInferenceProvider({
@@ -676,7 +676,7 @@ describe("AI generation preview and apply", () => {
 
     expect(stored).toMatchObject({
       status: "completed",
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
       plan,
       result: { records: generated.records },
@@ -688,7 +688,7 @@ describe("AI generation preview and apply", () => {
       .expect(200);
 
     expect(polled.body).toMatchObject({
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
       plan,
     });
@@ -699,7 +699,7 @@ describe("AI generation preview and apply", () => {
       .expect(200);
 
     expect(previews.body[0]).toMatchObject({
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
     });
     expect(previews.body[0].plan).toBeUndefined();
@@ -739,7 +739,7 @@ describe("AI generation preview and apply", () => {
 
     expect(firstAttempt.body).toMatchObject({
       status: "running",
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
       plan: null,
     });
@@ -757,7 +757,7 @@ describe("AI generation preview and apply", () => {
 
     expect(failed.body).toMatchObject({
       status: "failed",
-      promptVersion: "generate-diagram.v2",
+      promptVersion: "generate-diagram.v3",
       provider: "groq",
       plan: null,
     });
@@ -835,10 +835,10 @@ describe("AI generation preview and apply", () => {
       async generate() {
         return {
           records: storedRecords,
-          plan: {
+          plan: parseDiagramPlan({
             components: [{ id: "api", label: "API", kind: "service" }],
             connections: [],
-          },
+          }),
         };
       },
       async exportSpec() {

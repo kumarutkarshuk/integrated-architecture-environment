@@ -13,6 +13,10 @@ export const CONNECTION_STYLES = ["sync", "async", "data"] as const;
 
 export type ConnectionStyle = (typeof CONNECTION_STYLES)[number];
 
+export const IMPLICIT_FLOW_ID = "main";
+export const IMPLICIT_FLOW_LABEL = "Main";
+export const MAX_DIAGRAM_FLOWS = 4;
+
 export class InvalidDiagramPlanError extends Error {
   constructor(message: string) {
     super(message);
@@ -40,9 +44,15 @@ export interface DiagramConnection {
   label?: string;
 }
 
-export interface DiagramPlan {
+export interface DiagramFlow {
+  id: string;
+  label: string;
   components: DiagramComponent[];
   connections: DiagramConnection[];
+}
+
+export interface DiagramPlan {
+  flows: DiagramFlow[];
 }
 
 const KIND_ALIASES: Record<string, ComponentKind> = {
@@ -76,19 +86,96 @@ export function parseDiagramPlan(raw: unknown): DiagramPlan {
   }
 
   const value = raw as Record<string, unknown>;
-  if (!Array.isArray(value.components)) {
-    throw new InvalidDiagramPlanError("Diagram plan must include a components array");
+  const rawFlows = value.flows ?? value.groups;
+
+  if (rawFlows !== undefined) {
+    return { flows: parseFlows(rawFlows) };
   }
 
-  const components = value.components.map((entry, index) => {
+  const components = parseComponents(value.components, "components");
+  const connections = parseConnections(value.connections, components, "connections");
+
+  return {
+    flows: [
+      {
+        id: IMPLICIT_FLOW_ID,
+        label: IMPLICIT_FLOW_LABEL,
+        components,
+        connections,
+      },
+    ],
+  };
+}
+
+function parseFlows(raw: unknown): DiagramFlow[] {
+  if (!Array.isArray(raw)) {
+    throw new InvalidDiagramPlanError("Diagram plan flows must be an array");
+  }
+
+  if (raw.length === 0) {
+    throw new InvalidDiagramPlanError("Diagram plan must include at least one flow");
+  }
+
+  if (raw.length > MAX_DIAGRAM_FLOWS) {
+    throw new InvalidDiagramPlanError(
+      `Diagram plan can include at most ${MAX_DIAGRAM_FLOWS} flows`,
+    );
+  }
+
+  const flows = raw.map((entry, index) => parseFlow(entry, index));
+  const seenIds = new Set<string>();
+
+  for (const flow of flows) {
+    if (seenIds.has(flow.id)) {
+      throw new InvalidDiagramPlanError(`Duplicate flow id: ${flow.id}`);
+    }
+    seenIds.add(flow.id);
+  }
+
+  return flows;
+}
+
+function parseFlow(entry: unknown, index: number): DiagramFlow {
+  if (!entry || typeof entry !== "object") {
+    throw new InvalidDiagramPlanError(`Flow at index ${index} must be an object`);
+  }
+
+  const flow = entry as Record<string, unknown>;
+  const path = `flows[${index}]`;
+  const id = slugifyComponentId(readString(flow.id, `${path}.id`));
+  const label = readString(
+    flow.label ?? flow.name ?? flow.title,
+    `${path}.label`,
+  ).trim();
+  const components = parseComponents(flow.components, `${path}.components`);
+  const connections = parseConnections(
+    flow.connections,
+    components,
+    `${path}.connections`,
+  );
+
+  return { id, label, components, connections };
+}
+
+function parseComponents(raw: unknown, path: string): DiagramComponent[] {
+  if (!Array.isArray(raw)) {
+    throw new InvalidDiagramPlanError(
+      path === "components"
+        ? "Diagram plan must include a components array"
+        : `${path} must be an array`,
+    );
+  }
+
+  const components = raw.map((entry, index) => {
     if (!entry || typeof entry !== "object") {
       throw new InvalidDiagramPlanError(`Component at index ${index} must be an object`);
     }
 
     const component = entry as Record<string, unknown>;
-    const id = readString(component.id, `components[${index}].id`);
-    const label = readString(component.label, `components[${index}].label`);
-    const kind = canonicalizeKind(component.kind, `components[${index}].kind`);
+    const fieldPath = `${path}[${index}]`;
+    const id = readString(component.id, `${fieldPath}.id`);
+    const label = readString(component.label, `${fieldPath}.label`);
+    const kind = canonicalizeKind(component.kind, `${fieldPath}.kind`);
 
     return {
       id: slugifyComponentId(id),
@@ -109,24 +196,27 @@ export function parseDiagramPlan(raw: unknown): DiagramPlan {
     componentIds.add(component.id);
   }
 
-  const connections = parseConnections(value.connections, components, componentIds);
-
-  return { components, connections };
+  return components;
 }
 
 function parseConnections(
   raw: unknown,
   components: DiagramComponent[],
-  componentIds: Set<string>,
+  path: string,
 ): DiagramConnection[] {
   if (raw === undefined || raw === null) {
     return [];
   }
 
   if (!Array.isArray(raw)) {
-    throw new InvalidDiagramPlanError("Diagram plan connections must be an array");
+    throw new InvalidDiagramPlanError(
+      path === "connections"
+        ? "Diagram plan connections must be an array"
+        : `${path} must be an array`,
+    );
   }
 
+  const componentIds = new Set(components.map((component) => component.id));
   const seenPairs = new Set<string>();
 
   return raw.map((entry, index) => {
@@ -135,13 +225,14 @@ function parseConnections(
     }
 
     const connection = entry as Record<string, unknown>;
+    const fieldPath = `${path}[${index}]`;
     const from = resolveConnectionComponentId(
-      readString(connection.from, `connections[${index}].from`),
+      readString(connection.from, `${fieldPath}.from`),
       components,
       componentIds,
     );
     const to = resolveConnectionComponentId(
-      readString(connection.to, `connections[${index}].to`),
+      readString(connection.to, `${fieldPath}.to`),
       components,
       componentIds,
     );
@@ -158,12 +249,12 @@ function parseConnections(
     }
     seenPairs.add(pairKey);
 
-    const style = canonicalizeStyle(connection.style, `connections[${index}].style`);
+    const style = canonicalizeStyle(connection.style, `${fieldPath}.style`);
 
     const label =
       connection.label === undefined || connection.label === null
         ? undefined
-        : readString(connection.label, `connections[${index}].label`).trim();
+        : readString(connection.label, `${fieldPath}.label`).trim();
 
     return { from, to, style, label };
   });

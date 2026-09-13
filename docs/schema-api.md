@@ -61,8 +61,8 @@ ai_generation
   status        text NOT NULL  -- 'pending' | 'running' | 'completed' | 'failed'
   prompt        text           -- generate: user prompt; export_spec: canvas summary at click
   result        jsonb          -- tldraw shapes (generate) or { markdown, gaps_summary } (export_spec)
-  plan          jsonb          -- generate: parsed Plan { components, connections }; null for export_spec
-  prompt_version text          -- generate-diagram.v2 or export-spec.v1
+  plan          jsonb          -- generate: parsed Plan { flows: [{ id, label, components, connections }] }; a single-path Plan is one Flow; null for export_spec
+  prompt_version text          -- generate-diagram.v3 or export-spec.v1
   provider      text           -- groq
   model         text           -- LLM id used for the job
   tokens_used   integer
