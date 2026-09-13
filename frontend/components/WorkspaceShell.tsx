@@ -17,6 +17,7 @@ import {
 } from "../hooks/useSidebarOpen";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
+import { SHOW_AI_INFERENCE_ERROR_UI } from "../lib/ai-client-errors";
 import { isLiveCanvasOnline } from "../lib/canvas";
 import { deriveWorkspaceShellStatus } from "../lib/shellStatus";
 import { ActivityBar } from "./ActivityBar";
@@ -382,8 +383,9 @@ export function WorkspaceShell() {
                         Preview generation failed.
                       </p>
                       <p className="text-muted">
-                        Check your Groq API key and model, then regenerate from
-                        the AI panel.
+                        {SHOW_AI_INFERENCE_ERROR_UI
+                          ? "Check your API key and model settings, then try again from the AI panel."
+                          : "Try again from the AI panel."}
                       </p>
                     </>
                   ) : ai.previewWaitTimedOut ? (
