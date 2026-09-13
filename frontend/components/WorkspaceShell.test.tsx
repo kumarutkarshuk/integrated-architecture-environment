@@ -29,12 +29,18 @@ vi.mock("./ProjectCanvas", () => ({
 
 vi.mock("../lib/canvas-agent/webmcp", () => ({
   mountWebMcpRelayEmbed: () => undefined,
-  registerCanvasReadTool: async () => undefined,
+  registerCanvasAgentTools: async () => undefined,
 }));
 
 vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
   createTldrawEditorPort: () => ({
     getCurrentPageShapes: () => [],
+    isWritable: () => true,
+    getShapeBounds: () => null,
+    createShape: () => undefined,
+    updateShape: () => undefined,
+    deleteShape: () => undefined,
+    zoomToBounds: () => undefined,
   }),
 }));
 

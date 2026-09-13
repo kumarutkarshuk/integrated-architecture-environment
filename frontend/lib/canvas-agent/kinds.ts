@@ -51,3 +51,15 @@ export function styleFromDash(
   }
   return STYLE_BY_DASH[dash] ?? null;
 }
+
+export function parseComponentKind(value: string): ComponentKind | null {
+  return (COMPONENT_KINDS as readonly string[]).includes(value)
+    ? (value as ComponentKind)
+    : null;
+}
+
+export function parseConnectionStyle(value: string): ConnectionStyle | null {
+  return (CONNECTION_STYLES as readonly string[]).includes(value)
+    ? (value as ConnectionStyle)
+    : null;
+}

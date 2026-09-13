@@ -7,7 +7,7 @@ import { createCanvasAgentSession } from "../lib/canvas-agent/session";
 import { createTldrawEditorPort } from "../lib/canvas-agent/tldraw-editor";
 import {
   mountWebMcpRelayEmbed,
-  registerCanvasReadTool,
+  registerCanvasAgentTools,
 } from "../lib/canvas-agent/webmcp";
 
 export type ArmConflict = {
@@ -124,7 +124,7 @@ export function useCanvasAgent(
     }
 
     const abort = new AbortController();
-    void registerCanvasReadTool(sessionRef.current, abort.signal);
+    void registerCanvasAgentTools(sessionRef.current, abort.signal);
     return () => {
       abort.abort();
     };

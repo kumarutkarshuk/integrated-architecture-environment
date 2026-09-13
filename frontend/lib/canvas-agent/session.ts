@@ -1,10 +1,21 @@
 import type { ArmBus, ArmedProject } from "./arm-bus";
 import {
+  KIND_COLORS,
+  STYLE_DASH,
   kindFromColor,
+  parseComponentKind,
+  parseConnectionStyle,
   styleFromDash,
   type ComponentKind,
   type ConnectionStyle,
 } from "./kinds";
+
+const BOX_WIDTH = 220;
+const BOX_HEIGHT = 100;
+const TITLE_HEIGHT = 56;
+const TITLE_GAP = 16;
+const BOX_GAP = 40;
+const CANVAS_PADDING = 120;
 
 export class CanvasAgentError extends Error {
   constructor(message: string) {
@@ -18,6 +29,8 @@ export type CanvasAgentPageShape = {
   type: string;
   x: number;
   y: number;
+  w?: number;
+  h?: number;
   geo?: string;
   color?: string;
   fill?: string;
@@ -29,8 +42,24 @@ export type CanvasAgentPageShape = {
   toShapeId?: string;
 };
 
+export type ShapeBounds = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 export type CanvasAgentEditorPort = {
   getCurrentPageShapes(): CanvasAgentPageShape[];
+  isWritable(): boolean;
+  getShapeBounds(id: string): ShapeBounds | null;
+  createShape(shape: CanvasAgentPageShape): void;
+  updateShape(
+    id: string,
+    patch: Partial<Pick<CanvasAgentPageShape, "x" | "y" | "label">>,
+  ): void;
+  deleteShape(id: string): void;
+  zoomToBounds(bounds: ShapeBounds): void;
 };
 
 export type CompactComponent = {
@@ -66,17 +95,58 @@ export type CompactCanvasState = {
   notEditable: CompactNotEditable[];
 };
 
+export type CreateComponentInput = {
+  kind: string;
+  label: string;
+  x?: number;
+  y?: number;
+};
+
+export type CreateConnectionInput = {
+  from: string;
+  to: string;
+  style: string;
+  label?: string;
+};
+
+export type CreateFlowTitleInput = {
+  label: string;
+  x?: number;
+  y?: number;
+};
+
+export type MoveShapeInput = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+export type RenameShapeInput = {
+  id: string;
+  label: string;
+};
+
 export type CanvasAgentSession = {
   shouldRegisterTools(): boolean;
   syncArms(): Promise<void>;
   readCanvasState(): CompactCanvasState;
+  createComponent(input: CreateComponentInput): CompactCanvasState;
+  createConnection(input: CreateConnectionInput): CompactCanvasState;
+  createFlowTitle(input: CreateFlowTitleInput): CompactCanvasState;
+  moveShape(input: MoveShapeInput): CompactCanvasState;
+  renameShape(input: RenameShapeInput): CompactCanvasState;
+  deleteShape(id: string): CompactCanvasState;
 };
 
-export function createCanvasAgentSession(deps: {
+type SessionDeps = {
   getProjectStatus: () => string | null;
   getEditor: () => CanvasAgentEditorPort | null;
   armBus: ArmBus;
-}): CanvasAgentSession {
+};
+
+export function createCanvasAgentSession(
+  deps: SessionDeps,
+): CanvasAgentSession {
   return {
     shouldRegisterTools() {
       return isReady(deps.getProjectStatus()) && deps.armBus.hasClaim();
@@ -85,18 +155,227 @@ export function createCanvasAgentSession(deps: {
       return deps.armBus.sync();
     },
     readCanvasState() {
-      assertExclusiveActiveProject(deps.armBus);
-      const editor = deps.getEditor();
-      if (!isReady(deps.getProjectStatus()) || !editor) {
-        throw new CanvasAgentError("not ready");
+      const editor = requireEditor(deps);
+      return compactCanvasState(editor.getCurrentPageShapes());
+    },
+    createComponent(input) {
+      const editor = requireWritableEditor(deps);
+      const kind = parseComponentKind(input.kind);
+      if (!kind) {
+        throw new CanvasAgentError("unknown kind");
       }
-      if (!deps.armBus.hasClaim()) {
-        throw new CanvasAgentError("not allowed");
+      const position = resolveBoxPosition(
+        editor.getCurrentPageShapes(),
+        input.x,
+        input.y,
+      );
+      const id = newShapeId();
+      editor.createShape({
+        id,
+        type: "geo",
+        x: position.x,
+        y: position.y,
+        w: BOX_WIDTH,
+        h: BOX_HEIGHT,
+        geo: "rectangle",
+        color: KIND_COLORS[kind],
+        fill: "solid",
+        size: "m",
+        label: input.label,
+        generatedFrom: id,
+      });
+      return finishWrite(editor, id);
+    },
+    createConnection(input) {
+      const editor = requireWritableEditor(deps);
+      const style = parseConnectionStyle(input.style);
+      if (!style) {
+        throw new CanvasAgentError("unknown style");
       }
-
+      const shapes = editor.getCurrentPageShapes();
+      const from = shapes.find((item) => item.id === input.from);
+      const to = shapes.find((item) => item.id === input.to);
+      if (!from || !to || !asComponent(from) || !asComponent(to)) {
+        throw new CanvasAgentError("cannot create this shape");
+      }
+      const id = newShapeId();
+      editor.createShape({
+        id,
+        type: "arrow",
+        x: from.x,
+        y: from.y,
+        dash: STYLE_DASH[style],
+        label: input.label ?? "",
+        fromShapeId: input.from,
+        toShapeId: input.to,
+      });
+      return finishWrite(editor, id);
+    },
+    createFlowTitle(input) {
+      const editor = requireWritableEditor(deps);
+      const position = resolveTitlePosition(
+        editor.getCurrentPageShapes(),
+        input.x,
+        input.y,
+      );
+      const id = newShapeId();
+      editor.createShape({
+        id,
+        type: "geo",
+        x: position.x,
+        y: position.y,
+        w: BOX_WIDTH,
+        h: TITLE_HEIGHT,
+        geo: "rectangle",
+        color: "grey",
+        fill: "none",
+        size: "l",
+        label: input.label,
+        generatedFrom: `flow:${id.slice("shape:".length)}`,
+      });
+      return finishWrite(editor, id);
+    },
+    moveShape(input) {
+      const editor = requireWritableEditor(deps);
+      requireEditableShape(
+        editor.getCurrentPageShapes(),
+        input.id,
+        "cannot move this shape",
+      );
+      editor.updateShape(input.id, { x: input.x, y: input.y });
+      return finishWrite(editor, input.id);
+    },
+    renameShape(input) {
+      const editor = requireWritableEditor(deps);
+      requireEditableShape(
+        editor.getCurrentPageShapes(),
+        input.id,
+        "cannot rename this shape",
+      );
+      editor.updateShape(input.id, { label: input.label });
+      return finishWrite(editor, input.id);
+    },
+    deleteShape(id) {
+      const editor = requireWritableEditor(deps);
+      requireEditableShape(
+        editor.getCurrentPageShapes(),
+        id,
+        "cannot delete this shape",
+      );
+      const bounds = editor.getShapeBounds(id);
+      editor.deleteShape(id);
+      if (bounds) {
+        editor.zoomToBounds(bounds);
+      }
       return compactCanvasState(editor.getCurrentPageShapes());
     },
   };
+}
+
+function requireEditor(deps: SessionDeps): CanvasAgentEditorPort {
+  assertExclusiveActiveProject(deps.armBus);
+  const editor = deps.getEditor();
+  if (!isReady(deps.getProjectStatus()) || !editor) {
+    throw new CanvasAgentError("not ready");
+  }
+  if (!deps.armBus.hasClaim()) {
+    throw new CanvasAgentError("not allowed");
+  }
+  return editor;
+}
+
+function requireWritableEditor(deps: SessionDeps): CanvasAgentEditorPort {
+  const editor = requireEditor(deps);
+  if (!editor.isWritable()) {
+    throw new CanvasAgentError("read-only");
+  }
+  return editor;
+}
+
+function finishWrite(
+  editor: CanvasAgentEditorPort,
+  id: string,
+): CompactCanvasState {
+  const bounds = editor.getShapeBounds(id);
+  if (bounds) {
+    editor.zoomToBounds(bounds);
+  }
+  return compactCanvasState(editor.getCurrentPageShapes());
+}
+
+function requireEditableShape(
+  shapes: CanvasAgentPageShape[],
+  id: string,
+  message: string,
+): void {
+  const found = shapes.find((item) => item.id === id);
+  if (!found || !isEditableShape(found)) {
+    throw new CanvasAgentError(message);
+  }
+}
+
+function isEditableShape(shape: CanvasAgentPageShape): boolean {
+  return Boolean(asFlowTitle(shape) || asComponent(shape) || asConnection(shape));
+}
+
+function resolveBoxPosition(
+  shapes: CanvasAgentPageShape[],
+  x: number | undefined,
+  y: number | undefined,
+): { x: number; y: number } {
+  if (x !== undefined && y !== undefined) {
+    return { x, y };
+  }
+  const components = shapes.flatMap((item) => {
+    const component = asComponent(item);
+    return component ? [component] : [];
+  });
+  if (components.length === 0) {
+    return { x: x ?? CANVAS_PADDING, y: y ?? CANVAS_PADDING };
+  }
+  const rightmost = components.reduce((best, item) =>
+    item.x >= best.x ? item : best,
+  );
+  return {
+    x: x ?? rightmost.x + BOX_WIDTH + BOX_GAP,
+    y: y ?? rightmost.y,
+  };
+}
+
+function resolveTitlePosition(
+  shapes: CanvasAgentPageShape[],
+  x: number | undefined,
+  y: number | undefined,
+): { x: number; y: number } {
+  if (x !== undefined && y !== undefined) {
+    return { x, y };
+  }
+  const titles = shapes.filter((item) => asFlowTitle(item));
+  if (titles.length > 0) {
+    const rightmost = titles.reduce((best, item) =>
+      item.x >= best.x ? item : best,
+    );
+    return {
+      x: x ?? rightmost.x + BOX_WIDTH + BOX_GAP,
+      y: y ?? rightmost.y,
+    };
+  }
+  const components = shapes.flatMap((item) => {
+    const component = asComponent(item);
+    return component ? [component] : [];
+  });
+  if (components.length === 0) {
+    return { x: x ?? CANVAS_PADDING, y: y ?? 40 };
+  }
+  const minY = Math.min(...components.map((item) => item.y));
+  return {
+    x: x ?? CANVAS_PADDING,
+    y: y ?? minY - TITLE_HEIGHT - TITLE_GAP,
+  };
+}
+
+function newShapeId(): string {
+  return `shape:${crypto.randomUUID()}`;
 }
 
 function assertExclusiveActiveProject(armBus: ArmBus): void {
