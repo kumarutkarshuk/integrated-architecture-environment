@@ -49,9 +49,9 @@ describe("HomePage", () => {
 
     expect(screen.getByLabelText("Overview")).toBeDefined();
     expect(
-      screen.getByRole("button", { name: "AI Assistant View" }),
+      screen.getByRole("button", { name: "AI panel View" }),
     ).toBeDefined();
-    expect(screen.getByText("AI Assistant")).toBeDefined();
+    expect(screen.getByText("AI panel")).toBeDefined();
     expect(screen.queryByText("Idle")).toBeNull();
     expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(2);
     expect(
@@ -67,16 +67,16 @@ describe("HomePage", () => {
     expect(identifySignedInUser).not.toHaveBeenCalled();
   });
 
-  it("opens the AI assistant from the right activity bar", () => {
+  it("opens the AI panel from the right activity bar", () => {
     render(<HomePage />);
 
-    expect(screen.getByText("AI Assistant")).toBeDefined();
+    expect(screen.getByText("AI panel")).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse AI Assistant" }));
-    expect(screen.queryByText("AI Assistant")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse AI panel" }));
+    expect(screen.queryByText("AI panel")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "AI Assistant View" }));
-    expect(screen.getByText("AI Assistant")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(screen.getByText("AI panel")).toBeDefined();
     expect(screen.getByLabelText("AI chat preview")).toBeDefined();
   });
 });

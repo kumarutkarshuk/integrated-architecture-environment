@@ -3,22 +3,22 @@ import { describe, expect, it, vi } from "vitest";
 import { RightActivityBar } from "./RightActivityBar";
 
 describe("RightActivityBar", () => {
-  it("toggles the AI assistant from the right rail", () => {
+  it("toggles the AI panel from the right rail", () => {
     const onToggleAi = vi.fn();
     render(<RightActivityBar isAiOpen={false} onToggleAi={onToggleAi} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "AI Assistant View" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
 
     expect(onToggleAi).toHaveBeenCalledTimes(1);
   });
 
-  it("does not close the AI assistant when preview locks it open", () => {
+  it("does not close the AI panel when preview locks it open", () => {
     const onToggleAi = vi.fn();
     render(
       <RightActivityBar isAiOpen lockOpen onToggleAi={onToggleAi} />,
     );
 
-    const button = screen.getByRole("button", { name: "AI Assistant View" });
+    const button = screen.getByRole("button", { name: "AI panel View" });
     expect(button).toHaveProperty("disabled", true);
 
     fireEvent.click(button);

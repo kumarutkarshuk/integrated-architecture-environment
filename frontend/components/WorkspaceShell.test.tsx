@@ -7,7 +7,7 @@ const workspaceState = vi.hoisted(() => ({
   isProjectsLoading: false,
   selectedProjectId: "project-1" as string | null,
   projectMode: "blank" as "blank" | "prompt",
-  projectStatus: "ready" as "ready" | "generating" | "preview",
+  projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
   spec: null as { markdown: string; gaps_summary: string } | null,
 }));
 
@@ -15,8 +15,26 @@ vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div>Account</div>,
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("./ProjectCanvas", () => ({
   ProjectCanvas: () => <div>Canvas</div>,
+}));
+
+vi.mock("../lib/canvas-agent/webmcp", () => ({
+  mountWebMcpRelayEmbed: () => undefined,
+  registerCanvasReadTool: async () => undefined,
+}));
+
+vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
+  createTldrawEditorPort: () => ({
+    getCurrentPageShapes: () => [],
+  }),
 }));
 
 vi.mock("./PreviewCanvas", () => ({
@@ -124,6 +142,8 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
   }),
 }));
 
+const clipboardWriteText = vi.fn(async (_text: string) => undefined);
+
 describe("WorkspaceShell", () => {
   beforeEach(() => {
     workspaceState.isUserLoading = false;
@@ -132,6 +152,7 @@ describe("WorkspaceShell", () => {
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
     workspaceState.spec = null;
+    clipboardWriteText.mockReset();
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => store.get(key) ?? null,
@@ -144,6 +165,10 @@ describe("WorkspaceShell", () => {
       clear: () => {
         store.clear();
       },
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
     });
   });
 
@@ -174,7 +199,7 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     expect(screen.getByText("Projects")).toBeTruthy();
-    expect(screen.getByText("AI Assistant")).toBeTruthy();
+    expect(screen.getByText("AI panel")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
   });
@@ -187,17 +212,17 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("Projects")).toBeNull();
     expect(screen.queryByText("Owned Canvas")).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
-    expect(screen.getByText("AI Assistant")).toBeTruthy();
+    expect(screen.getByText("AI panel")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Collapse AI Assistant" }),
+      screen.getByRole("button", { name: "Collapse AI panel" }),
     );
 
-    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.queryByText("AI panel")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "AI Assistant View" }),
+      screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -212,10 +237,10 @@ describe("WorkspaceShell", () => {
     await waitFor(() => {
       expect(screen.queryByText("Projects")).toBeNull();
     });
-    expect(screen.queryByText("AI Assistant")).toBeNull();
+    expect(screen.queryByText("AI panel")).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "AI Assistant View" }),
+      screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
@@ -258,5 +283,104 @@ describe("WorkspaceShell", () => {
     const promptCard = screen.getByRole("button", { name: /AI Prompt/ });
     expect(promptCard.querySelector(".animate-border-beam")).toBeTruthy();
     expect(promptCard.querySelector(".animate-ai-sparkle")).toBeTruthy();
+  });
+
+  it("shows Allow agent and client setup on a ready blank Project, not chat-coming-soon", () => {
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Cursor")).toBeTruthy();
+    expect(screen.getByText("Claude Code")).toBeTruthy();
+    expect(screen.getByText("Codex")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy Cursor setup" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Copy Claude Code setup" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy Codex setup" })).toBeTruthy();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("copies Cursor setup from the AI panel", async () => {
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Cursor setup" }));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        expect.stringContaining("mcpServers"),
+      );
+    });
+  });
+
+  it("shows Allow agent on a ready prompt Project", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "ready";
+
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
+  });
+
+  it("keeps Preview iteration on a prompt Project that is not ready", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+    expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("keeps Preview iteration while generating or failed", () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "generating";
+
+    const { unmount } = render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+
+    unmount();
+    workspaceState.projectStatus = "failed";
+    render(<WorkspaceShell />);
+
+    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+  });
+
+  it("starts Allow off and stays off after a remount", () => {
+    const { unmount } = render(<WorkspaceShell />);
+    const allowSwitch = screen.getByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    });
+
+    expect(allowSwitch.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(allowSwitch);
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    unmount();
+    render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
   });
 });

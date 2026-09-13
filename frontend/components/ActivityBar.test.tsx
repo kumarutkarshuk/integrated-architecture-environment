@@ -23,7 +23,7 @@ describe("ActivityBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
 
     expect(onToggleProjects).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "AI Assistant View" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "AI panel View" })).toBeNull();
     expect(screen.getByText("Account")).toBeTruthy();
     expect(userButtonProps[0]?.appearance).toMatchObject({
       theme: clerkAppearance.theme,

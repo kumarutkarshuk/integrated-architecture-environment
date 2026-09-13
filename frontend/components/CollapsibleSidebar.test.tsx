@@ -25,19 +25,19 @@ describe("CollapsibleSidebar", () => {
   it("renders nothing when collapsed", () => {
     render(
       <CollapsibleSidebar
-        title="AI Assistant"
+        title="AI panel"
         side="right"
         isOpen={false}
         openWidthClass="w-72"
         onToggleOpen={() => undefined}
       >
-        <p>AI panel</p>
+        <p>AI contents</p>
       </CollapsibleSidebar>,
     );
 
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByText("AI contents")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Open AI Assistant" }),
+      screen.queryByRole("button", { name: "Open AI panel" }),
     ).toBeNull();
   });
 
@@ -75,13 +75,13 @@ describe("CollapsibleSidebar", () => {
           <p>Project list</p>
         </CollapsibleSidebar>
         <CollapsibleSidebar
-          title="AI Assistant"
+          title="AI panel"
           side="right"
           isOpen
           openWidthClass="w-72"
           onToggleOpen={toggleAi}
         >
-          <p>AI panel</p>
+          <p>AI contents</p>
         </CollapsibleSidebar>
       </>,
     );
@@ -90,26 +90,26 @@ describe("CollapsibleSidebar", () => {
 
     expect(toggleProjects).toHaveBeenCalledTimes(1);
     expect(toggleAi).not.toHaveBeenCalled();
-    expect(screen.getByText("AI panel")).toBeTruthy();
+    expect(screen.getByText("AI contents")).toBeTruthy();
   });
 
   it("keeps the collapse control visible and disabled when locked open", () => {
     const onToggleOpen = vi.fn();
     render(
       <CollapsibleSidebar
-        title="AI Assistant"
+        title="AI panel"
         side="right"
         isOpen
         lockOpen
         openWidthClass="w-72"
         onToggleOpen={onToggleOpen}
       >
-        <p>AI panel</p>
+        <p>AI contents</p>
       </CollapsibleSidebar>,
     );
 
     const collapse = screen.getByRole("button", {
-      name: "Collapse AI Assistant",
+      name: "Collapse AI panel",
     });
     expect(collapse).toHaveProperty("disabled", true);
 

@@ -74,7 +74,7 @@ export function HomePage() {
         </main>
 
         <CollapsibleSidebar
-          title="AI Assistant"
+          title="AI panel"
           side="right"
           isOpen={isAiOpen}
           openWidthClass="w-72"

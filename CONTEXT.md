@@ -8,13 +8,17 @@ A real-time, AI-assisted space where users collaborate on system design.
 A single collaborative canvas where users design a system. One project is one editable diagram. Created in `prompt` mode (AI generates first) or `blank` mode (empty canvas). Status tracks lifecycle: `generating`, `preview`, `failed`, or `ready`.
 _Avoid_: Diagram, room
 
+**Active Project**:
+The ready Project whose tab the User has allowed agent edits on. Only one exists per browser at a time; if another tab would arm, the User picks which tab to keep.
+_Avoid_: Screen, current diagram, focused room
+
 **User**:
 A person who can sign in via Clerk with Google or email + OTP. A Postgres row is created lazily on the user's first authenticated backend request.
 _Avoid_: Account, member
 
 **Collaborator**:
-A user who has been granted access to a project. Has role `owner` or `editor`.
-_Avoid_: Member, participant
+A user who has been granted access to a project. Has role `owner` or `editor`. A coding agent that edits the canvas is this Collaborator, not a separate person.
+_Avoid_: Member, participant, agent
 
 **Invite**:
 An email-bound link that grants project access after the recipient signs in with a matching email. Redeeming an invite creates a collaborator row.
@@ -45,8 +49,8 @@ A thumbs-up or thumbs-down the User who started an AI Generation gives to that j
 _Avoid_: Feedback, vote, thumbs
 
 **Canvas State**:
-The live tldraw document synced in real time via Yjs. Authoritative while a session is active.
-_Avoid_: Diagram JSON, document
+The live tldraw document synced in real time via Yjs. Authoritative while a session is active. This is the canvas (what people call the screen).
+_Avoid_: Diagram JSON, document, screen
 
 **Canvas Snapshot**:
 The latest persisted copy of canvas state for a project. One row per project, upserted on save (not append-only in v1).

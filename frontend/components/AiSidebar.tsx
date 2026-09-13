@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Bot } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRef } from "react";
 import type { ApiProject } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
-import { FadeIn } from "./FadeIn";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
+import { AgentAllowEmpty, AgentAllowPanel } from "./AgentAllowPanel";
 import { BorderBeam } from "./ui/border-beam";
 import { Button } from "./ui/button";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
@@ -17,9 +17,16 @@ type AiGenerationState = ReturnType<typeof useAiGeneration>;
 interface AiSidebarProps {
   project: ApiProject | null;
   ai: AiGenerationState;
+  agentAllowed: boolean;
+  onAgentAllowedChange: (allowed: boolean) => void;
 }
 
-export function AiSidebar({ project, ai }: AiSidebarProps) {
+export function AiSidebar({
+  project,
+  ai,
+  agentAllowed,
+  onAgentAllowedChange,
+}: AiSidebarProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const {
     prompt,
@@ -43,11 +50,21 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
     fromY: 8,
   });
 
-  if (
-    !project ||
-    ((project.mode !== "prompt" || project.status === "ready") && !isApplying)
-  ) {
-    return <ChatComingSoon />;
+  const showPreviewIteration =
+    project != null &&
+    ((project.mode === "prompt" && project.status !== "ready") || isApplying);
+
+  if (!showPreviewIteration) {
+    if (project?.status === "ready") {
+      return (
+        <AgentAllowPanel
+          allowed={agentAllowed}
+          onAllowedChange={onAgentAllowedChange}
+        />
+      );
+    }
+
+    return <AgentAllowEmpty />;
   }
 
   const canRegenerate =
@@ -169,17 +186,5 @@ export function AiSidebar({ project, ai }: AiSidebarProps) {
         </div>
       </div>
     </div>
-  );
-}
-
-function ChatComingSoon() {
-  return (
-    <FadeIn
-      fromX={8}
-      className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-xs font-mono text-muted"
-    >
-      <Bot className="h-8 w-8 text-muted/50" aria-hidden />
-      <p>Chat coming soon...</p>
-    </FadeIn>
   );
 }
