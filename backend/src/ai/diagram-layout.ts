@@ -277,17 +277,20 @@ function titleSize(label: string): { w: number; h: number } {
   };
 }
 
-function neededLabelGap(label: string | undefined): number {
-  if (!label?.trim()) {
+function neededLabelGap(labels: string[]): number {
+  const chars = labels.reduce((total, label) => total + label.trim().length, 0);
+  if (chars === 0) {
     return BOX_GAP;
   }
-  return Math.max(BOX_GAP, LABEL_PAD + label.trim().length * LABEL_CHAR_WIDTH);
+  const extra = Math.max(0, labels.length - 1) * 48;
+  return Math.max(BOX_GAP, LABEL_PAD + chars * LABEL_CHAR_WIDTH + extra);
 }
 
 function spreadBoxesForLabels(
   boxes: Map<string, LayoutBox>,
   connections: DiagramConnection[],
 ): void {
+  const pairs = new Map<string, { left: LayoutBox; right: LayoutBox; labels: string[] }>();
   for (const connection of connections) {
     const from = boxes.get(connection.from);
     const to = boxes.get(connection.to);
@@ -300,14 +303,23 @@ function spreadBoxesForLabels(
     }
     const left = from.x <= to.x ? from : to;
     const right = from.x <= to.x ? to : from;
-    const needed = neededLabelGap(connection.label);
-    const gap = right.x - (left.x + left.w);
+    const key = `${left.id}::${right.id}`;
+    const pair = pairs.get(key) ?? { left, right, labels: [] };
+    if (connection.label?.trim()) {
+      pair.labels.push(connection.label.trim());
+    }
+    pairs.set(key, pair);
+  }
+
+  for (const pair of pairs.values()) {
+    const needed = neededLabelGap(pair.labels);
+    const gap = pair.right.x - (pair.left.x + pair.left.w);
     if (gap >= needed) {
       continue;
     }
     const dx = needed - gap;
     for (const box of boxes.values()) {
-      if (Math.abs(box.y - right.y) < DEFAULT_HEIGHT / 2 && box.x >= right.x) {
+      if (Math.abs(box.y - pair.right.y) < DEFAULT_HEIGHT / 2 && box.x >= pair.right.x) {
         box.x += dx;
       }
     }
@@ -322,13 +334,14 @@ function resolveCollisions(boxes: Map<string, LayoutBox>, title: LayoutBox | nul
       ...(title ? [title] : []),
       ...items.slice(0, i),
     ];
-    while (collides(current, occupied)) {
-      const hit = occupied.find((item) => tooClose(current, item));
+    while (collides(current, occupied, title)) {
+      const hit = occupied.find((item) => tooClose(current, item, minGap(item, title)));
       if (!hit) {
         break;
       }
+      const gap = minGap(hit, title);
       if (current.x < hit.x + hit.w && current.x + current.w > hit.x) {
-        current.y = hit.y + hit.h + TITLE_GAP;
+        current.y = hit.y + hit.h + gap;
       } else {
         current.x = hit.x + hit.w + BOX_GAP;
       }
@@ -336,11 +349,18 @@ function resolveCollisions(boxes: Map<string, LayoutBox>, title: LayoutBox | nul
   }
 }
 
-function collides(rect: Rect, occupied: Rect[]): boolean {
-  return occupied.some((item) => tooClose(rect, item));
+function minGap(item: Rect, title: LayoutBox | null): number {
+  if (title && item === title) {
+    return TITLE_GAP;
+  }
+  return V_GAP;
 }
 
-function tooClose(a: Rect, b: Rect): boolean {
+function collides(rect: Rect, occupied: Rect[], title: LayoutBox | null): boolean {
+  return occupied.some((item) => tooClose(rect, item, minGap(item, title)));
+}
+
+function tooClose(a: Rect, b: Rect, minV: number): boolean {
   const hOverlap = a.x < b.x + b.w && a.x + a.w > b.x;
   const vOverlap = a.y < b.y + b.h && a.y + a.h > b.y;
   if (hOverlap && vOverlap) {
@@ -351,7 +371,7 @@ function tooClose(a: Rect, b: Rect): boolean {
   if (vOverlap && hClear < BOX_GAP) {
     return true;
   }
-  if (hOverlap && vClear < TITLE_GAP) {
+  if (hOverlap && vClear < minV) {
     return true;
   }
   return false;

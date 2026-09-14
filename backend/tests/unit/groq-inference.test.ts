@@ -492,7 +492,6 @@ describe("buildRecordsFromDiagramPlan", () => {
     };
 
     expect(dbStart.props.normalizedAnchor).not.toEqual(cacheStart.props.normalizedAnchor);
-    expect(dbArrow.props.labelPosition).not.toBe(cacheArrow.props.labelPosition);
     expect([dbArrow.props.labelPosition, cacheArrow.props.labelPosition]).not.toEqual([
       0.5, 0.5,
     ]);

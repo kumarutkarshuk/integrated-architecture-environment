@@ -70,46 +70,39 @@ function pickConnectionPlacement(
 } {
   const pair = pairConnections(placed, from.id, to.id);
   const isReverse = pair.some((item) => item.from === to.id && item.to === from.id);
-  const usedFrom = isReverse
-    ? new Set<ConnectionEdge>()
-    : occupiedPairEdges(placed, from.id, to.id, boxes);
-  const usedTo = isReverse
-    ? new Set<ConnectionEdge>()
-    : occupiedPairEdges(placed, to.id, from.id, boxes);
   const geometric = geometricEdges(from, to);
-  const candidates: Array<{ fromEdge: ConnectionEdge; toEdge: ConnectionEdge }> = [
-    geometric,
-  ];
-  if (geometric.fromEdge === "right" || geometric.fromEdge === "left") {
-    candidates.push(
-      { fromEdge: "top", toEdge: "top" },
-      { fromEdge: "bottom", toEdge: "bottom" },
-      { fromEdge: "top", toEdge: "bottom" },
-      { fromEdge: "bottom", toEdge: "top" },
-    );
-  } else {
-    candidates.push(
-      { fromEdge: "right", toEdge: "right" },
-      { fromEdge: "left", toEdge: "left" },
-      { fromEdge: "right", toEdge: "left" },
-      { fromEdge: "left", toEdge: "right" },
-    );
-  }
-  for (const fromEdge of CONNECTION_EDGES) {
-    for (const toEdge of CONNECTION_EDGES) {
-      candidates.push({ fromEdge, toEdge });
+  const usedFrom = occupiedBoxEdges(placed, from.id);
+  const usedTo = occupiedBoxEdges(placed, to.id);
+  if (isReverse) {
+    for (const item of pair) {
+      if (item.from === from.id) {
+        usedFrom.delete(item.fromEdge);
+      }
+      if (item.to === from.id) {
+        usedFrom.delete(item.toEdge);
+      }
+      if (item.from === to.id) {
+        usedTo.delete(item.fromEdge);
+      }
+      if (item.to === to.id) {
+        usedTo.delete(item.toEdge);
+      }
     }
   }
 
+  const candidates = edgeCandidates(from, to, geometric);
   const obstacles = [...boxes.values()].filter(
     (box) => box.id !== from.id && box.id !== to.id,
   );
   const clear = (candidate: {
     fromEdge: ConnectionEdge;
     toEdge: ConnectionEdge;
-  }) => !corridorHits(from, to, candidate.fromEdge, candidate.toEdge, obstacles);
+  }) =>
+    !corridorHits(from, to, candidate.fromEdge, candidate.toEdge, obstacles) &&
+    !corridorHitsArrows(from, to, candidate.fromEdge, candidate.toEdge, placed, boxes);
 
   let edges = geometric;
+  let found = false;
   for (const candidate of candidates) {
     if (
       !usedFrom.has(candidate.fromEdge) &&
@@ -117,10 +110,11 @@ function pickConnectionPlacement(
       clear(candidate)
     ) {
       edges = candidate;
+      found = true;
       break;
     }
   }
-  if (corridorHits(from, to, edges.fromEdge, edges.toEdge, obstacles)) {
+  if (!found) {
     for (const candidate of candidates) {
       if (clear(candidate)) {
         edges = candidate;
@@ -142,6 +136,70 @@ function pickConnectionPlacement(
   };
 }
 
+function edgeCandidates(
+  from: LayoutBox,
+  to: LayoutBox,
+  geometric: { fromEdge: ConnectionEdge; toEdge: ConnectionEdge },
+): Array<{ fromEdge: ConnectionEdge; toEdge: ConnectionEdge }> {
+  const candidates: Array<{ fromEdge: ConnectionEdge; toEdge: ConnectionEdge }> = [
+    geometric,
+  ];
+  const targetBelow = to.y >= from.y + from.h;
+  const targetAbove = to.y + to.h <= from.y;
+  if (geometric.fromEdge === "right" || geometric.fromEdge === "left") {
+    const vertical = targetBelow
+      ? ([
+          { fromEdge: "bottom", toEdge: "bottom" },
+          { fromEdge: "bottom", toEdge: "top" },
+          { fromEdge: "top", toEdge: "bottom" },
+          { fromEdge: "top", toEdge: "top" },
+        ] as const)
+      : targetAbove
+        ? ([
+            { fromEdge: "top", toEdge: "top" },
+            { fromEdge: "top", toEdge: "bottom" },
+            { fromEdge: "bottom", toEdge: "top" },
+            { fromEdge: "bottom", toEdge: "bottom" },
+          ] as const)
+        : ([
+            { fromEdge: "top", toEdge: "top" },
+            { fromEdge: "bottom", toEdge: "bottom" },
+            { fromEdge: "top", toEdge: "bottom" },
+            { fromEdge: "bottom", toEdge: "top" },
+          ] as const);
+    candidates.push(...vertical);
+  } else {
+    candidates.push(
+      { fromEdge: "right", toEdge: "right" },
+      { fromEdge: "left", toEdge: "left" },
+      { fromEdge: "right", toEdge: "left" },
+      { fromEdge: "left", toEdge: "right" },
+    );
+  }
+  for (const fromEdge of CONNECTION_EDGES) {
+    for (const toEdge of CONNECTION_EDGES) {
+      candidates.push({ fromEdge, toEdge });
+    }
+  }
+  return candidates;
+}
+
+function occupiedBoxEdges(
+  placed: PlacedConnection[],
+  shapeId: string,
+): Set<ConnectionEdge> {
+  const used = new Set<ConnectionEdge>();
+  for (const connection of placed) {
+    if (connection.from === shapeId) {
+      used.add(connection.fromEdge);
+    }
+    if (connection.to === shapeId) {
+      used.add(connection.toEdge);
+    }
+  }
+  return used;
+}
+
 function geometricEdges(
   from: LayoutBox,
   to: LayoutBox,
@@ -158,36 +216,6 @@ function geometricEdges(
     return { fromEdge: "bottom", toEdge: "top" };
   }
   return { fromEdge: "top", toEdge: "bottom" };
-}
-
-function occupiedPairEdges(
-  placed: PlacedConnection[],
-  shapeId: string,
-  partnerId: string,
-  boxes: Map<string, LayoutBox>,
-): Set<ConnectionEdge> {
-  const used = new Set<ConnectionEdge>();
-  for (const connection of placed) {
-    const isPair =
-      (connection.from === shapeId && connection.to === partnerId) ||
-      (connection.from === partnerId && connection.to === shapeId);
-    if (!isPair) {
-      continue;
-    }
-    const fromBox = boxes.get(connection.from);
-    const toBox = boxes.get(connection.to);
-    if (!fromBox || !toBox) {
-      continue;
-    }
-    const inferred = geometricEdges(fromBox, toBox);
-    if (connection.from === shapeId) {
-      used.add(connection.fromEdge || inferred.fromEdge);
-    }
-    if (connection.to === shapeId) {
-      used.add(connection.toEdge || inferred.toEdge);
-    }
-  }
-  return used;
 }
 
 function pairConnections(
@@ -266,13 +294,12 @@ function offsetOut(
   return { x: point.x, y: point.y + pad };
 }
 
-function corridorHits(
+function corridorPoints(
   from: LayoutBox,
   to: LayoutBox,
   fromEdge: ConnectionEdge,
   toEdge: ConnectionEdge,
-  obstacles: Rect[],
-): boolean {
+): Array<{ x: number; y: number }> {
   const start = pointOnEdge(from, fromEdge, 0.5);
   const end = pointOnEdge(to, toEdge, 0.5);
   const startOut = offsetOut(start, fromEdge, CORRIDOR_OUT);
@@ -281,7 +308,17 @@ function corridorHits(
     Math.abs(startOut.x - endOut.x) < 1 || Math.abs(startOut.y - endOut.y) < 1
       ? []
       : [{ x: startOut.x, y: endOut.y }];
-  const points = [start, startOut, ...mid, endOut, end];
+  return [start, startOut, ...mid, endOut, end];
+}
+
+function corridorHits(
+  from: LayoutBox,
+  to: LayoutBox,
+  fromEdge: ConnectionEdge,
+  toEdge: ConnectionEdge,
+  obstacles: Rect[],
+): boolean {
+  const points = corridorPoints(from, to, fromEdge, toEdge);
   for (let index = 0; index < points.length - 1; index += 1) {
     const a = points[index];
     const b = points[index + 1];
@@ -293,6 +330,80 @@ function corridorHits(
     }
   }
   return false;
+}
+
+function corridorHitsArrows(
+  from: LayoutBox,
+  to: LayoutBox,
+  fromEdge: ConnectionEdge,
+  toEdge: ConnectionEdge,
+  placed: PlacedConnection[],
+  boxes: Map<string, LayoutBox>,
+): boolean {
+  const next = corridorPoints(from, to, fromEdge, toEdge);
+  for (const connection of placed) {
+    const samePair =
+      (connection.from === from.id && connection.to === to.id) ||
+      (connection.from === to.id && connection.to === from.id);
+    if (samePair) {
+      continue;
+    }
+    const start = boxes.get(connection.from);
+    const end = boxes.get(connection.to);
+    if (!start || !end) {
+      continue;
+    }
+    const previous = corridorPoints(
+      start,
+      end,
+      connection.fromEdge,
+      connection.toEdge,
+    );
+    if (polylinesTooClose(next, previous, 36)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function polylinesTooClose(
+  first: Array<{ x: number; y: number }>,
+  second: Array<{ x: number; y: number }>,
+  pad: number,
+): boolean {
+  for (let i = 0; i < first.length - 1; i += 1) {
+    const a = first[i];
+    const b = first[i + 1];
+    if (!a || !b) {
+      continue;
+    }
+    for (let j = 0; j < second.length - 1; j += 1) {
+      const c = second[j];
+      const d = second[j + 1];
+      if (!c || !d) {
+        continue;
+      }
+      if (segmentHitsRect(a, b, segmentRect(c, d, pad))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function segmentRect(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  pad: number,
+): Rect {
+  const minX = Math.min(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  return {
+    x: minX - pad,
+    y: minY - pad,
+    w: Math.abs(a.x - b.x) + pad * 2,
+    h: Math.abs(a.y - b.y) + pad * 2,
+  };
 }
 
 function segmentHitsRect(
