@@ -536,8 +536,30 @@ describe("canvas-agent session", () => {
 
     expect(view.components).toEqual([
       { id: "shape:web", label: "Web", kind: "client", x: 40, y: 80 },
-      { id: expect.any(String), label: "API", kind: "service", x: 300, y: 80 },
+      { id: expect.any(String), label: "API", kind: "service", x: 400, y: 80 },
     ]);
+  });
+
+  it("leaves enough gap between auto-placed boxes for a connection label to fit", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+      ],
+    });
+
+    const view = session.createComponent({ kind: "service", label: "API" });
+    const boxWidth = 220;
+    const gap = (view.components[1]?.x ?? 0) - (view.components[0]?.x ?? 0) - boxWidth;
+    expect(gap).toBeGreaterThanOrEqual(120);
   });
 
   it("refuses an unknown kind and leaves Canvas State unchanged", () => {

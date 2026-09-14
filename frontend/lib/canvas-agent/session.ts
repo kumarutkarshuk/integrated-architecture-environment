@@ -17,7 +17,7 @@ const BOX_WIDTH = 220;
 const BOX_HEIGHT = 100;
 const TITLE_HEIGHT = 56;
 const TITLE_GAP = 16;
-const BOX_GAP = 40;
+const BOX_GAP = 140;
 const CANVAS_PADDING = 120;
 
 export class CanvasAgentError extends Error {
