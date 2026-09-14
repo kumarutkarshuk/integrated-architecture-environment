@@ -15,11 +15,13 @@ const HARD_BLOCK = [
   /\b(erotic|nsfw|nude|naked)\b/i,
   /\b(kill\s+myself|suicid(e|al)|how\s+to\s+die)\b/i,
   /\bhow\s+to\s+(kill|murder|rape)\b/i,
-  /\b(make|build|assemble)\s+(a\s+)?(bomb|pipe\s*bomb|explosive)\b/i,
-  /\b(cook\s+meth|synthesize\s+(meth|fentanyl)|build\s+a\s+gun)\b/i,
+  /\b(make|build|assemble|create|craft|construct|design|draw|generate)\s+(me\s+)?(a\s+|an\s+)?(bomb|pipe\s*bomb|explosive|weapon|gun|firearm|rifle|pistol|missile|nuke)s?\b(?!\s+(detection|detector|inventory|tracking|moderation|filter|keyword|screening|classifier))/i,
+  /\b(cook\s+meth|synthesize\s+(meth|fentanyl))\b/i,
   /\b(ignore|bypass|override)\s+(all\s+)?(previous|prior|the)?\s*(instructions?|rules?|guardrails?|filters?|safety|policy)\b/i,
   /\b(you\s+are\s+(now\s+)?(dan|jailbroken)|do\s+anything\s+now|jailbreak)\b/i,
 ];
+
+export type PromptSafetyClassifier = (prompt: string) => Promise<boolean>;
 
 export function isInappropriatePrompt(prompt: string): boolean {
   const text = prompt.trim();
@@ -30,8 +32,12 @@ export function isInappropriatePrompt(prompt: string): boolean {
   return HARD_BLOCK.some((pattern) => pattern.test(text));
 }
 
-export function assertPromptAllowed(prompt: string): void {
+export function assertPromptBlockedByCode(prompt: string): void {
   if (isInappropriatePrompt(prompt)) {
     throw new InappropriatePromptError();
   }
+}
+
+export async function assertPromptAllowed(prompt: string): Promise<void> {
+  assertPromptBlockedByCode(prompt);
 }

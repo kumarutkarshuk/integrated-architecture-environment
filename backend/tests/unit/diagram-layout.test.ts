@@ -157,6 +157,32 @@ describe("layoutDiagramComponents", () => {
     }
   });
 
+  it("keeps clients left of services left of stores when response arrows go back", () => {
+    const layout = layoutDiagramComponents(
+      [
+        { id: "database", label: "Database", kind: "store" },
+        { id: "service", label: "Service", kind: "service" },
+        { id: "client", label: "Client", kind: "client" },
+      ],
+      [
+        { from: "client", to: "service", style: "sync", label: "hit" },
+        {
+          from: "service",
+          to: "database",
+          style: "sync",
+          label: "fetch resolve short URL",
+        },
+        { from: "database", to: "service", style: "data", label: "result" },
+        { from: "service", to: "client", style: "sync", label: "redirect" },
+      ],
+    );
+
+    expect(layout.get("client")!.x).toBeLessThan(layout.get("service")!.x);
+    expect(layout.get("service")!.x).toBeLessThan(layout.get("database")!.x);
+    expect(layout.get("client")!.y).toBe(layout.get("service")!.y);
+    expect(layout.get("service")!.y).toBe(layout.get("database")!.y);
+  });
+
   it("widens same-row boxes so a long arrow label has room", () => {
     const layout = layoutDiagramComponents(
       [

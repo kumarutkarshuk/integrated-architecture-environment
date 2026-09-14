@@ -2,6 +2,7 @@ import { parseDiagramPlan, InvalidInferenceJsonError, type DiagramPlan } from ".
 import { takeGroqApiKey } from "./groq-keys.js";
 import { GENERATE_DIAGRAM_SYSTEM_PROMPT } from "./prompts/generate-diagram.js";
 import { EXPORT_SPEC_SYSTEM_PROMPT } from "./prompts/export-spec.js";
+import { PROMPT_GUARD_SYSTEM_PROMPT } from "./prompts/prompt-guard.js";
 import type { ExportSpecResult } from "./types.js";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
@@ -68,6 +69,41 @@ export async function generateExportSpecWithGroq(
 
   return {
     ...parseExportSpecResult(parsed),
+    tokensUsed,
+    model,
+  };
+}
+
+export function parsePromptSafetyResult(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") {
+    throw new InvalidInferenceJsonError("Prompt safety result must be an object");
+  }
+
+  const value = raw as Record<string, unknown>;
+  if (typeof value.safe === "boolean") {
+    return value.safe;
+  }
+  if (typeof value.bad === "boolean") {
+    return !value.bad;
+  }
+
+  throw new InvalidInferenceJsonError("Prompt safety result must include safe");
+}
+
+export async function classifyPromptSafetyWithGroq(
+  prompt: string,
+  config: GroqConfig,
+): Promise<{ safe: boolean; tokensUsed?: number; model: string }> {
+  const { parsed, tokensUsed, model } = await requestGroqJson(
+    PROMPT_GUARD_SYSTEM_PROMPT,
+    prompt,
+    config,
+    "prompt safety",
+    256,
+  );
+
+  return {
+    safe: parsePromptSafetyResult(parsed),
     tokensUsed,
     model,
   };

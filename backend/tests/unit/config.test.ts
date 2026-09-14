@@ -10,6 +10,7 @@ const envKeys = [
   "GROQ_API_KEY",
   "GROQ_API_KEY_2",
   "GROQ_API_KEY_3",
+  "GROQ_PROMPT_GUARD_MODEL",
 ] as const;
 
 describe("loadConfig", () => {
@@ -66,6 +67,20 @@ describe("loadConfig", () => {
     setEnv("GROQ_MODEL", "openai/gpt-oss-20b");
 
     expect(loadConfig().groqModel).toBe("openai/gpt-oss-20b");
+  });
+
+  it("defaults the prompt guard model to openai/gpt-oss-20b", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_PROMPT_GUARD_MODEL", undefined);
+
+    expect(loadConfig().groqPromptGuardModel).toBe("openai/gpt-oss-20b");
+  });
+
+  it("lets GROQ_PROMPT_GUARD_MODEL override the prompt guard model", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_PROMPT_GUARD_MODEL", "openai/gpt-oss-120b");
+
+    expect(loadConfig().groqPromptGuardModel).toBe("openai/gpt-oss-120b");
   });
 
   it("collects Groq keys for round robin", () => {

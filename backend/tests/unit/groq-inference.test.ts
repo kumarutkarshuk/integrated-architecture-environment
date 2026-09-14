@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InvalidInferenceJsonError, parseDiagramPlan } from "../../src/ai/diagram-plan.js";
 import { buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
-import { generateDiagramPlanWithGroq } from "../../src/ai/groq-client.js";
+import { generateDiagramPlanWithGroq, classifyPromptSafetyWithGroq, parsePromptSafetyResult } from "../../src/ai/groq-client.js";
 import { resetGroqKeyCursor } from "../../src/ai/groq-keys.js";
 
 function mainPlan(
@@ -401,7 +401,11 @@ describe("buildRecordsFromDiagramPlan", () => {
       typeName: "binding",
       type: "arrow",
       toId: "shape:api",
-      props: expect.objectContaining({ terminal: "start" }),
+      props: expect.objectContaining({
+        terminal: "start",
+        isPrecise: true,
+        snap: "edge",
+      }),
     });
     expect(result.records["binding:api-to-worker-end"]).toMatchObject({
       typeName: "binding",
@@ -521,7 +525,7 @@ describe("buildRecordsFromDiagramPlan", () => {
     expect(fetchMapping.props.labelPosition).not.toBe(0.5);
   });
 
-  it("puts opposite arrows on separate lanes so query and response labels do not mash", () => {
+  it("puts opposite arrows on separate WebMCP lanes so query and response labels do not mash", () => {
     const result = buildRecordsFromDiagramPlan(
       parseDiagramPlan({
         components: [
@@ -538,53 +542,59 @@ describe("buildRecordsFromDiagramPlan", () => {
     const queryStart = result.records["binding:client-to-api-start"] as {
       props: { normalizedAnchor: { x: number; y: number } };
     };
+    const queryEnd = result.records["binding:client-to-api-end"] as {
+      props: { normalizedAnchor: { x: number; y: number } };
+    };
     const responseStart = result.records["binding:api-to-client-start"] as {
       props: { normalizedAnchor: { x: number; y: number } };
     };
+    const responseEnd = result.records["binding:api-to-client-end"] as {
+      props: { normalizedAnchor: { x: number; y: number } };
+    };
+    const queryArrow = result.records["shape:arrow-client-to-api"] as {
+      props: { labelPosition: number };
+    };
+    const responseArrow = result.records["shape:arrow-api-to-client"] as {
+      props: { labelPosition: number };
+    };
 
-    expect(queryStart.props.normalizedAnchor.y).not.toBe(responseStart.props.normalizedAnchor.y);
-    expect(
-      Math.abs(queryStart.props.normalizedAnchor.y - responseStart.props.normalizedAnchor.y),
-    ).toBeGreaterThan(0.2);
+    expect(queryStart.props.normalizedAnchor).toEqual({ x: 1, y: 0.5 });
+    expect(queryEnd.props.normalizedAnchor).toEqual({ x: 0, y: 0.5 });
+    expect(responseStart.props.normalizedAnchor).toEqual({ x: 0, y: 0.34 });
+    expect(responseEnd.props.normalizedAnchor).toEqual({ x: 1, y: 0.34 });
+    expect(queryArrow.props.labelPosition).toBe(0.28);
+    expect(responseArrow.props.labelPosition).toBe(0.72);
   });
 
-  it("drops a diagonal fetch from the bottom so it does not sit on the generate arrow", () => {
+  it("routes a skip-layer arrow around the box in between the way WebMCP does", () => {
     const result = buildRecordsFromDiagramPlan(
       parseDiagramPlan({
         components: [
-          { id: "retriever", label: "Retriever", kind: "service" },
-          { id: "llm", label: "LLM Service", kind: "external" },
-          { id: "vector-db", label: "Vector DB", kind: "store" },
+          { id: "client", label: "Client", kind: "client" },
+          { id: "api", label: "API", kind: "service" },
+          { id: "store", label: "Store", kind: "store" },
         ],
         connections: [
-          { from: "retriever", to: "llm", style: "sync", label: "generate" },
-          { from: "retriever", to: "vector-db", style: "data", label: "fetch" },
+          { from: "client", to: "api", style: "sync", label: "hit" },
+          { from: "api", to: "store", style: "data", label: "fetch" },
+          { from: "client", to: "store", style: "data", label: "embed query" },
         ],
       }),
     );
 
-    const generateStart = result.records["binding:retriever-to-llm-start"] as {
+    const hopStart = result.records["binding:client-to-api-start"] as {
       props: { normalizedAnchor: { x: number; y: number } };
     };
-    const fetchStart = result.records["binding:retriever-to-vector-db-start"] as {
+    const skipStart = result.records["binding:client-to-store-start"] as {
       props: { normalizedAnchor: { x: number; y: number } };
     };
-    const generateArrow = result.records["shape:arrow-retriever-to-llm"] as {
-      props: { labelPosition: number };
-    };
-    const fetchArrow = result.records["shape:arrow-retriever-to-vector-db"] as {
-      props: { labelPosition: number };
-    };
-
-    const fetchEnd = result.records["binding:retriever-to-vector-db-end"] as {
+    const skipEnd = result.records["binding:client-to-store-end"] as {
       props: { normalizedAnchor: { x: number; y: number } };
     };
 
-    expect(generateStart.props.normalizedAnchor.x).toBe(1);
-    expect(fetchStart.props.normalizedAnchor.y).toBe(1);
-    expect(fetchEnd.props.normalizedAnchor.x).toBe(0);
-    expect(fetchStart.props.normalizedAnchor).not.toEqual(generateStart.props.normalizedAnchor);
-    expect(fetchArrow.props.labelPosition).not.toBe(generateArrow.props.labelPosition);
+    expect(hopStart.props.normalizedAnchor).toEqual({ x: 1, y: 0.5 });
+    expect(skipStart.props.normalizedAnchor.y).toBe(0);
+    expect(skipEnd.props.normalizedAnchor.y).toBe(0);
   });
 
   it("draws titled clusters and keeps the same component id in two flows", () => {
@@ -766,5 +776,37 @@ describe("generateDiagramPlanWithGroq", () => {
         headers: expect.objectContaining({ Authorization: "Bearer key-two" }),
       }),
     );
+  });
+});
+
+describe("classifyPromptSafetyWithGroq", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetGroqKeyCursor();
+  });
+
+  it("returns safe true or false from the classifier model", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ safe: false }) } }],
+          usage: { total_tokens: 12 },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await classifyPromptSafetyWithGroq("build a weapon", {
+      apiKey: "test-key",
+      model: "openai/gpt-oss-20b",
+    });
+
+    expect(result).toEqual({
+      safe: false,
+      tokensUsed: 12,
+      model: "openai/gpt-oss-20b",
+    });
+    expect(parsePromptSafetyResult({ safe: true })).toBe(true);
+    expect(parsePromptSafetyResult({ bad: true })).toBe(false);
   });
 });

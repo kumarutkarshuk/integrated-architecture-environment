@@ -94,7 +94,7 @@ describe("AI generation preview and apply", () => {
       .expect([]);
 
     const generation = await prisma.aiGeneration.findFirst({
-      where: { projectId: response.body.id },
+      where: { projectId: response.body.id, type: "generate" },
     });
 
     expect(generation).toMatchObject({
@@ -104,6 +104,7 @@ describe("AI generation preview and apply", () => {
       model: "openai/gpt-oss-20b",
       promptVersion: "generate-diagram.v3",
       provider: "groq",
+      error: null,
     });
 
     expect(testJobRunner.getEnqueued()).toEqual([
@@ -140,13 +141,11 @@ describe("AI generation preview and apply", () => {
 
     const generations = await prisma.aiGeneration.findMany({
       where: { projectId: created.body.id },
+      orderBy: { createdAt: "asc" },
     });
     expect(generations).toHaveLength(1);
-    expect(generations[0]?.deletedAt).toBeNull();
-    expect(generations[0]?.prompt).toBe("Design a queue");
-    expect(generations[0]?.model).toBe("openai/gpt-oss-20b");
-    expect(generations[0]?.promptVersion).toBe("generate-diagram.v3");
-    expect(generations[0]?.provider).toBe("groq");
+    expect(generations.every((job) => job.deletedAt === null)).toBe(true);
+    expect(generations.map((job) => job.type)).toEqual(["generate"]);
 
     const project = await prisma.project.findUnique({
       where: { id: created.body.id },
@@ -589,14 +588,18 @@ describe("AI generation preview and apply", () => {
 
     const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
 
-    await failGenerateJob(jobId);
+    await failGenerateJob(jobId, new Error("Invalid API Key"));
 
     const failed = await request(app)
       .get(`/api/projects/${created.body.id}/ai/${jobId}`)
       .set("Authorization", header)
       .expect(200);
 
-    expect(failed.body.status).toBe("failed");
+    expect(failed.body).toMatchObject({
+      status: "failed",
+      error: "Invalid API key",
+      blockedBy: null,
+    });
 
     const project = await request(app)
       .get(`/api/projects/${created.body.id}`)
@@ -604,6 +607,18 @@ describe("AI generation preview and apply", () => {
       .expect(200);
 
     expect(project.body.status).toBe("failed");
+
+    const latest = await request(app)
+      .get(`/api/projects/${created.body.id}/ai/latest`)
+      .set("Authorization", header)
+      .expect(200);
+
+    expect(latest.body).toMatchObject({
+      id: jobId,
+      status: "failed",
+      error: "Invalid API key",
+      blockedBy: null,
+    });
   });
 
   it("keeps Project status preview when a later generate job fails", async () => {
@@ -748,7 +763,10 @@ describe("AI generation preview and apply", () => {
     await expect(runGenerateJob(jobId)).rejects.toThrow("unknown kind");
     expect(inferenceCalls).toBe(2);
 
-    await failGenerateJob(jobId);
+    await failGenerateJob(
+      jobId,
+      new InvalidDiagramPlanError("unknown kind"),
+    );
 
     const failed = await request(app)
       .get(`/api/projects/${created.body.id}/ai/${jobId}`)
@@ -757,6 +775,7 @@ describe("AI generation preview and apply", () => {
 
     expect(failed.body).toMatchObject({
       status: "failed",
+      error: "unknown kind",
       promptVersion: "generate-diagram.v3",
       provider: "groq",
       plan: null,

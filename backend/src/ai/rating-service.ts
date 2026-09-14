@@ -13,6 +13,8 @@ const jobSelect = {
   provider: true,
   appliedAt: true,
   createdAt: true,
+  error: true,
+  blockedBy: true,
   userId: true,
 } as const;
 
@@ -140,6 +142,18 @@ export async function findAppliedGenerateJob(projectId: string) {
       ...notDeleted,
     },
     orderBy: { appliedAt: "desc" },
+    select: jobSelect,
+  });
+}
+
+export async function findLatestGenerateJob(projectId: string) {
+  return prisma.aiGeneration.findFirst({
+    where: {
+      projectId,
+      type: "generate",
+      ...notDeleted,
+    },
+    orderBy: { createdAt: "desc" },
     select: jobSelect,
   });
 }

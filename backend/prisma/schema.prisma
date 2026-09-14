@@ -98,6 +98,8 @@ model AiGeneration {
   provider      String?
   model         String?
   tokensUsed    Int?      @map("tokens_used")
+  error         String?
+  blockedBy     String?   @map("blocked_by")
   appliedAt     DateTime? @map("applied_at") @db.Timestamptz(6)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)

@@ -50,6 +50,8 @@ export interface ApiAiPreview {
   } | null;
   appliedAt: string | null;
   createdAt: string;
+  error?: string | null;
+  blockedBy?: "code" | "classifier" | null;
   rating?: "up" | "down" | null;
 }
 
@@ -225,6 +227,13 @@ export function fetchAppliedAiGeneration(
   projectId: string,
 ): Promise<ApiAiJob> {
   return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/applied`, token);
+}
+
+export function fetchLatestAiGeneration(
+  token: string,
+  projectId: string,
+): Promise<ApiAiJob> {
+  return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/latest`, token);
 }
 
 export function rateAiGeneration(

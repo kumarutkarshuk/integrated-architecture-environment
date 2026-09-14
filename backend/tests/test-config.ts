@@ -6,5 +6,6 @@ export const testAppConfig: AppConfig = {
   clerkSecretKey: "test-secret",
   groqApiKeys: [],
   groqModel: "openai/gpt-oss-20b",
+  groqPromptGuardModel: "openai/gpt-oss-20b",
   isTest: true,
 };

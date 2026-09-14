@@ -147,6 +147,7 @@ vi.mock("../hooks/useAiGeneration", () => ({
     isApplying: false,
     isGenerating: false,
     generationFailed: false,
+    generationError: null,
     previewWaitTimedOut: false,
     appliedJob: null,
     rateJob: async () => undefined,

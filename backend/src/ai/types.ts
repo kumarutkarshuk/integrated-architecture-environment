@@ -11,6 +11,8 @@ export type AiGenerationStatus =
   | "completed"
   | "failed";
 
+export type PromptBlockSource = "code" | "classifier";
+
 export interface GenerateJobPayload {
   aiGenerationId: string;
   projectId: string;

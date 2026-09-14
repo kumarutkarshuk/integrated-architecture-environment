@@ -6,6 +6,7 @@ import { AiRateLimitError } from "../ai/rate-limit.js";
 import { InappropriatePromptError } from "../ai/prompt-guard.js";
 import {
   findAppliedGenerateJob,
+  findLatestGenerateJob,
   parseRatingValue,
   presentJobForViewer,
   presentJobsForViewer,
@@ -82,25 +83,23 @@ aiRouter.post("/generate", async (req, res) => {
   }
 
   try {
-    await startGenerateJob(projectId, user.id, prompt);
+    const job = await startGenerateJob(projectId, user.id, prompt);
+    const createdJob = await prisma.aiGeneration.findFirst({
+      where: { id: job.id, projectId, type: "generate" },
+      select: jobSelect,
+    });
+
+    captureEvent(user.clerkId, "ai_generation_started", { projectId });
+
+    res.status(201).json(
+      createdJob ? await presentJobForViewer(createdJob, user.id) : createdJob,
+    );
   } catch (error) {
     if (sendAiRouteError(res, error)) {
       return;
     }
     throw error;
   }
-
-  const latestJob = await prisma.aiGeneration.findFirst({
-    where: { projectId, type: "generate" },
-    orderBy: { createdAt: "desc" },
-    select: jobSelect,
-  });
-
-  captureEvent(user.clerkId, "ai_generation_started", { projectId });
-
-  res.status(201).json(
-    latestJob ? await presentJobForViewer(latestJob, user.id) : latestJob,
-  );
 });
 
 aiRouter.get("/previews", async (req, res) => {
@@ -265,6 +264,36 @@ aiRouter.get("/applied", async (req, res) => {
 
   if (!job) {
     res.status(404).json({ error: "Applied AI Generation not found" });
+    return;
+  }
+
+  res.json(await presentJobForViewer(job, user.id));
+});
+
+aiRouter.get("/latest", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const job = await findLatestGenerateJob(projectId);
+
+  if (!job) {
+    res.status(404).json({ error: "AI Generation job not found" });
     return;
   }
 

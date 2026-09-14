@@ -62,7 +62,7 @@ describe("Canvas Snapshot", () => {
       .expect(201);
 
     const records = {
-      "shape:test": { id: "shape:test", typeName: "shape", type: "geo" },
+      "shape:test": { id: "shape:test", typeName: "shape", type: "geo", index: "a1" },
     };
 
     await upsertCanvasSnapshot(created.body.id, records);
@@ -109,6 +109,7 @@ describe("Canvas Snapshot", () => {
           id: "shape:persisted",
           typeName: "shape",
           type: "geo",
+          index: "a1",
         },
       },
     });
@@ -149,6 +150,7 @@ describe("Canvas Snapshot", () => {
         id: "shape:roundtrip",
         typeName: "shape",
         type: "geo",
+        index: "a1",
       },
     });
   });

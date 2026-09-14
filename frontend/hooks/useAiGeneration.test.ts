@@ -25,6 +25,7 @@ vi.mock("../lib/api", async () => {
     regenerateAiPreview: vi.fn(),
     applyAiPreview: vi.fn(),
     fetchAppliedAiGeneration: vi.fn(),
+    fetchLatestAiGeneration: vi.fn(),
     rateAiGeneration: vi.fn(),
   };
 });
@@ -34,14 +35,18 @@ import {
   applyAiPreview,
   fetchAiPreviews,
   fetchAppliedAiGeneration,
+  fetchLatestAiGeneration,
+  rateAiGeneration,
   regenerateAiPreview,
 } from "../lib/api";
 import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 const fetchAiPreviewsMock = vi.mocked(fetchAiPreviews);
 const fetchAppliedAiGenerationMock = vi.mocked(fetchAppliedAiGeneration);
+const fetchLatestAiGenerationMock = vi.mocked(fetchLatestAiGeneration);
 const regenerateAiPreviewMock = vi.mocked(regenerateAiPreview);
 const applyAiPreviewMock = vi.mocked(applyAiPreview);
+const rateAiGenerationMock = vi.mocked(rateAiGeneration);
 const toastErrorMock = vi.mocked(toast.error);
 
 function projectWith(
@@ -103,8 +108,14 @@ describe("useAiGeneration polling", () => {
     fetchAppliedAiGenerationMock.mockRejectedValue(
       new Error("Applied AI Generation not found"),
     );
+    fetchLatestAiGenerationMock.mockReset();
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      error: null,
+    });
     regenerateAiPreviewMock.mockReset();
     applyAiPreviewMock.mockReset();
+    rateAiGenerationMock.mockReset();
     toastErrorMock.mockReset();
     vi.useFakeTimers({
       toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"],
@@ -168,8 +179,14 @@ describe("useAiGeneration polling", () => {
     expect(refreshProject).not.toHaveBeenCalled();
   });
 
-  it("stops polling when status is failed and does not fetch previews", async () => {
+  it("stops polling when status is failed and loads error plus ratings", async () => {
     fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      status: "failed",
+      result: null,
+      error: "This prompt is not allowed",
+    });
     const failed = projectWith("failed");
     const refreshProject = vi.fn(async () => failed);
     const updateProjectInList = vi.fn();
@@ -180,17 +197,81 @@ describe("useAiGeneration polling", () => {
       { initialProps: { project: failed } },
     );
 
+    expect(result.current.generationFailed).toBe(true);
+    expect(result.current.generationError).toBeNull();
+
     await flushEffects();
 
-    expect(result.current.generationFailed).toBe(true);
-    expect(fetchAiPreviewsMock).not.toHaveBeenCalled();
+    expect(result.current.generationError).toBe("This prompt is not allowed");
+    expect(result.current.prompt).toBe("Design a todo API");
+    expect(fetchLatestAiGenerationMock).toHaveBeenCalled();
+    expect(fetchAiPreviewsMock).toHaveBeenCalled();
+    expect(toastErrorMock).not.toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(4500);
     });
 
     expect(refreshProject).not.toHaveBeenCalled();
-    expect(fetchAiPreviewsMock).not.toHaveBeenCalled();
+  });
+
+  it("toasts when polled status becomes failed", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      id: "job-failed",
+      status: "failed",
+      result: null,
+      error: "This prompt is not allowed",
+    });
+    const generating = projectWith("generating");
+    const failed = projectWith("failed");
+    const refreshProject = vi.fn(async () => failed);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: generating } },
+    );
+
+    await flushEffects();
+
+    expect(toastErrorMock).toHaveBeenCalledWith("This prompt is not allowed");
+    expect(updateProjectInList).toHaveBeenCalledWith(failed);
+    expect(result.current.generationError).toBe("This prompt is not allowed");
+    expect(fetchAiPreviewsMock).toHaveBeenCalled();
+  });
+
+  it("toasts the job error when regenerate fails and other previews remain", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      id: "job-failed",
+      status: "failed",
+      result: null,
+      error: "Generation failed. Please try again.",
+    });
+    const generating = projectWith("generating");
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: generating } },
+    );
+
+    await flushEffects();
+
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Generation failed. Please try again.",
+    );
+    expect(result.current.generationError).toBe(
+      "Generation failed. Please try again.",
+    );
+    expect(fetchAiPreviewsMock).toHaveBeenCalled();
   });
 
   it("loads previews when polled status becomes preview and then stops", async () => {
@@ -556,5 +637,152 @@ describe("useAiGeneration polling", () => {
     });
 
     expect(toastErrorMock).toHaveBeenCalledWith("Rate limit exceeded");
+    expect(result.current.generationError).toBe("Rate limit exceeded");
+  });
+
+  it("does not set a fallback error before the failed job is loaded", async () => {
+    let resolveLatest: (value: ApiAiPreview) => void = () => undefined;
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLatest = resolve;
+        }),
+    );
+    const failed = projectWith("failed");
+    const refreshProject = vi.fn(async () => failed);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: failed } },
+    );
+
+    await flushEffects();
+
+    expect(result.current.generationFailed).toBe(true);
+    expect(result.current.generationError).toBeNull();
+
+    await act(async () => {
+      resolveLatest({
+        ...completedPreview,
+        status: "failed",
+        result: null,
+        error: "This prompt is not allowed",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.generationError).toBe("This prompt is not allowed");
+  });
+
+  it("fills the prompt from the failed generate job when the box is empty", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      id: "job-failed",
+      prompt: "Design a payments API",
+      status: "failed",
+      result: null,
+      appliedAt: null,
+      createdAt: "2026-09-05T00:00:01.000Z",
+      error: "Failed to generate JSON",
+    });
+    const failed = projectWith("failed");
+    const refreshProject = vi.fn(async () => failed);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: failed } },
+    );
+
+    expect(result.current.prompt).toBe("");
+
+    await flushEffects();
+
+    expect(result.current.prompt).toBe("Design a payments API");
+    expect(result.current.generationError).toBe("Failed to generate JSON");
+  });
+
+  it("keeps the previous error while regenerate is in flight", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      status: "failed",
+      result: null,
+      error: "Invalid API key",
+    });
+    regenerateAiPreviewMock.mockImplementation(() => new Promise(() => {}));
+    const failed = projectWith("failed");
+    const refreshProject = vi.fn(async () => failed);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: failed } },
+    );
+
+    await flushEffects();
+    expect(result.current.generationError).toBe("Invalid API key");
+    expect(result.current.prompt).toBe("Design a todo API");
+
+    act(() => {
+      void result.current.regenerate();
+    });
+
+    expect(result.current.isGenerating).toBe(true);
+    expect(result.current.generationError).toBe("Invalid API key");
+  });
+
+  it("refetches likes after a rating save fails so the thumb matches the server", async () => {
+    fetchAiPreviewsMock
+      .mockResolvedValueOnce([{ ...completedPreview, rating: "up" }])
+      .mockResolvedValueOnce([{ ...completedPreview, rating: "up" }]);
+    rateAiGenerationMock.mockRejectedValueOnce(new Error("Failed to save rating"));
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.previews[0]?.rating).toBe("up");
+
+    await act(async () => {
+      await result.current.rateJob("preview-1", "down");
+    });
+
+    expect(result.current.previews[0]?.rating).toBe("up");
+    expect(fetchAiPreviewsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the rating immediately while save is in flight", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([{ ...completedPreview, rating: null }]);
+    rateAiGenerationMock.mockImplementation(() => new Promise(() => {}));
+    const preview = projectWith("preview");
+    const refreshProject = vi.fn(async () => preview);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+
+    act(() => {
+      void result.current.rateJob("preview-1", "up");
+    });
+
+    expect(result.current.previews[0]?.rating).toBe("up");
   });
 });

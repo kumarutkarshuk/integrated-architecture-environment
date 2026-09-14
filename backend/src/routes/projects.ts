@@ -150,7 +150,7 @@ projectsRouter.post("/", async (req, res) => {
 
   if (mode === "prompt") {
     try {
-      assertPromptAllowed(trimmedPrompt);
+      await assertPromptAllowed(trimmedPrompt);
     } catch (error) {
       if (error instanceof InappropriatePromptError) {
         res.status(error.status).json({ error: error.message });

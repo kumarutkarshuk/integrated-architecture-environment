@@ -1,6 +1,14 @@
 import { enqueueGenerateJob } from "./job-runner.js";
-import { createGenerateJob } from "./generate-service.js";
-import { assertPromptAllowed } from "./prompt-guard.js";
+import {
+  createGenerateJob,
+  failGenerateJob,
+  PROMPT_NOT_ALLOWED_MESSAGE,
+} from "./generate-service.js";
+import {
+  assertPromptBlockedByCode,
+  InappropriatePromptError,
+  isInappropriatePrompt,
+} from "./prompt-guard.js";
 import { consumeAiQuota } from "./rate-limit.js";
 import { prisma } from "../db.js";
 
@@ -10,7 +18,7 @@ export async function createAndEnqueueGenerateJob(
   prompt: string,
 ) {
   const trimmedPrompt = prompt.trim();
-  assertPromptAllowed(trimmedPrompt);
+  assertPromptBlockedByCode(trimmedPrompt);
   const job = await createGenerateJob(projectId, userId, trimmedPrompt);
 
   await prisma.project.updateMany({
@@ -32,7 +40,12 @@ export async function startGenerateJob(
   userId: string,
   prompt: string,
 ) {
-  assertPromptAllowed(prompt.trim());
+  const trimmedPrompt = prompt.trim();
+  if (isInappropriatePrompt(trimmedPrompt)) {
+    const job = await createGenerateJob(projectId, userId, trimmedPrompt);
+    await failGenerateJob(job.id, PROMPT_NOT_ALLOWED_MESSAGE, "code");
+    throw new InappropriatePromptError();
+  }
   await consumeAiQuota(userId, "generate");
   return createAndEnqueueGenerateJob(projectId, userId, prompt);
 }

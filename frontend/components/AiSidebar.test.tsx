@@ -34,6 +34,7 @@ function aiState(overrides: Partial<AiState> = {}): AiState {
     isApplying: false,
     isGenerating: false,
     generationFailed: false,
+    generationError: null,
     previewWaitTimedOut: false,
     regenerate: async () => undefined,
     applySelectedPreview: async () => undefined,
@@ -139,5 +140,64 @@ describe("AiSidebar ratings", () => {
 
     expect(screen.queryByText("Did you like this AI generation?")).toBeNull();
     expect(screen.queryByRole("button", { name: "Rate up" })).toBeNull();
+  });
+
+  it("shows the generate job error just above the prompt box", () => {
+    render(
+      <AiSidebar
+        project={projectWith("failed")}
+        ai={aiState({
+          generationFailed: true,
+          generationError: "This prompt is not allowed",
+        })}
+        agentAllowed={false}
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    const error = screen.getByText("This prompt is not allowed");
+    const prompt = screen.getByPlaceholderText("Describe the system...");
+    expect(
+      error.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows loading reason above the prompt box until the generate error arrives", () => {
+    render(
+      <AiSidebar
+        project={projectWith("failed")}
+        ai={aiState({
+          generationFailed: true,
+          generationError: null,
+        })}
+        agentAllowed={false}
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    const loading = screen.getByText("Loading reason...");
+    const prompt = screen.getByPlaceholderText("Describe the system...");
+    expect(screen.queryByText("Generation failed. Please try again.")).toBeNull();
+    expect(
+      loading.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("does not show loading reason while regenerating a failed project", () => {
+    render(
+      <AiSidebar
+        project={projectWith("failed")}
+        ai={aiState({
+          generationFailed: true,
+          generationError: "Invalid API key",
+          isGenerating: true,
+        })}
+        agentAllowed={false}
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    expect(screen.queryByText("Loading reason...")).toBeNull();
+    expect(screen.queryByText("Invalid API key")).toBeNull();
   });
 });

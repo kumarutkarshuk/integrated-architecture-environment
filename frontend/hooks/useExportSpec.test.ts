@@ -28,10 +28,11 @@ vi.mock("../lib/api", async () => {
 });
 
 import { toast } from "sonner";
-import { fetchAiJob, startExportSpec } from "../lib/api";
+import { fetchAiJob, rateAiGeneration, startExportSpec } from "../lib/api";
 
 const startExportSpecMock = vi.mocked(startExportSpec);
 const fetchAiJobMock = vi.mocked(fetchAiJob);
+const rateAiGenerationMock = vi.mocked(rateAiGeneration);
 const toastErrorMock = vi.mocked(toast.error);
 
 function projectWith(
@@ -80,6 +81,7 @@ describe("useExportSpec", () => {
     getToken.mockResolvedValue("test-token");
     startExportSpecMock.mockReset();
     fetchAiJobMock.mockReset();
+    rateAiGenerationMock.mockReset();
     toastErrorMock.mockReset();
     vi.useFakeTimers({
       toFake: ["setInterval", "clearInterval"],
@@ -288,5 +290,28 @@ describe("useExportSpec", () => {
     expect(toastErrorMock).toHaveBeenCalledWith(
       "Daily Export Spec limit reached (10 per day)",
     );
+  });
+
+  it("shows the Spec rating immediately while save is in flight", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+    fetchAiJobMock.mockResolvedValue({ ...completedJob, rating: null });
+    rateAiGenerationMock.mockImplementation(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    act(() => {
+      void result.current.rateSpec("down");
+    });
+
+    expect(result.current.specJob?.rating).toBe("down");
   });
 });

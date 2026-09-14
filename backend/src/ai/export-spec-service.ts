@@ -70,7 +70,10 @@ export async function runExportSpecJob(aiGenerationId: string): Promise<void> {
   await completeExportSpecJob(aiGenerationId, result);
 }
 
-export async function failExportSpecJob(aiGenerationId: string): Promise<void> {
+export async function failExportSpecJob(
+  aiGenerationId: string,
+  error?: string,
+): Promise<void> {
   const job = await prisma.aiGeneration.findUnique({
     where: { id: aiGenerationId },
   });
@@ -81,7 +84,10 @@ export async function failExportSpecJob(aiGenerationId: string): Promise<void> {
 
   await prisma.aiGeneration.update({
     where: { id: aiGenerationId },
-    data: { status: "failed" },
+    data: {
+      status: "failed",
+      error: error?.trim().slice(0, 500) || "Export Spec failed",
+    },
   });
 }
 
@@ -98,6 +104,7 @@ export async function completeExportSpecJob(
     where: { id: aiGenerationId },
     data: {
       status: "completed",
+      error: null,
       result: {
         markdown: result.markdown,
         gaps_summary: result.gaps_summary,

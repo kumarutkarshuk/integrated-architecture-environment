@@ -42,6 +42,7 @@ export function AiSidebar({
     isApplying,
     isGenerating,
     generationFailed,
+    generationError,
     regenerate,
     applySelectedPreview,
   } = ai;
@@ -94,12 +95,6 @@ export function AiSidebar({
         ref={listRef}
         className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
       >
-        {generationFailed && previews.length === 0 && (
-          <p className="text-xs text-red-400" data-stagger-item="failed">
-            Generation failed. Please try again.
-          </p>
-        )}
-
         {previews.length > 0 && (
           <RadioGroup
             value={selectedPreviewId ?? undefined}
@@ -180,6 +175,11 @@ export function AiSidebar({
       </div>
 
       <div className="border-t border-sidebar-border p-2">
+        {isGenerating ? null : generationError ? (
+          <p className="mb-2 text-xs text-red-400">{generationError}</p>
+        ) : generationFailed ? (
+          <p className="mb-2 text-xs text-muted">Loading reason...</p>
+        ) : null}
         <div className="relative overflow-hidden rounded-lg border border-sidebar-border bg-panel">
           {isGenerating && <BorderBeam duration={8} borderWidth={1.5} />}
           <Textarea

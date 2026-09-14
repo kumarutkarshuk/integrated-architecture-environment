@@ -94,8 +94,8 @@ export function useExportSpec(project: ApiProject | null) {
             return;
           }
 
-          if (job.status === "failed") {
-            toast.error("Export Spec failed");
+            if (job.status === "failed") {
+              toast.error(job.error?.trim() || "Export Spec failed");
             setIsExporting(false);
             setJobId(null);
           }
@@ -187,6 +187,13 @@ export function useExportSpec(project: ApiProject | null) {
         return;
       }
 
+      const previous = specJob.rating;
+      setSpecJob((current) =>
+        current && hasAuthorRating(current)
+          ? { ...current, rating: value }
+          : current,
+      );
+
       try {
         const token = await getToken();
         if (!token) {
@@ -205,6 +212,11 @@ export function useExportSpec(project: ApiProject | null) {
             : current,
         );
       } catch (error) {
+        setSpecJob((current) =>
+          current && hasAuthorRating(current)
+            ? { ...current, rating: previous }
+            : current,
+        );
         toast.error(
           error instanceof Error ? error.message : "Failed to save rating",
         );

@@ -144,17 +144,99 @@ function assignLayers(
     return layers;
   }
 
-  const maxIterations = components.length;
-  let changed = true;
-  for (let iteration = 0; changed && iteration < maxIterations; iteration += 1) {
-    changed = false;
-    for (const connection of connections) {
-      const fromLayer = layers.get(connection.from) ?? 0;
-      const toLayer = layers.get(connection.to) ?? 0;
-      if (toLayer <= fromLayer) {
-        layers.set(connection.to, fromLayer + 1);
-        changed = true;
+  const ids = components.map((component) => component.id);
+  const outgoing = new Map<string, string[]>();
+  const incomingCount = new Map<string, number>();
+  for (const id of ids) {
+    outgoing.set(id, []);
+    incomingCount.set(id, 0);
+  }
+  for (const connection of connections) {
+    if (connection.from === connection.to) {
+      continue;
+    }
+    outgoing.get(connection.from)?.push(connection.to);
+    incomingCount.set(connection.to, (incomingCount.get(connection.to) ?? 0) + 1);
+  }
+
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>(ids.map((id) => [id, WHITE]));
+  const backEdges = new Set<string>();
+
+  function dfs(id: string): void {
+    color.set(id, GRAY);
+    for (const to of outgoing.get(id) ?? []) {
+      const state = color.get(to) ?? WHITE;
+      if (state === GRAY) {
+        backEdges.add(`${id}->${to}`);
+      } else if (state === WHITE) {
+        dfs(to);
       }
+    }
+    color.set(id, BLACK);
+  }
+
+  const clientIds = components
+    .filter((component) => component.kind === "client")
+    .map((component) => component.id);
+  const sourceIds =
+    clientIds.length > 0
+      ? clientIds
+      : ids.filter((id) => (incomingCount.get(id) ?? 0) === 0);
+  const roots = sourceIds.length > 0 ? sourceIds : ids.slice(0, 1);
+
+  for (const id of roots) {
+    if (color.get(id) === WHITE) {
+      dfs(id);
+    }
+  }
+  for (const id of ids) {
+    if (color.get(id) === WHITE) {
+      dfs(id);
+    }
+  }
+
+  const adj = new Map<string, string[]>();
+  const indegree = new Map<string, number>();
+  for (const id of ids) {
+    adj.set(id, []);
+    indegree.set(id, 0);
+  }
+  for (const connection of connections) {
+    if (
+      connection.from === connection.to ||
+      backEdges.has(`${connection.from}->${connection.to}`)
+    ) {
+      continue;
+    }
+    adj.get(connection.from)?.push(connection.to);
+    indegree.set(connection.to, (indegree.get(connection.to) ?? 0) + 1);
+  }
+
+  const queue = ids.filter((id) => (indegree.get(id) ?? 0) === 0);
+  const order: string[] = [];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    order.push(id);
+    for (const to of adj.get(id) ?? []) {
+      const next = (indegree.get(to) ?? 1) - 1;
+      indegree.set(to, next);
+      if (next === 0) {
+        queue.push(to);
+      }
+    }
+  }
+  for (const id of ids) {
+    if (!order.includes(id)) {
+      order.push(id);
+    }
+  }
+
+  for (const id of order) {
+    for (const to of adj.get(id) ?? []) {
+      layers.set(to, Math.max(layers.get(to) ?? 0, (layers.get(id) ?? 0) + 1));
     }
   }
 

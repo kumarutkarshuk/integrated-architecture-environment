@@ -2,7 +2,10 @@ import { resetAnalytics } from "../src/analytics.js";
 import { prisma } from "../src/db.js";
 import { clearCanvasPersistenceTimers } from "../src/canvas/persistence.js";
 import { configureExportSpecService } from "../src/ai/export-spec-service.js";
-import { configureGenerateService } from "../src/ai/generate-service.js";
+import {
+  configureGenerateService,
+  setPromptSafetyClassifier,
+} from "../src/ai/generate-service.js";
 import {
   createMemoryAiRateLimiter,
   resetAiRateLimiter,
@@ -18,6 +21,7 @@ import { installTestAnalytics } from "./test-analytics.js";
 configureGenerateService({
   groqApiKeys: [],
   groqModel: "openai/gpt-oss-20b",
+  groqPromptGuardModel: "openai/gpt-oss-20b",
   isTest: true,
 });
 
@@ -36,6 +40,7 @@ beforeEach(async () => {
   setAiRateLimiter(testAiRateLimiter.limiter);
   testProjectCreateRateLimiter.reset();
   setProjectCreateRateLimiter(testProjectCreateRateLimiter.limiter);
+  setPromptSafetyClassifier(null);
   clearCanvasPersistenceTimers();
   await prisma.rating.deleteMany();
   await prisma.aiGeneration.deleteMany();
