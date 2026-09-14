@@ -3,7 +3,6 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { FileCode2 } from "lucide-react";
-import Link from "next/link";
 import { useRef, useState } from "react";
 import { LandingActivityBar } from "./landing/LandingActivityBar";
 import { LandingHero } from "./landing/LandingHero";
@@ -12,7 +11,6 @@ import { LandingTitlebar } from "./landing/LandingTitlebar";
 import { LandingWorkflow } from "./landing/LandingWorkflow";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import { RightActivityBar } from "./RightActivityBar";
-import { Button } from "./ui/button";
 
 export function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +66,7 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
             <LandingHero />
           </div>
         </main>

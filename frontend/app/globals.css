@@ -88,15 +88,6 @@ body {
   animation-timing-function: linear;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-border-beam,
-  .animate-flow-dash,
-  .animate-shimmer,
-  .animate-ai-sparkle {
-    animation: none;
-  }
-}
-
 .animate-flow-dash {
   stroke-dasharray: 6 6;
   animation: flow-dash 1.5s linear infinite;
@@ -108,4 +99,13 @@ body {
 
 .animate-ai-sparkle {
   animation: ai-sparkle 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-border-beam,
+  .animate-flow-dash,
+  .animate-shimmer,
+  .animate-ai-sparkle {
+    animation: none;
+  }
 }

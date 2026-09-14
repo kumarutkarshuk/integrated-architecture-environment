@@ -1,5 +1,7 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { useRef, type Ref } from "react";
 import { AnimatedBeam } from "../ui/animated-beam";
 import { BadgeGlow } from "../ui/badge-glow";
@@ -11,6 +13,116 @@ export function LandingStudioPreview() {
   const gatewayRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
   const dbRef = useRef<HTMLDivElement>(null);
+  const youRef = useRef<HTMLDivElement>(null);
+  const agentRef = useRef<HTMLDivElement>(null);
+  const teammateRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const canvas = canvasRef.current;
+      const gateway = gatewayRef.current;
+      const stream = streamRef.current;
+      const db = dbRef.current;
+      const you = youRef.current;
+      const agent = agentRef.current;
+      const teammate = teammateRef.current;
+      if (!canvas || !gateway || !stream || !db || !you || !agent || !teammate) {
+        return;
+      }
+
+      const prefersReduced =
+        typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      const point = (
+        node: HTMLElement,
+        xRatio: number,
+        yRatio: number,
+      ) => {
+        const box = node.getBoundingClientRect();
+        const frame = canvas.getBoundingClientRect();
+        return {
+          x: box.left - frame.left + box.width * xRatio,
+          y: box.top - frame.top + box.height * yRatio,
+        };
+      };
+
+      const place = (
+        cursor: HTMLElement,
+        node: HTMLElement,
+        xRatio: number,
+        yRatio: number,
+      ) => {
+        const next = point(node, xRatio, yRatio);
+        gsap.set(cursor, { x: next.x, y: next.y, autoAlpha: 1 });
+      };
+
+      if (prefersReduced) {
+        place(you, gateway, 0.72, 0.18);
+        place(agent, db, 0.18, 0.72);
+        place(teammate, stream, 0.52, 0.08);
+        return;
+      }
+
+      place(you, gateway, 0.72, 0.18);
+      place(agent, db, 0.18, 0.72);
+      place(teammate, stream, 0.52, 0.08);
+
+      const wander = (
+        cursor: HTMLElement,
+        stops: Array<[HTMLElement, number, number]>,
+        duration: number,
+        hold: number,
+      ) => {
+        const tl = gsap.timeline({
+          repeat: -1,
+          defaults: { ease: "power1.inOut" },
+          repeatRefresh: true,
+        });
+        for (const [node, xRatio, yRatio] of stops) {
+          tl.to(cursor, {
+            duration,
+            x: () => point(node, xRatio, yRatio).x,
+            y: () => point(node, xRatio, yRatio).y,
+          }).to({}, { duration: hold });
+        }
+        return tl;
+      };
+
+      wander(
+        you,
+        [
+          [stream, 0.78, 0.12],
+          [db, 0.7, 0.2],
+          [gateway, 0.72, 0.18],
+        ],
+        1.7,
+        0.55,
+      );
+      wander(
+        agent,
+        [
+          [stream, 0.16, 0.78],
+          [gateway, 0.2, 0.7],
+          [db, 0.18, 0.72],
+        ],
+        2.15,
+        0.7,
+      );
+      wander(
+        teammate,
+        [
+          [gateway, 0.45, 0.88],
+          [db, 0.86, 0.48],
+          [stream, 0.52, 0.08],
+        ],
+        1.95,
+        0.8,
+      );
+    },
+    { scope: canvasRef },
+  );
 
   return (
     <div
@@ -32,11 +144,11 @@ export function LandingStudioPreview() {
 
       <div className="absolute top-3 right-3 z-20">
         <BadgeGlow
-          dotColor="bg-emerald-400"
+          dotColor="bg-sky-400"
           pulse
           className="px-2 py-0.5 text-[10px]"
         >
-          CRDT Live
+          WebMCP
         </BadgeGlow>
       </div>
 
@@ -69,6 +181,23 @@ export function LandingStudioPreview() {
         />
         <CanvasNode nodeRef={dbRef} title="Postgres" meta="ACID store" />
       </div>
+
+      <PresenceCursor
+        cursorRef={youRef}
+        name="You"
+        color="#163a5f"
+      />
+      <PresenceCursor
+        cursorRef={agentRef}
+        name="Agent"
+        color="#1b3f4d"
+        highlight
+      />
+      <PresenceCursor
+        cursorRef={teammateRef}
+        name="Teammate"
+        color="#134e4a"
+      />
     </div>
   );
 }
@@ -96,6 +225,49 @@ function CanvasNode({
     >
       <p className="font-mono text-xs font-medium text-foreground">{title}</p>
       <p className="mt-1 font-mono text-[11px] text-muted">{meta}</p>
+    </div>
+  );
+}
+
+function PresenceCursor({
+  cursorRef,
+  name,
+  color,
+  highlight = false,
+}: {
+  cursorRef: Ref<HTMLDivElement>;
+  name: string;
+  color: string;
+  highlight?: boolean;
+}) {
+  const edge = highlight ? "#7dd3fc" : "#d4d4d4";
+
+  return (
+    <div
+      ref={cursorRef}
+      aria-hidden
+      className="pointer-events-none absolute top-0 left-0 z-20 opacity-0 will-change-transform"
+      style={
+        highlight
+          ? { filter: "drop-shadow(0 0 6px rgb(125 211 252 / 0.65))" }
+          : undefined
+      }
+    >
+      <svg width="14" height="18" viewBox="0 0 14 18" fill="none">
+        <path
+          d="M1.2 1.2 12.4 8.1 7.2 9.4 10.6 16.4 8.2 17.5 4.8 10.4 1.2 13.6V1.2Z"
+          fill={color}
+          stroke={edge}
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span
+        className="mt-0.5 ml-3 inline-block rounded-sm px-1 py-px font-mono text-[9px] text-[#e8e8e8]"
+        style={{ backgroundColor: color, border: `1px solid ${edge}` }}
+      >
+        {name}
+      </span>
     </div>
   );
 }

@@ -348,6 +348,21 @@ describe("WorkspaceShell", () => {
     expect(screen.getByText("Cursor")).toBeTruthy();
     expect(screen.getByText("Claude Code")).toBeTruthy();
     expect(screen.getByText("Codex")).toBeTruthy();
+    expect(screen.getByText(/Tell your agent to use webmcp/i)).toBeTruthy();
+    expect(
+      screen.getByText(/Codex does not find this canvas unless you put webmcp/i),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .closest(".relative")
+        ?.querySelector(".animate-border-beam"),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "AI panel View" })
+        .querySelector(".animate-border-beam"),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Copy Cursor setup" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Copy Claude Code setup" }),

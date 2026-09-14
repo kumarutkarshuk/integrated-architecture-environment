@@ -19,11 +19,11 @@ export function BadgeGlow({
   return (
     <div
       className={cn(
-        "group relative inline-flex items-center gap-2 rounded-full border border-sidebar-border bg-sidebar/80 px-3 py-1 text-xs text-foreground shadow-sm backdrop-blur-md transition-all duration-300 hover:border-accent/40 hover:bg-hover",
+        "group relative isolate inline-flex items-center gap-2 rounded-full border border-sidebar-border bg-sidebar/80 px-3 py-1 text-xs text-foreground shadow-sm backdrop-blur-md transition-all duration-300 hover:border-accent/40 hover:bg-hover",
         className,
       )}
     >
-      <span className="relative flex h-2 w-2">
+      <span className="relative z-0 flex h-2 w-2 shrink-0">
         {pulse && (
           <span
             className={cn(
@@ -33,13 +33,12 @@ export function BadgeGlow({
           />
         )}
         <span
-          className={cn(
-            "relative inline-flex h-2 w-2 rounded-full",
-            dotColor,
-          )}
+          className={cn("relative inline-flex h-2 w-2 rounded-full", dotColor)}
         />
       </span>
-      <span className="font-mono text-[11px] tracking-tight">{children}</span>
+      <span className="relative z-10 font-mono text-[11px] tracking-tight">
+        {children}
+      </span>
     </div>
   );
 }
