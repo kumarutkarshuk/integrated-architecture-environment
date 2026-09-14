@@ -16,11 +16,13 @@ import {
 import { installTestAnalytics } from "./test-analytics.js";
 
 configureGenerateService({
+  groqApiKeys: [],
   groqModel: "openai/gpt-oss-20b",
   isTest: true,
 });
 
 configureExportSpecService({
+  groqApiKeys: [],
   groqModel: "openai/gpt-oss-20b",
   isTest: true,
 });
@@ -35,6 +37,7 @@ beforeEach(async () => {
   testProjectCreateRateLimiter.reset();
   setProjectCreateRateLimiter(testProjectCreateRateLimiter.limiter);
   clearCanvasPersistenceTimers();
+  await prisma.rating.deleteMany();
   await prisma.aiGeneration.deleteMany();
   await prisma.canvasSnapshot.deleteMany();
   await prisma.projectInvite.deleteMany();

@@ -4,6 +4,8 @@ import { prisma } from "../db.js";
 import { InvalidDiagramPlanError, InvalidInferenceJsonError } from "./diagram-plan.js";
 import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL } from "./inference-defaults.js";
 import { getInferenceProvider } from "./inference-provider.js";
+import { parseGroqApiKeys } from "./groq-keys.js";
+import { assertPromptAllowed } from "./prompt-guard.js";
 import { GENERATE_DIAGRAM_PROMPT_VERSION } from "./prompts/generate-diagram.js";
 import type { GenerateResult } from "./types.js";
 
@@ -15,20 +17,21 @@ export function shouldSkipGenerateRetry(error: unknown, attemptNumber: number): 
   return isBadPlanOrJson && attemptNumber >= GENERATE_PLAN_RETRY_ATTEMPTS;
 }
 
-let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
+let inferenceConfig: Pick<AppConfig, "groqApiKeys" | "groqModel" | "isTest"> = {
+  groqApiKeys: [],
   groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
 };
 
 export function configureGenerateService(
-  config: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest">,
+  config: Pick<AppConfig, "groqApiKeys" | "groqModel" | "isTest">,
 ): void {
   inferenceConfig = config;
 }
 
 export function configureGenerateServiceFromEnv(): void {
   configureGenerateService({
-    groqApiKey: process.env.GROQ_API_KEY,
+    groqApiKeys: parseGroqApiKeys(),
     groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });
@@ -65,6 +68,8 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
   if (job.status === "completed") {
     return;
   }
+
+  assertPromptAllowed(job.prompt ?? "");
 
   await prisma.aiGeneration.update({
     where: { id: aiGenerationId },

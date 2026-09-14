@@ -18,6 +18,7 @@ model User {
   ownedProjects  Project[]       @relation("ProjectOwner")
   collaborations Collaborator[]
   aiGenerations  AiGeneration[]
+  ratings        Rating[]
 
   @@map("user")
 }
@@ -103,6 +104,23 @@ model AiGeneration {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
   user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ratings Rating[]
 
   @@map("ai_generation")
+}
+
+model Rating {
+  id             String    @id @default(uuid()) @db.Uuid
+  aiGenerationId String    @map("ai_generation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  value          String
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  aiGeneration AiGeneration @relation(fields: [aiGenerationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([aiGenerationId, userId])
+  @@map("rating")
 }

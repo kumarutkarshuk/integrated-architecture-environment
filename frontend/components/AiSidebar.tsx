@@ -3,9 +3,11 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRef } from "react";
 import type { ApiProject } from "../lib/api";
+import { hasAuthorRating } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
 import { AgentAllowEmpty, AgentAllowPanel } from "./AgentAllowPanel";
+import { RatingButtons } from "./RatingButtons";
 import { BorderBeam } from "./ui/border-beam";
 import { Button } from "./ui/button";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
@@ -34,6 +36,8 @@ export function AiSidebar({
     previews,
     selectedPreviewId,
     setSelectedPreviewId,
+    appliedJob,
+    rateJob,
     isBusy,
     isApplying,
     isGenerating,
@@ -57,10 +61,23 @@ export function AiSidebar({
   if (!showPreviewIteration) {
     if (project?.status === "ready") {
       return (
-        <AgentAllowPanel
-          allowed={agentAllowed}
-          onAllowedChange={onAgentAllowedChange}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          {appliedJob && hasAuthorRating(appliedJob) ? (
+            <div className="border-b border-sidebar-border px-3 py-2">
+              <RatingButtons
+                value={appliedJob.rating}
+                caption="Did you like this AI generation?"
+                onRate={(value) => {
+                  void rateJob(appliedJob.id, value);
+                }}
+              />
+            </div>
+          ) : null}
+          <AgentAllowPanel
+            allowed={agentAllowed}
+            onAllowedChange={onAgentAllowedChange}
+          />
+        </div>
       );
     }
 
@@ -115,6 +132,15 @@ export function AiSidebar({
                   >
                     {preview.prompt ?? "Untitled preview"}
                   </p>
+                  {hasAuthorRating(preview) ? (
+                    <RatingButtons
+                      value={preview.rating}
+                      disabled={isApplying}
+                      onRate={(value) => {
+                        void rateJob(preview.id, value);
+                      }}
+                    />
+                  ) : null}
                   <Button
                     type="button"
                     variant="ghost"

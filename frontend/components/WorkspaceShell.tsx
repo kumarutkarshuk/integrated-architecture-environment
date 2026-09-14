@@ -469,6 +469,7 @@ export function WorkspaceShell() {
             >
               <ExportSpecPanel
                 spec={exportSpec.spec}
+                specJob={exportSpec.specJob}
                 isExporting={exportSpec.isExporting}
                 downloadFileName={exportSpec.downloadFileName}
                 onClear={exportSpec.clearSpec}
@@ -476,6 +477,9 @@ export function WorkspaceShell() {
                   void exportSpec.copySpec();
                 }}
                 onDownload={exportSpec.downloadSpec}
+                onRate={(value) => {
+                  void exportSpec.rateSpec(value);
+                }}
                 closeRef={specCloseRef}
               />
             </div>

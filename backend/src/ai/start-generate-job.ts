@@ -1,5 +1,6 @@
 import { enqueueGenerateJob } from "./job-runner.js";
 import { createGenerateJob } from "./generate-service.js";
+import { assertPromptAllowed } from "./prompt-guard.js";
 import { consumeAiQuota } from "./rate-limit.js";
 import { prisma } from "../db.js";
 
@@ -9,6 +10,7 @@ export async function createAndEnqueueGenerateJob(
   prompt: string,
 ) {
   const trimmedPrompt = prompt.trim();
+  assertPromptAllowed(trimmedPrompt);
   const job = await createGenerateJob(projectId, userId, trimmedPrompt);
 
   await prisma.project.updateMany({
@@ -30,6 +32,7 @@ export async function startGenerateJob(
   userId: string,
   prompt: string,
 ) {
+  assertPromptAllowed(prompt.trim());
   await consumeAiQuota(userId, "generate");
   return createAndEnqueueGenerateJob(projectId, userId, prompt);
 }

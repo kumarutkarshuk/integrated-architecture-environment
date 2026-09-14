@@ -23,6 +23,7 @@ vi.mock("../lib/api", async () => {
     ...actual,
     startExportSpec: vi.fn(),
     fetchAiJob: vi.fn(),
+    rateAiGeneration: vi.fn(),
   };
 });
 

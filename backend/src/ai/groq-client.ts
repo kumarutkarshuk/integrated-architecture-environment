@@ -1,4 +1,5 @@
 import { parseDiagramPlan, InvalidInferenceJsonError, type DiagramPlan } from "./diagram-plan.js";
+import { takeGroqApiKey } from "./groq-keys.js";
 import { GENERATE_DIAGRAM_SYSTEM_PROMPT } from "./prompts/generate-diagram.js";
 import { EXPORT_SPEC_SYSTEM_PROMPT } from "./prompts/export-spec.js";
 import type { ExportSpecResult } from "./types.js";
@@ -6,7 +7,8 @@ import type { ExportSpecResult } from "./types.js";
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface GroqConfig {
-  apiKey: string;
+  apiKey?: string;
+  apiKeys?: string[];
   model: string;
   requestTimeoutMs?: number;
 }
@@ -101,47 +103,73 @@ async function requestGroqJsonOnce(
   missingContentLabel: string,
   maxTokens: number,
 ): Promise<{ parsed: unknown; tokensUsed?: number; model: string }> {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2,
-      max_tokens: maxTokens,
-    }),
-  });
+  const keys = groqKeysFromConfig(config);
+  let lastError: Error | null = null;
 
-  const body = (await response.json()) as GroqChatCompletionResponse;
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const apiKey = takeGroqApiKey(keys);
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: maxTokens,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(body.error?.message ?? `Groq request failed: ${response.status}`);
+    const body = (await response.json()) as GroqChatCompletionResponse;
+
+    if (response.status === 429 && attempt < keys.length - 1) {
+      lastError = new Error(body.error?.message ?? "Groq request failed: 429");
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(body.error?.message ?? `Groq request failed: ${response.status}`);
+    }
+
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error(`Groq response did not include ${missingContentLabel}`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new InvalidInferenceJsonError("Groq response was not valid JSON");
+    }
+
+    return {
+      parsed,
+      tokensUsed: body.usage?.total_tokens,
+      model: body.model ?? config.model,
+    };
   }
 
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error(`Groq response did not include ${missingContentLabel}`);
+  throw lastError ?? new Error("Groq request failed");
+}
+
+function groqKeysFromConfig(config: GroqConfig): string[] {
+  const keys = [
+    ...(config.apiKeys ?? []),
+    ...(config.apiKey ? [config.apiKey] : []),
+  ].filter((key, index, all) => all.indexOf(key) === index);
+
+  if (keys.length === 0) {
+    throw new Error("No Groq API key configured");
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new InvalidInferenceJsonError("Groq response was not valid JSON");
-  }
-
-  return {
-    parsed,
-    tokensUsed: body.usage?.total_tokens,
-    model: body.model ?? config.model,
-  };
+  return keys;
 }
 
 function parseExportSpecResult(raw: unknown): { markdown: string; gaps_summary: string } {

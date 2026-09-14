@@ -5,8 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   fetchAiJob,
+  rateAiGeneration,
   startExportSpec as startExportSpecRequest,
+  hasAuthorRating,
+  type ApiAiJob,
   type ApiProject,
+  type RatingValue,
 } from "../lib/api";
 
 export interface ExportedSpec {
@@ -33,6 +37,7 @@ export function useExportSpec(project: ApiProject | null) {
   const [isExporting, setIsExporting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [spec, setSpec] = useState<ExportedSpec | null>(null);
+  const [specJob, setSpecJob] = useState<ApiAiJob | null>(null);
   const projectIdRef = useRef<string | null>(project?.id ?? null);
 
   projectIdRef.current = project?.id ?? null;
@@ -43,6 +48,7 @@ export function useExportSpec(project: ApiProject | null) {
     setIsExporting(false);
     setJobId(null);
     setSpec(null);
+    setSpecJob(null);
   }, [project?.id]);
 
   useEffect(() => {
@@ -82,6 +88,7 @@ export function useExportSpec(project: ApiProject | null) {
               markdown,
               gaps_summary: gapsSummary,
             });
+            setSpecJob(job);
             setIsExporting(false);
             setJobId(null);
             return;
@@ -121,6 +128,7 @@ export function useExportSpec(project: ApiProject | null) {
 
     setIsExporting(true);
     setSpec(null);
+    setSpecJob(null);
 
     try {
       const token = await getToken();
@@ -146,6 +154,7 @@ export function useExportSpec(project: ApiProject | null) {
 
   const clearSpec = useCallback(() => {
     setSpec(null);
+    setSpecJob(null);
   }, []);
 
   const downloadSpec = useCallback(() => {
@@ -172,14 +181,48 @@ export function useExportSpec(project: ApiProject | null) {
     await navigator.clipboard.writeText(formatSpecFile(spec));
   }, [spec]);
 
+  const rateSpec = useCallback(
+    async (value: RatingValue) => {
+      if (!project || !specJob || !hasAuthorRating(specJob)) {
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Missing auth token");
+        }
+
+        const rated = await rateAiGeneration(
+          token,
+          project.id,
+          specJob.id,
+          value,
+        );
+        setSpecJob((current) =>
+          current && hasAuthorRating(current)
+            ? { ...current, rating: rated.value }
+            : current,
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to save rating",
+        );
+      }
+    },
+    [getToken, project, specJob],
+  );
+
   return {
     canExport,
     isExporting,
     spec,
+    specJob,
     downloadFileName: toDownloadFileName(project?.name ?? "project"),
     exportSpec,
     clearSpec,
     downloadSpec,
     copySpec,
+    rateSpec,
   };
 }

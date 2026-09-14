@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { captureEvent } from "../analytics.js";
+import { InappropriatePromptError, assertPromptAllowed } from "../ai/prompt-guard.js";
 import { AiRateLimitError, consumeAiQuota } from "../ai/rate-limit.js";
 import { createAndEnqueueGenerateJob } from "../ai/start-generate-job.js";
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
@@ -145,6 +146,18 @@ projectsRouter.post("/", async (req, res) => {
   if (await liveProjectNameTaken(user.id, trimmedName)) {
     res.status(409).json({ error: PROJECT_NAME_CLASH_ERROR });
     return;
+  }
+
+  if (mode === "prompt") {
+    try {
+      assertPromptAllowed(trimmedPrompt);
+    } catch (error) {
+      if (error instanceof InappropriatePromptError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
   }
 
   try {

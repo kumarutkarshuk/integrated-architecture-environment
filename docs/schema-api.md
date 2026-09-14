@@ -69,6 +69,17 @@ ai_generation
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
   created_at    timestamptz NOT NULL
   deleted_at    timestamptz
+
+rating
+  id               uuid PK
+  ai_generation_id uuid FK → ai_generation.id NOT NULL  -- Restrict
+  user_id          uuid FK → user.id NOT NULL           -- Restrict
+  value            text NOT NULL  -- 'up' | 'down'
+  created_at       timestamptz NOT NULL
+  updated_at       timestamptz NOT NULL
+  deleted_at       timestamptz
+  UNIQUE (ai_generation_id, user_id)
+  -- one live Rating per User per AI Generation; switch up/down is allowed; no clear
 ```
 
 Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited.
@@ -108,9 +119,11 @@ POST   /api/projects/:id/invites/:inviteId/resend  -- owner only; max 3 sends; 5
 POST   /api/invites/:token/redeem
 
 POST   /api/projects/:id/ai/generate     -- { prompt }; sets status → generating
-GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs
+GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs; rating for the author only
 POST   /api/projects/:id/ai/apply        -- { aiGenerationId }; sets status → ready
-GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs include plan; all jobs include prompt_version and provider
+GET    /api/projects/:id/ai/applied      -- applied generate AI Generation; 404 if none; rating for the author only
+GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs include plan; all jobs include prompt_version and provider; rating for the author only
+PUT    /api/projects/:id/ai/:jobId/rating -- { value: "up" | "down" }; author + collaborator + completed job; 403 if not author; 400 if not completed; switch allowed; no DELETE
 POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
 WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake

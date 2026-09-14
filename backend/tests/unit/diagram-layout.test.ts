@@ -116,4 +116,65 @@ describe("layoutDiagramComponents", () => {
     expect(retrieveClient.y).toBeGreaterThan(retrieveTitle.y + retrieveTitle.h);
     expect(insertApi.x).toBeGreaterThan(layouts[0]!.boxes.get("client")!.x);
   });
+
+  it("keeps flow titles off the boxes below them the way WebMCP placement does", () => {
+    const layouts = layoutDiagramPlan(
+      parseDiagramPlan({
+        flows: [
+          {
+            id: "insert",
+            label: "Insert a very long flow title for spacing",
+            components: [
+              { id: "client", label: "Client", kind: "client" },
+              { id: "api", label: "API", kind: "service" },
+            ],
+            connections: [{ from: "client", to: "api", style: "sync" }],
+          },
+          {
+            id: "retrieve",
+            label: "Retrieve",
+            components: [
+              { id: "client", label: "Client", kind: "client" },
+              { id: "api", label: "API", kind: "service" },
+            ],
+            connections: [{ from: "client", to: "api", style: "sync" }],
+          },
+        ],
+      }),
+    );
+
+    for (const layout of layouts) {
+      const title = layout.title!;
+      for (const box of layout.boxes.values()) {
+        const overlap =
+          title.x < box.x + box.w &&
+          title.x + title.w > box.x &&
+          title.y < box.y + box.h &&
+          title.y + title.h > box.y;
+        expect(overlap).toBe(false);
+        expect(box.y).toBeGreaterThanOrEqual(title.y + title.h + 40);
+      }
+    }
+  });
+
+  it("widens same-row boxes so a long arrow label has room", () => {
+    const layout = layoutDiagramComponents(
+      [
+        { id: "api", label: "API", kind: "service" },
+        { id: "worker", label: "Worker", kind: "service" },
+      ],
+      [
+        {
+          from: "api",
+          to: "worker",
+          style: "async",
+          label: "enqueue very long background job payload",
+        },
+      ],
+    );
+
+    const api = layout.get("api")!;
+    const worker = layout.get("worker")!;
+    expect(worker.x - (api.x + api.w)).toBeGreaterThanOrEqual(400);
+  });
 });

@@ -19,11 +19,23 @@ function renderExport(
     actionsEnabled: true,
     isExporting: false,
     spec: null as typeof spec | null,
+    specJob: null as
+      | {
+          id: string;
+          prompt: string | null;
+          status: string;
+          result: typeof spec | null;
+          appliedAt: string | null;
+          createdAt: string;
+          rating?: "up" | "down" | null;
+        }
+      | null,
     downloadFileName: "todo-api-spec.md",
     onExport: () => undefined,
     onClear: () => undefined,
     onCopy: () => undefined,
     onDownload: () => undefined,
+    onRate: undefined as ((value: "up" | "down") => void) | undefined,
     ...overrides,
   };
 
@@ -40,11 +52,13 @@ function renderExport(
       {(props.spec || props.isExporting) && (
         <ExportSpecPanel
           spec={props.spec}
+          specJob={props.specJob}
           isExporting={props.isExporting}
           downloadFileName={props.downloadFileName}
           onClear={props.onClear}
           onCopy={props.onCopy}
           onDownload={props.onDownload}
+          onRate={props.onRate}
           closeRef={closeRef}
         />
       )}
@@ -162,5 +176,53 @@ describe("ExportSpecToolbar", () => {
         "This Spec is from the canvas when you clicked Export. Collaborators may have changed the live canvas since then. Check the canvas before you treat this as current.",
       ),
     ).toBeTruthy();
+  });
+
+  it("shows author thumbs while the Spec panel is open and hides them when closed", () => {
+    const onRate = vi.fn();
+    const specJob = {
+      id: "export-1",
+      prompt: null,
+      status: "completed",
+      result: spec,
+      appliedAt: null,
+      createdAt: "2026-09-14T00:00:01.000Z",
+      rating: null as "up" | "down" | null,
+    };
+
+    const view = renderExport({ spec, specJob, onRate });
+
+    expect(screen.getByRole("button", { name: "Rate up" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Rate down" })).toBeTruthy();
+
+    view.rerender(
+      <>
+        <ExportSpecToolbar
+          canExport
+          actionsEnabled
+          isExporting={false}
+          onExport={() => undefined}
+        />
+      </>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Rate up" })).toBeNull();
+  });
+
+  it("hides Spec thumbs when rating is omitted for a Collaborator", () => {
+    renderExport({
+      spec,
+      specJob: {
+        id: "export-1",
+        prompt: null,
+        status: "completed",
+        result: spec,
+        appliedAt: null,
+        createdAt: "2026-09-14T00:00:01.000Z",
+      },
+      onRate: vi.fn(),
+    });
+
+    expect(screen.queryByRole("button", { name: "Rate up" })).toBeNull();
   });
 });

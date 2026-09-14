@@ -24,6 +24,8 @@ vi.mock("../lib/api", async () => {
     fetchAiPreviews: vi.fn(),
     regenerateAiPreview: vi.fn(),
     applyAiPreview: vi.fn(),
+    fetchAppliedAiGeneration: vi.fn(),
+    rateAiGeneration: vi.fn(),
   };
 });
 
@@ -31,11 +33,13 @@ import { toast } from "sonner";
 import {
   applyAiPreview,
   fetchAiPreviews,
+  fetchAppliedAiGeneration,
   regenerateAiPreview,
 } from "../lib/api";
 import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 const fetchAiPreviewsMock = vi.mocked(fetchAiPreviews);
+const fetchAppliedAiGenerationMock = vi.mocked(fetchAppliedAiGeneration);
 const regenerateAiPreviewMock = vi.mocked(regenerateAiPreview);
 const applyAiPreviewMock = vi.mocked(applyAiPreview);
 const toastErrorMock = vi.mocked(toast.error);
@@ -95,6 +99,10 @@ describe("useAiGeneration polling", () => {
     getToken.mockClear();
     getToken.mockResolvedValue("test-token");
     fetchAiPreviewsMock.mockReset();
+    fetchAppliedAiGenerationMock.mockReset();
+    fetchAppliedAiGenerationMock.mockRejectedValue(
+      new Error("Applied AI Generation not found"),
+    );
     regenerateAiPreviewMock.mockReset();
     applyAiPreviewMock.mockReset();
     toastErrorMock.mockReset();

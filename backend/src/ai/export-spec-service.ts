@@ -2,26 +2,28 @@ import type { AppConfig } from "../config.js";
 import { prisma } from "../db.js";
 import { getInferenceProvider } from "./inference-provider.js";
 import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL } from "./inference-defaults.js";
+import { parseGroqApiKeys } from "./groq-keys.js";
 import { EXPORT_SPEC_PROMPT_VERSION } from "./prompts/export-spec.js";
 import { readProjectCanvasRecords, summarizeCanvasRecords } from "./canvas-summary.js";
 import type { ExportSpecResult } from "./types.js";
 
 const EMPTY_CANVAS_PROMPT = "The canvas has no shapes.";
 
-let inferenceConfig: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest"> = {
+let inferenceConfig: Pick<AppConfig, "groqApiKeys" | "groqModel" | "isTest"> = {
+  groqApiKeys: [],
   groqModel: DEFAULT_GROQ_MODEL,
   isTest: process.env.NODE_ENV === "test",
 };
 
 export function configureExportSpecService(
-  config: Pick<AppConfig, "groqApiKey" | "groqModel" | "isTest">,
+  config: Pick<AppConfig, "groqApiKeys" | "groqModel" | "isTest">,
 ): void {
   inferenceConfig = config;
 }
 
 export function configureExportSpecServiceFromEnv(): void {
   configureExportSpecService({
-    groqApiKey: process.env.GROQ_API_KEY,
+    groqApiKeys: parseGroqApiKeys(),
     groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });

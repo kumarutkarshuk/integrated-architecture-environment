@@ -50,9 +50,17 @@ export interface ApiAiPreview {
   } | null;
   appliedAt: string | null;
   createdAt: string;
+  rating?: "up" | "down" | null;
 }
 
 export type ApiAiJob = ApiAiPreview;
+export type RatingValue = "up" | "down";
+
+export function hasAuthorRating(
+  job: { rating?: RatingValue | null } | null | undefined,
+): job is { rating: RatingValue | null } {
+  return Boolean(job && Object.prototype.hasOwnProperty.call(job, "rating"));
+}
 
 export interface CreateProjectInput {
   name: string;
@@ -210,6 +218,29 @@ export function fetchAiJob(
   jobId: string,
 ): Promise<ApiAiJob> {
   return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/${jobId}`, token);
+}
+
+export function fetchAppliedAiGeneration(
+  token: string,
+  projectId: string,
+): Promise<ApiAiJob> {
+  return apiFetch<ApiAiJob>(`/api/projects/${projectId}/ai/applied`, token);
+}
+
+export function rateAiGeneration(
+  token: string,
+  projectId: string,
+  jobId: string,
+  value: RatingValue,
+): Promise<{ value: RatingValue }> {
+  return apiFetch<{ value: RatingValue }>(
+    `/api/projects/${projectId}/ai/${jobId}/rating`,
+    token,
+    {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    },
+  );
 }
 
 export function createInvite(

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InvalidInferenceJsonError, parseDiagramPlan } from "../../src/ai/diagram-plan.js";
 import { buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
 import { generateDiagramPlanWithGroq } from "../../src/ai/groq-client.js";
+import { resetGroqKeyCursor } from "../../src/ai/groq-keys.js";
 
 function mainPlan(
   components: Array<{ id: string; label: string; kind: string }>,
@@ -645,6 +646,7 @@ describe("buildRecordsFromDiagramPlan", () => {
 describe("generateDiagramPlanWithGroq", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    resetGroqKeyCursor();
   });
 
   it("parses a Groq chat completion response and captures token usage", async () => {
@@ -719,5 +721,50 @@ describe("generateDiagramPlanWithGroq", () => {
         model: "openai/gpt-oss-20b",
       }),
     ).rejects.toBeInstanceOf(InvalidInferenceJsonError);
+  });
+
+  it("retries the next Groq key when the current key is rate limited", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: "Rate limit reached" } }), {
+          status: 429,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    components: [{ id: "api", label: "API", kind: "service" }],
+                    connections: [],
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const result = await generateDiagramPlanWithGroq("Design an API", {
+      apiKeys: ["key-one", "key-two"],
+      model: "openai/gpt-oss-20b",
+    });
+
+    expect(result.plan.flows[0]?.components[0]?.id).toBe("api");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer key-one" }),
+      }),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer key-two" }),
+      }),
+    );
   });
 });

@@ -148,6 +148,8 @@ vi.mock("../hooks/useAiGeneration", () => ({
     isGenerating: false,
     generationFailed: false,
     previewWaitTimedOut: false,
+    appliedJob: null,
+    rateJob: async () => undefined,
     regenerate: async () => undefined,
     applySelectedPreview: async () => undefined,
     loadPreviews: async () => undefined,
@@ -161,11 +163,13 @@ vi.mock("../hooks/useExportSpec", () => ({
     canExport: true,
     isExporting: false,
     spec: workspaceState.spec,
+    specJob: null,
     downloadFileName: "owned-canvas-spec.md",
     exportSpec: async () => undefined,
     clearSpec: () => undefined,
     downloadSpec: () => undefined,
     copySpec: async () => undefined,
+    rateSpec: async () => undefined,
   }),
 }));
 
