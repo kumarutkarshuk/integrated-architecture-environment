@@ -55,15 +55,9 @@ describe("HomePage", () => {
     expect(screen.getAllByText("WebMCP").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/AI agent/i).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("WebMCP local agent preview")).toBeDefined();
-    expect(screen.getAllByText("You", { hidden: true }).length).toBeGreaterThan(
-      0,
-    );
-    expect(
-      screen.getAllByText("Agent", { hidden: true }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText("Teammate", { hidden: true }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("You").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Agent").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Teammate").length).toBeGreaterThan(0);
     expect(screen.queryByText("Idle")).toBeNull();
     expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(1);
     expect(
