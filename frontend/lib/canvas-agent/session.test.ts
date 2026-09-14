@@ -11,6 +11,25 @@ function shape(partial: CanvasAgentPageShape): CanvasAgentPageShape {
   return partial;
 }
 
+function boxView(partial: {
+  id: unknown;
+  label: string;
+  kind: string;
+  x: number;
+  y: number;
+}) {
+  return { w: 220, h: 100, ...partial };
+}
+
+function titleView(partial: {
+  id: unknown;
+  label: string;
+  x: number;
+  y: number;
+}) {
+  return { w: 220, h: 80, ...partial };
+}
+
 function createFakeEditor(
   initial: CanvasAgentPageShape[] = [],
   writable = true,
@@ -19,6 +38,8 @@ function createFakeEditor(
   zoomCalls: ShapeBounds[];
   zoomInCount: number;
   zoomOutCount: number;
+  zoom: number;
+  setZoom(next: number): void;
   setShapes(next: CanvasAgentPageShape[]): void;
   setWritable(next: boolean): void;
 } {
@@ -28,10 +49,14 @@ function createFakeEditor(
   const selectedIds: string[] = [];
   let zoomInCount = 0;
   let zoomOutCount = 0;
+  let zoom = 1;
 
   return {
     selectedIds,
     zoomCalls,
+    get zoom() {
+      return zoom;
+    },
     get zoomInCount() {
       return zoomInCount;
     },
@@ -82,6 +107,14 @@ function createFakeEditor(
     zoomOut() {
       zoomOutCount += 1;
     },
+    setZoom(next) {
+      zoom = next;
+    },
+    clampZoom(max) {
+      if (zoom > max) {
+        zoom = max;
+      }
+    },
   };
 }
 
@@ -110,15 +143,20 @@ function createHarness(options?: {
     ? null
     : createFakeEditor(options?.shapes ?? [], options?.writable ?? true);
 
+  const agentCursors: Array<{ x: number; y: number }> = [];
   const session = createCanvasAgentSession({
     getProjectStatus: () => status,
     getEditor: () => editor,
     armBus,
+    onAgentCursor: (cursor) => {
+      agentCursors.push(cursor);
+    },
   });
 
   return {
     session,
     editor,
+    agentCursors,
     armBus,
     network,
     setStatus(next: string | null) {
@@ -232,20 +270,20 @@ describe("canvas-agent session", () => {
 
     expect(session.readCanvasState()).toEqual({
       components: [
-        {
+        boxView({
           id: "shape:web",
           label: "Web Client",
           kind: "client",
           x: 40,
           y: 80,
-        },
-        {
+        }),
+        boxView({
           id: "shape:api",
           label: "API",
           kind: "service",
           x: 300,
           y: 80,
-        },
+        }),
       ],
       connections: [
         {
@@ -256,7 +294,14 @@ describe("canvas-agent session", () => {
           label: "HTTPS",
         },
       ],
-      flowTitles: [{ id: "shape:flow-checkout-title", label: "Checkout" }],
+      flowTitles: [
+        titleView({
+          id: "shape:flow-checkout-title",
+          label: "Checkout",
+          x: 40,
+          y: 20,
+        }),
+      ],
       notEditable: [
         { id: "shape:sketch", type: "draw" },
         { id: "shape:photo", type: "image" },
@@ -281,7 +326,7 @@ describe("canvas-agent session", () => {
     });
 
     expect(session.readCanvasState().components).toEqual([
-      { id: "shape:api", label: "API", kind: "service", x: 0, y: 0 },
+      boxView({ id: "shape:api", label: "API", kind: "service", x: 0, y: 0 }),
     ]);
 
     setShapes([
@@ -308,8 +353,8 @@ describe("canvas-agent session", () => {
     ]);
 
     expect(session.readCanvasState().components).toEqual([
-      { id: "shape:api", label: "API", kind: "service", x: 0, y: 0 },
-      { id: "shape:db", label: "Postgres", kind: "store", x: 240, y: 0 },
+      boxView({ id: "shape:api", label: "API", kind: "service", x: 0, y: 0 }),
+      boxView({ id: "shape:db", label: "Postgres", kind: "store", x: 240, y: 0 }),
     ]);
   });
 
@@ -370,7 +415,7 @@ describe("canvas-agent session", () => {
 
     const view = session.readCanvasState();
     expect(view.components).toEqual([
-      { id: "shape:jobs", label: "Jobs", kind: "queue", x: 80, y: 80 },
+      boxView({ id: "shape:jobs", label: "Jobs", kind: "queue", x: 80, y: 80 }),
     ]);
     expect(view.connections).toEqual([
       {
@@ -457,13 +502,13 @@ describe("canvas-agent session", () => {
       session.createComponent({
         kind: "service",
         label: "API",
-        x: 300,
+        x: 520,
         y: 80,
       }),
       session.createComponent({
         kind: "store",
         label: "Postgres",
-        x: 560,
+        x: 1000,
         y: 80,
       }),
       session.createComponent({
@@ -475,36 +520,36 @@ describe("canvas-agent session", () => {
       session.createComponent({
         kind: "storage",
         label: "S3",
-        x: 300,
+        x: 520,
         y: 240,
       }),
       session.createComponent({
         kind: "external",
         label: "Stripe",
-        x: 560,
+        x: 1000,
         y: 240,
       }),
     ];
 
     expect(created.at(-1)?.components).toEqual([
-      { id: expect.any(String), label: "Web", kind: "client", x: 40, y: 80 },
-      { id: expect.any(String), label: "API", kind: "service", x: 300, y: 80 },
-      {
+      boxView({ id: expect.any(String), label: "Web", kind: "client", x: 40, y: 80 }),
+      boxView({ id: expect.any(String), label: "API", kind: "service", x: 520, y: 80 }),
+      boxView({
         id: expect.any(String),
         label: "Postgres",
         kind: "store",
-        x: 560,
+        x: 1000,
         y: 80,
-      },
-      { id: expect.any(String), label: "Jobs", kind: "queue", x: 40, y: 240 },
-      { id: expect.any(String), label: "S3", kind: "storage", x: 300, y: 240 },
-      {
+      }),
+      boxView({ id: expect.any(String), label: "Jobs", kind: "queue", x: 40, y: 240 }),
+      boxView({ id: expect.any(String), label: "S3", kind: "storage", x: 520, y: 240 }),
+      boxView({
         id: expect.any(String),
         label: "Stripe",
         kind: "external",
-        x: 560,
+        x: 1000,
         y: 240,
-      },
+      }),
     ]);
     expect(editor?.getCurrentPageShapes().map((item) => item.color)).toEqual([
       "blue",
@@ -535,8 +580,14 @@ describe("canvas-agent session", () => {
     const view = session.createComponent({ kind: "service", label: "API" });
 
     expect(view.components).toEqual([
-      { id: "shape:web", label: "Web", kind: "client", x: 40, y: 80 },
-      { id: expect.any(String), label: "API", kind: "service", x: 400, y: 80 },
+      boxView({ id: "shape:web", label: "Web", kind: "client", x: 40, y: 80 }),
+      boxView({
+        id: expect.any(String),
+        label: "API",
+        kind: "service",
+        x: 520,
+        y: 80,
+      }),
     ]);
   });
 
@@ -559,7 +610,158 @@ describe("canvas-agent session", () => {
     const view = session.createComponent({ kind: "service", label: "API" });
     const boxWidth = 220;
     const gap = (view.components[1]?.x ?? 0) - (view.components[0]?.x ?? 0) - boxWidth;
-    expect(gap).toBeGreaterThanOrEqual(120);
+    expect(gap).toBeGreaterThanOrEqual(260);
+  });
+
+  it("places a box under the latest Flow title instead of on top of it", () => {
+    const { session } = createHarness();
+
+    const titled = session.createFlowTitle({ label: "RAG — Ingestion" });
+    const boxed = session.createComponent({
+      kind: "storage",
+      label: "Source Documents",
+    });
+
+    const title = titled.flowTitles[0];
+    const box = boxed.components[0];
+    expect(title).toMatchObject({ x: 120, y: 40 });
+    expect(box).toMatchObject({ x: 120 });
+    expect((box?.y ?? 0) - ((title?.y ?? 0) + (title?.h ?? 0))).toBeGreaterThanOrEqual(40);
+  });
+
+  it("makes a long Flow title wide enough that the box below does not sit on its text", () => {
+    const { session } = createHarness();
+
+    const titled = session.createFlowTitle({
+      label: "Razorpay payment flow",
+    });
+    const boxed = session.createComponent({
+      kind: "client",
+      label: "Customer",
+      x: 120,
+      y: 90,
+    });
+
+    const title = titled.flowTitles[0];
+    const box = boxed.components[0];
+    expect(title?.w ?? 0).toBeGreaterThan(220);
+    expect(box?.x).toBe(title?.x);
+    expect((box?.y ?? 0) - ((title?.y ?? 0) + (title?.h ?? 0))).toBeGreaterThanOrEqual(
+      40,
+    );
+  });
+
+  it("nudges a box off a slot that would cover an existing box", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+      ],
+    });
+
+    const view = session.createComponent({
+      kind: "service",
+      label: "API",
+      x: 80,
+      y: 90,
+    });
+
+    expect(view.components.at(-1)).toMatchObject({
+      label: "API",
+      x: 520,
+      y: 80,
+    });
+  });
+
+  it("nudges a Flow title off a box it would cover", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+      ],
+    });
+
+    const view = session.createFlowTitle({
+      label: "RAG — Retrieval",
+      x: 40,
+      y: 80,
+    });
+
+    expect(view.flowTitles.at(-1)).toMatchObject({
+      label: "RAG — Retrieval",
+      x: 40,
+    });
+    expect(view.flowTitles.at(-1)?.y ?? 80).toBeLessThan(80);
+  });
+
+  it("stacks a second Flow title below existing content", () => {
+    const { session } = createHarness();
+
+    session.createFlowTitle({ label: "Ingestion" });
+    session.createComponent({ kind: "storage", label: "Docs" });
+    const view = session.createFlowTitle({ label: "Retrieval" });
+
+    const titles = view.flowTitles;
+    expect(titles[1]?.y ?? 0).toBeGreaterThan((titles[0]?.y ?? 0) + 56);
+    expect((titles[1]?.y ?? 0) > (view.components[0]?.y ?? 0) + 100).toBe(true);
+  });
+
+  it("spreads same-row boxes so a connection label stays on one line", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          w: 220,
+          h: 100,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "User query",
+        }),
+        shape({
+          id: "shape:embed",
+          type: "geo",
+          x: 300,
+          y: 80,
+          w: 220,
+          h: 100,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "Query embedding",
+        }),
+      ],
+    });
+
+    const view = session.createConnection({
+      from: "shape:web",
+      to: "shape:embed",
+      style: "sync",
+      label: "question",
+    });
+    const from = view.components.find((item) => item.id === "shape:web");
+    const to = view.components.find((item) => item.id === "shape:embed");
+    const gap = (to?.x ?? 0) - (from?.x ?? 0) - (from?.w ?? 220);
+    expect(gap).toBeGreaterThanOrEqual(260);
   });
 
   it("refuses an unknown kind and leaves Canvas State unchanged", () => {
@@ -831,7 +1033,7 @@ describe("canvas-agent session", () => {
     ).toMatchObject({ fromAlong: 0.34, toAlong: 0.34 });
   });
 
-  it("does not reuse a box edge that already has an arrow to another box", () => {
+  it("spreads a second arrow on a busy side instead of crossing another box", () => {
     const { session } = createHarness({
       shapes: [
         shape({
@@ -890,9 +1092,120 @@ describe("canvas-agent session", () => {
     expect(view.connections.at(-1)).toMatchObject({
       from: "shape:client",
       to: "shape:api",
+      fromEdge: "right",
+      toEdge: "left",
+    });
+    expect(
+      view.connections.find((item) => item.from === "shape:client" && item.to === "shape:api"),
+    ).toBeTruthy();
+  });
+
+  it("routes around a box that sits between the two ends", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:client",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Client",
+        }),
+        shape({
+          id: "shape:context",
+          type: "geo",
+          x: 520,
+          y: 80,
+          geo: "rectangle",
+          color: "grey",
+          fill: "solid",
+          label: "LLMContext",
+        }),
+        shape({
+          id: "shape:retriever",
+          type: "geo",
+          x: 1000,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "Retriever",
+        }),
+      ],
+    });
+
+    const view = session.createConnection({
+      from: "shape:client",
+      to: "shape:retriever",
+      style: "data",
+      label: "embed query",
+      fromEdge: "right",
+      toEdge: "left",
+    });
+
+    expect(view.connections.at(-1)).toMatchObject({
+      from: "shape:client",
+      to: "shape:retriever",
       fromEdge: "top",
       toEdge: "top",
     });
+  });
+
+  it("offsets labels when two arrows share the same box edge", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:chunks",
+          type: "geo",
+          x: 400,
+          y: 0,
+          geo: "rectangle",
+          color: "green",
+          fill: "solid",
+          label: "Chunks",
+        }),
+        shape({
+          id: "shape:index",
+          type: "geo",
+          x: 700,
+          y: 0,
+          geo: "rectangle",
+          color: "orange",
+          fill: "solid",
+          label: "Index",
+        }),
+        shape({
+          id: "shape:retriever",
+          type: "geo",
+          x: 520,
+          y: 260,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "Retriever",
+        }),
+      ],
+    });
+
+    session.createConnection({
+      from: "shape:chunks",
+      to: "shape:retriever",
+      style: "data",
+      label: "top-k chunks",
+    });
+    const view = session.createConnection({
+      from: "shape:index",
+      to: "shape:retriever",
+      style: "data",
+      label: "kNN search",
+    });
+
+    const labels = view.connections.map((item) => item.labelPosition);
+    expect(labels[0]).toBe(0.28);
+    expect(labels[1]).toBe(0.72);
+    expect(labels[0]).not.toBe(labels[1]);
   });
 
   it("refuses an unknown connection edge and leaves Canvas State unchanged", () => {
@@ -941,14 +1254,16 @@ describe("canvas-agent session", () => {
       y: 20,
     });
     const titleId = created.flowTitles[0]?.id;
-    expect(created.flowTitles).toEqual([{ id: titleId, label: "Checkout" }]);
+    expect(created.flowTitles).toEqual([
+      titleView({ id: titleId, label: "Checkout", x: 40, y: 20 }),
+    ]);
 
     expect(
       session.moveShape({ id: titleId!, x: 80, y: 40 }).flowTitles,
-    ).toEqual([{ id: titleId, label: "Checkout" }]);
+    ).toEqual([titleView({ id: titleId, label: "Checkout", x: 80, y: 40 })]);
     expect(
       session.renameShape({ id: titleId!, label: "Pay" }).flowTitles,
-    ).toEqual([{ id: titleId, label: "Pay" }]);
+    ).toEqual([titleView({ id: titleId, label: "Pay", x: 80, y: 40 })]);
     expect(session.deleteShape(titleId!).flowTitles).toEqual([]);
   });
 
@@ -989,23 +1304,27 @@ describe("canvas-agent session", () => {
     });
 
     expect(
-      session.moveShape({ id: "shape:api", x: 420, y: 160 }).components,
-    ).toContainEqual({
-      id: "shape:api",
-      label: "API",
-      kind: "service",
-      x: 420,
-      y: 160,
-    });
+      session.moveShape({ id: "shape:api", x: 800, y: 160 }).components,
+    ).toContainEqual(
+      boxView({
+        id: "shape:api",
+        label: "API",
+        kind: "service",
+        x: 800,
+        y: 160,
+      }),
+    );
     expect(
       session.renameShape({ id: "shape:web", label: "Browser" }).components,
-    ).toContainEqual({
-      id: "shape:web",
-      label: "Browser",
-      kind: "client",
-      x: 40,
-      y: 80,
-    });
+    ).toContainEqual(
+      boxView({
+        id: "shape:web",
+        label: "Browser",
+        kind: "client",
+        x: 40,
+        y: 80,
+      }),
+    );
     expect(
       session.renameShape({ id: "shape:arrow", label: "gRPC" }).connections,
     ).toEqual([
@@ -1030,7 +1349,7 @@ describe("canvas-agent session", () => {
     ]);
     expect(session.deleteShape("shape:arrow").connections).toEqual([]);
     expect(session.deleteShape("shape:web").components).toEqual([
-      { id: "shape:api", label: "API", kind: "service", x: 420, y: 160 },
+      boxView({ id: "shape:api", label: "API", kind: "service", x: 800, y: 160 }),
     ]);
   });
 
@@ -1156,7 +1475,7 @@ describe("canvas-agent session", () => {
     expect(dual.editor?.getCurrentPageShapes()).toEqual([]);
   });
 
-  it("follows the touched shape on this tab and does not steal selection", () => {
+  it("draws without moving this tab's camera and does not steal selection", () => {
     const { session, editor } = createHarness({
       shapes: [
         shape({
@@ -1176,23 +1495,47 @@ describe("canvas-agent session", () => {
     const view = session.createComponent({
       kind: "service",
       label: "API",
-      x: 300,
+      x: 520,
       y: 80,
     });
     const createdId = view.components[1]?.id;
 
-    expect(editor?.zoomCalls).toEqual([{ x: 300, y: 80, w: 220, h: 100 }]);
+    expect(editor?.zoomCalls).toEqual([]);
     expect(editor?.selectedIds).toEqual(["shape:web"]);
     expect(createdId).toBeTruthy();
 
-    session.moveShape({ id: createdId!, x: 320, y: 100 });
-    expect(editor?.zoomCalls.at(-1)).toEqual({
-      x: 320,
-      y: 100,
-      w: 220,
-      h: 100,
-    });
+    session.moveShape({ id: createdId!, x: 800, y: 240 });
+    expect(editor?.zoomCalls).toEqual([]);
     expect(editor?.selectedIds).toEqual(["shape:web"]);
+  });
+
+  it("brings a zoomed-in camera back to 100% without framing the new shape", () => {
+    const { session, editor } = createHarness();
+    editor!.setZoom(5.91);
+
+    session.createComponent({ kind: "client", label: "Web" });
+
+    expect(editor?.zoom).toBe(1);
+    expect(editor?.zoomCalls).toEqual([]);
+  });
+
+  it("places an agent cursor on the touched shape", () => {
+    const { session, agentCursors } = createHarness();
+
+    const view = session.createComponent({
+      kind: "service",
+      label: "API",
+      x: 520,
+      y: 80,
+    });
+
+    expect(agentCursors).toEqual([{ x: 630, y: 130 }]);
+
+    session.renameShape({ id: view.components[0]!.id, label: "Gateway" });
+    expect(agentCursors.at(-1)).toEqual({ x: 630, y: 130 });
+
+    session.deleteShape(view.components[0]!.id);
+    expect(agentCursors.at(-1)).toEqual({ x: 630, y: 130 });
   });
 
   it("zooms this tab to named shapes without stealing selection", () => {

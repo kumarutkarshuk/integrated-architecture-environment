@@ -47,7 +47,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "read_canvas_state",
     description:
-      "Read a compact live view of this tab's Canvas State: kind boxes, arrows, Flow titles, and other shapes that cannot be edited.",
+      "Read a compact live view of this tab's Canvas State: kind boxes with x/y/w/h, arrows, Flow titles with x/y/w/h, and other shapes that cannot be edited.",
     inputSchema: { type: "object", properties: {} },
     run: () => session.readCanvasState(),
   });
@@ -55,7 +55,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "create_component",
     description:
-      "Add a labeled kind box (client, service, store, queue, storage, external) with generate colors. Optional x/y; otherwise placed near existing boxes.",
+      "Add a labeled kind box (client, service, store, queue, storage, external) with generate colors. Omit x/y unless you already read live positions. Overlapping x/y are ignored; the box is placed under the latest Flow title or to the right with room for arrow labels. Does not move the camera.",
     inputSchema: {
       type: "object",
       properties: {
@@ -78,7 +78,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "create_connection",
     description:
-      "Add a connection between two kind boxes. Style is sync (solid), async (dashed), or data (dotted). Optional short label. Optional fromEdge and toEdge are left, right, top, or bottom. Busy sides on either box are skipped, except a reverse arrow may share the facing sides on a parallel lane. Labels on the same pair are offset so they do not stack.",
+      "Add a connection between two kind boxes. Style is sync (solid), async (dashed), or data (dotted). Optional short label. Optional fromEdge and toEdge are left, right, top, or bottom. Busy sides are skipped. A path that would cut through another box is routed around it. Labels on the same box edge are offset so they do not stack. Does not move the camera.",
     inputSchema: {
       type: "object",
       properties: {
@@ -105,7 +105,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "create_flow_title",
     description:
-      "Add a Flow title the same way generate does (labeled geo title, not a tldraw frame). Optional x/y.",
+      "Add a Flow title the same way generate does (labeled geo title, not a tldraw frame). Long labels get a wider box so the text stays off the kind boxes below. Omit x/y to stack a new flow below existing content. Overlapping x/y are nudged off boxes. Does not move the camera.",
     inputSchema: {
       type: "object",
       properties: {
@@ -180,7 +180,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "zoom_view",
     description:
-      "Move this tab's camera so the User can see the work. Pass ids to frame those shapes, zoom in or out, or zoom fit for the whole page. Does not change selection.",
+      "Move this tab's camera so the User can see the work. Pass ids to frame those shapes, zoom in or out, or zoom fit for the whole page. Fit never goes past 100% zoom. Writes do not move the camera; call this only when the User should look. Does not change selection.",
     inputSchema: {
       type: "object",
       properties: {

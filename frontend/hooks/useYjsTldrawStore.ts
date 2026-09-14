@@ -25,6 +25,7 @@ import {
 import {
   bindCanvasPresence,
   type AwarenessLike,
+  type PresenceCursor,
   type PresenceIdentity,
 } from "../lib/presence";
 
@@ -84,6 +85,7 @@ export function useYjsTldrawStore(
   storeWithStatus: TLStoreWithStatus | null;
   saveStatus: CanvasSaveStatus;
   onEditorReady: (editor: Editor) => void;
+  publishAgentCursor: (cursor: PresenceCursor | null) => void;
 } {
   const { getToken } = useAuth();
   const [storeWithStatus, setStoreWithStatus] =
@@ -102,6 +104,10 @@ export function useYjsTldrawStore(
   const onEditorReady = useCallback((editor: Editor) => {
     focusPageWithShapes(editor);
     syncToYjsEnabledRef.current = true;
+  }, []);
+
+  const publishAgentCursor = useCallback((cursor: PresenceCursor | null) => {
+    presenceHandleRef.current?.publishAgentCursor(cursor);
   }, []);
 
   useEffect(() => {
@@ -414,5 +420,5 @@ export function useYjsTldrawStore(
     };
   }, [identity, presenceEpoch]);
 
-  return { storeWithStatus, saveStatus, onEditorReady };
+  return { storeWithStatus, saveStatus, onEditorReady, publishAgentCursor };
 }

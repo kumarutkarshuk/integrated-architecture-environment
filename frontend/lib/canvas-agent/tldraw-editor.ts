@@ -23,6 +23,8 @@ type ShapeProps = {
   text?: string;
   richText?: TLRichText;
   labelPosition?: number;
+  w?: number;
+  h?: number;
 };
 
 const BOX_WIDTH = 220;
@@ -103,6 +105,7 @@ export function createTldrawEditorPort(
           editor.zoomToBounds(bounds, {
             animation: { duration: 0 },
             inset: 72,
+            targetZoom: 1,
           });
         },
         { history: "ignore" },
@@ -124,6 +127,17 @@ export function createTldrawEditorPort(
           editor.zoomOut(editor.getViewportScreenCenter(), {
             animation: { duration: 0 },
           });
+        },
+        { history: "ignore" },
+      );
+    },
+    clampZoom(max) {
+      editor.run(
+        () => {
+          const camera = editor.getCamera();
+          if (camera.z > max) {
+            editor.setCamera({ x: camera.x, y: camera.y, z: max });
+          }
         },
         { history: "ignore" },
       );
@@ -235,6 +249,8 @@ function toPageShape(editor: Editor, shape: TLShape): CanvasAgentPageShape {
     type: shape.type,
     x: shape.x,
     y: shape.y,
+    w: props.w,
+    h: props.h,
     geo: props.geo,
     color: props.color,
     fill: props.fill,

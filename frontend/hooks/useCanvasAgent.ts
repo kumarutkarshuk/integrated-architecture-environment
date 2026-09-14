@@ -21,15 +21,18 @@ export function useCanvasAgent(
   projectStatus: string | null,
   editor: Editor | null,
   project: { id: string; name: string } | null,
+  onAgentCursor?: (cursor: { x: number; y: number }) => void,
 ) {
   const [allowed, setAllowedState] = useState(false);
   const [armConflict, setArmConflict] = useState<ArmConflict | null>(null);
   const statusRef = useRef(projectStatus);
   const editorRef = useRef(editor);
   const projectRef = useRef(project);
+  const onAgentCursorRef = useRef(onAgentCursor);
   statusRef.current = projectStatus;
   editorRef.current = editor;
   projectRef.current = project;
+  onAgentCursorRef.current = onAgentCursor;
 
   const busRef = useRef<ArmBus | null>(null);
   if (busRef.current === null) {
@@ -45,6 +48,9 @@ export function useCanvasAgent(
           ? createTldrawEditorPort(editorRef.current)
           : null,
       armBus,
+      onAgentCursor: (cursor) => {
+        onAgentCursorRef.current?.(cursor);
+      },
     }),
   );
 

@@ -252,6 +252,84 @@ describe("canvas presence module", () => {
     expect(awareness.getStates().get(1)?.cursor).toEqual({ x: 15, y: 25 });
   });
 
+  it("publishes an agent cursor labeled with the User's agent without hiding the local User", () => {
+    const store = createStore();
+    const awareness = new FakeAwareness(1);
+    const presence = bindCanvasPresence({
+      awareness,
+      store,
+      identity: localIdentity,
+    });
+
+    presence.publishAgentCursor({ x: 120, y: 40 });
+
+    const localState = awareness.getStates().get(1);
+    expect(localState).toMatchObject({
+      userId: "user-local",
+      name: "Ada",
+      cursor: expect.anything(),
+      agentCursor: { x: 120, y: 40 },
+    });
+
+    const agent = presenceRecords(store).find(
+      (record) => record.userName === "Ada's agent",
+    );
+    expect(agent).toMatchObject({
+      userName: "Ada's agent",
+      cursor: { x: 120, y: 40, type: "default", rotation: 0 },
+    });
+    expect(
+      presenceRecords(store).some((record) => record.userName === "Ada"),
+    ).toBe(false);
+  });
+
+  it("shows a remote Collaborator's agent cursor as a separate agent label", () => {
+    const store = createStore();
+    const awareness = new FakeAwareness(1);
+
+    bindCanvasPresence({
+      awareness,
+      store,
+      identity: localIdentity,
+    });
+
+    awareness.setClientState(7, {
+      ...remoteState,
+      agentCursor: { x: 200, y: 60 },
+    });
+
+    const remotes = presenceRecords(store);
+    expect(remotes).toHaveLength(2);
+    expect(remotes.find((record) => record.userName === "Bob")).toMatchObject({
+      cursor: { x: 40, y: 80, type: "default", rotation: 0 },
+    });
+    expect(remotes.find((record) => record.userName === "Bob's agent")).toMatchObject({
+      userName: "Bob's agent",
+      cursor: { x: 200, y: 60, type: "default", rotation: 0 },
+    });
+  });
+
+  it("removes the agent cursor when it is cleared", () => {
+    const store = createStore();
+    const awareness = new FakeAwareness(1);
+    const presence = bindCanvasPresence({
+      awareness,
+      store,
+      identity: localIdentity,
+    });
+
+    presence.publishAgentCursor({ x: 10, y: 10 });
+    expect(
+      presenceRecords(store).some((record) => record.userName === "Ada's agent"),
+    ).toBe(true);
+
+    presence.publishAgentCursor(null);
+    expect(awareness.getStates().get(1)?.agentCursor).toBeNull();
+    expect(
+      presenceRecords(store).some((record) => record.userName === "Ada's agent"),
+    ).toBe(false);
+  });
+
   it("keeps a remote collaborator's activity time when a different client updates", () => {
     const store = createStore();
     const awareness = new FakeAwareness(1);
