@@ -26,6 +26,8 @@ export type AwarenessLike = {
   off(event: "change", listener: () => void): void;
 };
 
+export const AGENT_CURSOR_NAME = "agent";
+export const AGENT_CURSOR_USER_ID = "agent";
 export const PRESENCE_THROTTLE_MS = 50;
 
 export const COLLABORATOR_COLORS = [
@@ -48,6 +50,7 @@ type PresenceState = {
   name: string;
   color: string;
   cursor: PresenceCursor | null;
+  agentCursor: PresenceCursor | null;
   lastActivityTimestamp: number;
 };
 
@@ -80,6 +83,7 @@ function readPresenceState(value: unknown): PresenceState | null {
     name: value.name,
     color: value.color,
     cursor: readCursor(value.cursor),
+    agentCursor: readCursor(value.agentCursor),
     lastActivityTimestamp:
       typeof value.lastActivityTimestamp === "number"
         ? value.lastActivityTimestamp
@@ -117,16 +121,40 @@ function toPresenceRecord(
   });
 }
 
+function toAgentPresenceRecord(
+  clientID: number,
+  cursor: PresenceCursor,
+  lastActivityTimestamp: number,
+  name: string,
+): TLInstancePresence {
+  return InstancePresenceRecordType.create({
+    id: InstancePresenceRecordType.createId(`agent:${clientID}`),
+    userId: createUserId(`${AGENT_CURSOR_USER_ID}:${clientID}`),
+    userName: `${name}'s ${AGENT_CURSOR_NAME}`,
+    color: colorForUserId(AGENT_CURSOR_USER_ID),
+    currentPageId: CANVAS_PAGE_ID as TLPageId,
+    cursor: {
+      x: cursor.x,
+      y: cursor.y,
+      type: "default",
+      rotation: 0,
+    },
+    lastActivityTimestamp,
+  });
+}
+
 export function bindCanvasPresence(options: {
   awareness: AwarenessLike;
   store: TLStore;
   identity: PresenceIdentity;
 }): {
   publishLocalCursor(cursor: PresenceCursor | null): void;
+  publishAgentCursor(cursor: PresenceCursor | null): void;
   disconnect(): void;
 } {
   const { awareness, store, identity } = options;
   const color = colorForUserId(identity.userId);
+  let localAgentCursor: PresenceCursor | null = null;
 
   function publishLocal(cursor: PresenceCursor | null): void {
     awareness.setLocalState({
@@ -134,6 +162,7 @@ export function bindCanvasPresence(options: {
       name: identity.name,
       color,
       cursor,
+      agentCursor: localAgentCursor,
       lastActivityTimestamp: Date.now(),
     });
   }
@@ -187,6 +216,17 @@ export function bindCanvasPresence(options: {
     const keep = new Set<TLInstancePresence["id"]>();
     const toPut: TLInstancePresence[] = [];
 
+    if (localAgentCursor) {
+      const localAgent = toAgentPresenceRecord(
+        awareness.clientID,
+        localAgentCursor,
+        Date.now(),
+        identity.name,
+      );
+      keep.add(localAgent.id);
+      toPut.push(localAgent);
+    }
+
     for (const [clientID, rawState] of awareness.getStates()) {
       if (clientID === awareness.clientID) {
         continue;
@@ -200,6 +240,17 @@ export function bindCanvasPresence(options: {
       const record = toPresenceRecord(clientID, state);
       keep.add(record.id);
       toPut.push(record);
+
+      if (state.agentCursor) {
+        const agent = toAgentPresenceRecord(
+          clientID,
+          state.agentCursor,
+          state.lastActivityTimestamp,
+          state.name,
+        );
+        keep.add(agent.id);
+        toPut.push(agent);
+      }
     }
 
     const toRemove = Object.values(store.serialize("presence"))
@@ -230,10 +281,17 @@ export function bindCanvasPresence(options: {
     { scope: "session" },
   );
 
+  function publishAgentCursor(cursor: PresenceCursor | null): void {
+    localAgentCursor = cursor;
+    publishLocal(lastPublishedCursor ?? cursorFromStore());
+    applyRemotePresence();
+  }
+
   let disconnected = false;
 
   return {
     publishLocalCursor,
+    publishAgentCursor,
     disconnect() {
       if (disconnected) {
         return;

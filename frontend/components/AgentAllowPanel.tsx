@@ -3,6 +3,7 @@
 import { Bot, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { FadeIn } from "./FadeIn";
+import { AiCue } from "./AiCue";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
@@ -29,31 +30,37 @@ export function AgentAllowPanel({
       fromX={8}
       className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 font-mono text-xs"
     >
-      <div className="flex items-start justify-between gap-3 rounded-lg border border-sidebar-border bg-panel p-2.5">
-        <div className="min-w-0 space-y-1">
-          <Label htmlFor="allow-agent" className="text-xs font-medium">
-            Allow a local agent to edit this canvas
-          </Label>
-          <p className="text-[10px] leading-relaxed text-muted">
-            Note: Reload turns it off.
-          </p>
-          {allowed ? (
-            <p className="text-[10px] text-accent">
-              The agent can read this canvas.
+      <div className="relative shrink-0 overflow-hidden rounded-lg border border-sidebar-border bg-panel px-3 pt-3 pb-4">
+        <AiCue duration={7} />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <Label
+              htmlFor="allow-agent"
+              className="block text-xs leading-snug font-medium"
+            >
+              Allow an agent to edit this canvas
+            </Label>
+            <p className="text-[10px] leading-relaxed text-muted">
+              Note: Reload turns it off.
             </p>
-          ) : null}
+            {allowed ? (
+              <p className="text-[10px] text-accent">
+                The agent can read this canvas.
+              </p>
+            ) : null}
+          </div>
+          <Switch
+            id="allow-agent"
+            checked={allowed}
+            onCheckedChange={onAllowedChange}
+            aria-label="Allow agent to edit this canvas"
+          />
         </div>
-        <Switch
-          id="allow-agent"
-          checked={allowed}
-          onCheckedChange={onAllowedChange}
-          aria-label="Allow agent to edit this canvas"
-        />
       </div>
 
       <div className="space-y-2">
         <p className="text-[10px] leading-relaxed text-muted">
-          Add this MCP config to Cursor, Claude Code, or Codex and keep this tab open.
+          Add this MCP config to Cursor, Claude Code, or Codex and ask the agent to use WebMCP to modify the canvas.
         </p>
         <SetupBlock title="Cursor" code={cursorRelayConfig(origin)} />
         <SetupBlock title="Claude Code" code={claudeCodeRelayCommand(origin)} />

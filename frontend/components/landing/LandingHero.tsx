@@ -42,7 +42,7 @@ export function LandingHero() {
   return (
     <section
       ref={containerRef}
-      className="relative flex h-full min-h-0 flex-col overflow-hidden"
+      className="relative flex min-h-full flex-1 flex-col items-center justify-center"
     >
       <GridPattern
         width={32}
@@ -50,15 +50,13 @@ export function LandingHero() {
         className="opacity-30 mask-[radial-gradient(ellipse_60%_50%_at_50%_40%,#000_70%,transparent_100%)]"
       />
 
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-center gap-8 px-4 py-8 md:flex-row md:items-center md:gap-10 md:px-8">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center justify-center gap-8 px-4 py-6 md:flex-row md:gap-10 md:px-8">
         <div className="landing-hero-copy max-w-md shrink-0">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
             Integrated Architecture Environment
           </h1>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted md:text-base">
-            Transform prompts into live, editable system topologies, collaborate
-            in real time on a shared canvas, export Markdown specs for coding
-            agents.
+            Draw systems, share the canvas, let AI agents take control through WebMCP.
           </p>
           <Button asChild size="sm" className="mt-5">
             <Link href="/workspace">Open Workspace</Link>

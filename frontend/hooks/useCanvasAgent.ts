@@ -7,7 +7,7 @@ import { createCanvasAgentSession } from "../lib/canvas-agent/session";
 import { createTldrawEditorPort } from "../lib/canvas-agent/tldraw-editor";
 import {
   mountWebMcpRelayEmbed,
-  registerCanvasReadTool,
+  registerCanvasAgentTools,
 } from "../lib/canvas-agent/webmcp";
 
 export type ArmConflict = {
@@ -21,15 +21,19 @@ export function useCanvasAgent(
   projectStatus: string | null,
   editor: Editor | null,
   project: { id: string; name: string } | null,
+  onAgentCursor?: (cursor: { x: number; y: number }) => void,
 ) {
   const [allowed, setAllowedState] = useState(false);
+  const [, setArmedTabIds] = useState("");
   const [armConflict, setArmConflict] = useState<ArmConflict | null>(null);
   const statusRef = useRef(projectStatus);
   const editorRef = useRef(editor);
   const projectRef = useRef(project);
+  const onAgentCursorRef = useRef(onAgentCursor);
   statusRef.current = projectStatus;
   editorRef.current = editor;
   projectRef.current = project;
+  onAgentCursorRef.current = onAgentCursor;
 
   const busRef = useRef<ArmBus | null>(null);
   if (busRef.current === null) {
@@ -45,6 +49,9 @@ export function useCanvasAgent(
           ? createTldrawEditorPort(editorRef.current)
           : null,
       armBus,
+      onAgentCursor: (cursor) => {
+        onAgentCursorRef.current?.(cursor);
+      },
     }),
   );
 
@@ -53,10 +60,18 @@ export function useCanvasAgent(
   }, []);
 
   useEffect(() => {
-    setAllowedState(armBus.hasClaim());
-    return armBus.subscribe(() => {
+    const syncAllowed = () => {
       setAllowedState(armBus.hasClaim());
-    });
+      setArmedTabIds(
+        armBus
+          .listArmed()
+          .map((claim) => claim.tabId)
+          .sort()
+          .join(","),
+      );
+    };
+    syncAllowed();
+    return armBus.subscribe(syncAllowed);
   }, [armBus]);
 
   useEffect(() => {
@@ -124,7 +139,14 @@ export function useCanvasAgent(
     }
 
     const abort = new AbortController();
-    void registerCanvasReadTool(sessionRef.current, abort.signal);
+    const session = sessionRef.current;
+    void (async () => {
+      await session.syncArms();
+      if (abort.signal.aborted || !session.shouldRegisterTools()) {
+        return;
+      }
+      await registerCanvasAgentTools(session, abort.signal);
+    })();
     return () => {
       abort.abort();
     };

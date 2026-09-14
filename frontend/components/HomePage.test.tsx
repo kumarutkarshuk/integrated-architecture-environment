@@ -52,11 +52,17 @@ describe("HomePage", () => {
       screen.getByRole("button", { name: "AI panel View" }),
     ).toBeDefined();
     expect(screen.getByText("AI panel")).toBeDefined();
+    expect(screen.getAllByText("WebMCP").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/AI agent/i).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("WebMCP local agent preview")).toBeDefined();
+    expect(screen.getAllByText("You").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Agent").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Teammate").length).toBeGreaterThan(0);
     expect(screen.queryByText("Idle")).toBeNull();
-    expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(1);
     expect(
       screen.getAllByRole("link", { name: "Utkarsh Kumar" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "GitHub" })[0].getAttribute("href")).toBe(
       "https://github.com/kumarutkarshuk/integrated-architecture-environment",
     );
@@ -77,6 +83,6 @@ describe("HomePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
     expect(screen.getByText("AI panel")).toBeDefined();
-    expect(screen.getByLabelText("AI chat preview")).toBeDefined();
+    expect(screen.getByLabelText("WebMCP local agent preview")).toBeDefined();
   });
 });

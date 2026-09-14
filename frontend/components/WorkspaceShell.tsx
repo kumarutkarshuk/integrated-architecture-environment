@@ -106,11 +106,12 @@ export function WorkspaceShell() {
       name: user.displayName ?? user.email,
     };
   }, [user]);
-  const { storeWithStatus, saveStatus, onEditorReady } = useYjsTldrawStore(
-    selectedProject?.id ?? null,
-    canvasEnabled,
-    presenceIdentity,
-  );
+  const { storeWithStatus, saveStatus, onEditorReady, publishAgentCursor } =
+    useYjsTldrawStore(
+      selectedProject?.id ?? null,
+      canvasEnabled,
+      presenceIdentity,
+    );
   const {
     allowed: agentAllowed,
     requestAllowed: requestAgentAllowed,
@@ -122,6 +123,7 @@ export function WorkspaceShell() {
     selectedProject
       ? { id: selectedProject.id, name: selectedProject.name }
       : null,
+    publishAgentCursor,
   );
 
   const handleEditorReady = useCallback(

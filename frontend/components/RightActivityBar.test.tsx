@@ -10,6 +10,16 @@ describe("RightActivityBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
 
     expect(onToggleAi).toHaveBeenCalledTimes(1);
+    expect(
+      screen
+        .getByRole("button", { name: "AI panel View" })
+        .querySelector(".animate-border-beam"),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "AI panel View" })
+        .querySelector(".animate-ai-sparkle"),
+    ).toBeTruthy();
   });
 
   it("does not close the AI panel when preview locks it open", () => {

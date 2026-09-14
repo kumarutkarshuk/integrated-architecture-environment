@@ -29,12 +29,21 @@ vi.mock("./ProjectCanvas", () => ({
 
 vi.mock("../lib/canvas-agent/webmcp", () => ({
   mountWebMcpRelayEmbed: () => undefined,
-  registerCanvasReadTool: async () => undefined,
+  registerCanvasAgentTools: async () => undefined,
 }));
 
 vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
   createTldrawEditorPort: () => ({
     getCurrentPageShapes: () => [],
+    isWritable: () => true,
+    getShapeBounds: () => null,
+    createShape: () => undefined,
+    updateShape: () => undefined,
+    deleteShape: () => undefined,
+    zoomToBounds: () => undefined,
+    zoomIn: () => undefined,
+    zoomOut: () => undefined,
+    clampZoom: () => undefined,
   }),
 }));
 
@@ -339,6 +348,21 @@ describe("WorkspaceShell", () => {
     expect(screen.getByText("Cursor")).toBeTruthy();
     expect(screen.getByText("Claude Code")).toBeTruthy();
     expect(screen.getByText("Codex")).toBeTruthy();
+    expect(
+      screen.getByText(/ask the agent to use WebMCP to modify the canvas/i),
+    ).toBeTruthy();
+    expect(screen.getByText(/Reload turns it off/i)).toBeTruthy();
+    expect(
+      screen
+        .getByRole("switch", { name: "Allow agent to edit this canvas" })
+        .closest(".relative")
+        ?.querySelector(".animate-border-beam"),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "AI panel View" })
+        .querySelector(".animate-border-beam"),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Copy Cursor setup" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Copy Claude Code setup" }),

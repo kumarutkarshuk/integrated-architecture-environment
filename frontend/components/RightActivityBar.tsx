@@ -31,7 +31,7 @@ export function RightActivityBar({
           onToggleAi();
         }}
       >
-        <Sparkles className="h-5 w-5" />
+        <Sparkles className="h-5 w-5 text-sky-400 animate-ai-sparkle" />
       </ActivityRailButton>
     </ActivityRail>
   );
