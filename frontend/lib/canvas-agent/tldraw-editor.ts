@@ -12,7 +12,7 @@ import type {
   CanvasAgentEditorPort,
   CanvasAgentPageShape,
 } from "./session";
-import { KIND_COLORS } from "./kinds";
+import { KIND_COLORS, alongFromAnchor, anchorFromEdge, edgeFromAnchor, parseConnectionEdge } from "./kinds";
 
 type ShapeProps = {
   geo?: string;
@@ -22,6 +22,7 @@ type ShapeProps = {
   size?: string;
   text?: string;
   richText?: TLRichText;
+  labelPosition?: number;
 };
 
 const BOX_WIDTH = 220;
@@ -107,6 +108,26 @@ export function createTldrawEditorPort(
         { history: "ignore" },
       );
     },
+    zoomIn() {
+      editor.run(
+        () => {
+          editor.zoomIn(editor.getViewportScreenCenter(), {
+            animation: { duration: 0 },
+          });
+        },
+        { history: "ignore" },
+      );
+    },
+    zoomOut() {
+      editor.run(
+        () => {
+          editor.zoomOut(editor.getViewportScreenCenter(), {
+            animation: { duration: 0 },
+          });
+        },
+        { history: "ignore" },
+      );
+    },
   };
 }
 
@@ -129,14 +150,29 @@ function createArrow(editor: Editor, shape: CanvasAgentPageShape): void {
       arrowheadEnd: "arrow",
       font: "draw",
       richText: toRichText(shape.label),
+      labelPosition: shape.labelPosition ?? 0.5,
     },
     meta: shape.generatedFrom ? { generatedFrom: shape.generatedFrom } : {},
   });
   if (shape.fromShapeId) {
-    bindArrowEnd(editor, id, shape.fromShapeId, "start", { x: 1, y: 0.5 });
+    const fromEdge = parseConnectionEdge(shape.fromEdge ?? "") ?? "right";
+    bindArrowEnd(
+      editor,
+      id,
+      shape.fromShapeId,
+      "start",
+      anchorFromEdge(fromEdge, shape.fromAlong ?? 0.5),
+    );
   }
   if (shape.toShapeId) {
-    bindArrowEnd(editor, id, shape.toShapeId, "end", { x: 0, y: 0.5 });
+    const toEdge = parseConnectionEdge(shape.toEdge ?? "") ?? "left";
+    bindArrowEnd(
+      editor,
+      id,
+      shape.toShapeId,
+      "end",
+      anchorFromEdge(toEdge, shape.toAlong ?? 0.5),
+    );
   }
 }
 
@@ -156,7 +192,7 @@ function bindArrowEnd(
       terminal,
       normalizedAnchor,
       isExact: false,
-      isPrecise: false,
+      isPrecise: true,
       snap: "edge",
     },
   });
@@ -187,10 +223,12 @@ function toPageShape(editor: Editor, shape: TLShape): CanvasAgentPageShape {
     shape.type === "arrow"
       ? editor.getBindingsFromShape(shape.id, "arrow")
       : [];
-  const fromShapeId = bindings.find((binding) => binding.props.terminal === "start")
-    ?.toId;
-  const toShapeId = bindings.find((binding) => binding.props.terminal === "end")
-    ?.toId;
+  const startBinding = bindings.find(
+    (binding) => binding.props.terminal === "start",
+  );
+  const endBinding = bindings.find(
+    (binding) => binding.props.terminal === "end",
+  );
 
   return {
     id: shape.id,
@@ -204,8 +242,27 @@ function toPageShape(editor: Editor, shape: TLShape): CanvasAgentPageShape {
     size: props.size,
     label: shapeLabel(editor, props),
     generatedFrom,
-    fromShapeId,
-    toShapeId,
+    fromShapeId: startBinding?.toId,
+    toShapeId: endBinding?.toId,
+    fromEdge: startBinding
+      ? edgeFromAnchor(startBinding.props.normalizedAnchor)
+      : undefined,
+    toEdge: endBinding
+      ? edgeFromAnchor(endBinding.props.normalizedAnchor)
+      : undefined,
+    fromAlong: startBinding
+      ? alongFromAnchor(
+          edgeFromAnchor(startBinding.props.normalizedAnchor),
+          startBinding.props.normalizedAnchor,
+        )
+      : undefined,
+    toAlong: endBinding
+      ? alongFromAnchor(
+          edgeFromAnchor(endBinding.props.normalizedAnchor),
+          endBinding.props.normalizedAnchor,
+        )
+      : undefined,
+    labelPosition: props.labelPosition,
   };
 }
 

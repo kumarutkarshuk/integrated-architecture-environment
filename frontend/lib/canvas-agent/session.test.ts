@@ -17,6 +17,8 @@ function createFakeEditor(
 ): CanvasAgentEditorPort & {
   selectedIds: string[];
   zoomCalls: ShapeBounds[];
+  zoomInCount: number;
+  zoomOutCount: number;
   setShapes(next: CanvasAgentPageShape[]): void;
   setWritable(next: boolean): void;
 } {
@@ -24,10 +26,18 @@ function createFakeEditor(
   let isWritable = writable;
   const zoomCalls: ShapeBounds[] = [];
   const selectedIds: string[] = [];
+  let zoomInCount = 0;
+  let zoomOutCount = 0;
 
   return {
     selectedIds,
     zoomCalls,
+    get zoomInCount() {
+      return zoomInCount;
+    },
+    get zoomOutCount() {
+      return zoomOutCount;
+    },
     getCurrentPageShapes() {
       return shapes;
     },
@@ -65,6 +75,12 @@ function createFakeEditor(
     },
     zoomToBounds(bounds) {
       zoomCalls.push(bounds);
+    },
+    zoomIn() {
+      zoomInCount += 1;
+    },
+    zoomOut() {
+      zoomOutCount += 1;
     },
   };
 }
@@ -598,18 +614,27 @@ describe("canvas-agent session", () => {
         to: "shape:api",
         style: "sync",
         label: "HTTPS",
+        fromEdge: "right",
+        toEdge: "left",
+        labelPosition: 0.28,
       },
       {
         id: expect.any(String),
         from: "shape:api",
         to: "shape:jobs",
         style: "async",
+        fromEdge: "right",
+        toEdge: "left",
+        labelPosition: 0.28,
       },
       {
         id: expect.any(String),
         from: "shape:jobs",
         to: "shape:api",
         style: "data",
+        fromEdge: "left",
+        toEdge: "right",
+        labelPosition: 0.72,
       },
     ]);
     expect(
@@ -653,6 +678,235 @@ describe("canvas-agent session", () => {
         style: "rpc",
       }),
     ).toThrow("unknown style");
+    expect(session.readCanvasState().connections).toEqual([]);
+  });
+
+  it("attaches a connection to chosen box edges", () => {
+    const { session, editor } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+        shape({
+          id: "shape:api",
+          type: "geo",
+          x: 300,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "API",
+        }),
+      ],
+    });
+
+    const view = session.createConnection({
+      from: "shape:web",
+      to: "shape:api",
+      style: "sync",
+      label: "GET",
+      fromEdge: "bottom",
+      toEdge: "top",
+    });
+
+    expect(view.connections).toEqual([
+      {
+        id: expect.any(String),
+        from: "shape:web",
+        to: "shape:api",
+        style: "sync",
+        label: "GET",
+        fromEdge: "bottom",
+        toEdge: "top",
+        labelPosition: 0.28,
+      },
+    ]);
+    expect(
+      editor
+        ?.getCurrentPageShapes()
+        .find((item) => item.type === "arrow"),
+    ).toMatchObject({ fromEdge: "bottom", toEdge: "top" });
+  });
+
+  it("does not reuse a busy edge pair when adding another arrow", () => {
+    const { session, editor } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+        shape({
+          id: "shape:api",
+          type: "geo",
+          x: 300,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "API",
+        }),
+        shape({
+          id: "shape:arrow",
+          type: "arrow",
+          x: 260,
+          y: 120,
+          dash: "solid",
+          label: "HTTPS",
+          fromShapeId: "shape:web",
+          toShapeId: "shape:api",
+          fromEdge: "right",
+          toEdge: "left",
+        }),
+      ],
+    });
+
+    const skipped = session.createConnection({
+      from: "shape:web",
+      to: "shape:api",
+      style: "async",
+      label: "retry",
+    });
+    expect(skipped.connections.at(-1)).toMatchObject({
+      from: "shape:web",
+      to: "shape:api",
+      fromEdge: "top",
+      toEdge: "top",
+      labelPosition: 0.28,
+    });
+
+    const overridden = session.createConnection({
+      from: "shape:api",
+      to: "shape:web",
+      style: "data",
+      fromEdge: "left",
+      toEdge: "right",
+    });
+    expect(overridden.connections.at(-1)).toMatchObject({
+      from: "shape:api",
+      to: "shape:web",
+      fromEdge: "left",
+      toEdge: "right",
+      labelPosition: 0.72,
+    });
+    expect(
+      editor
+        ?.getCurrentPageShapes()
+        .filter((item) => item.type === "arrow")
+        .at(-1),
+    ).toMatchObject({ fromAlong: 0.34, toAlong: 0.34 });
+  });
+
+  it("does not reuse a box edge that already has an arrow to another box", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:client",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Client",
+        }),
+        shape({
+          id: "shape:api",
+          type: "geo",
+          x: 300,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "API Gateway",
+        }),
+        shape({
+          id: "shape:store",
+          type: "geo",
+          x: 560,
+          y: 80,
+          geo: "rectangle",
+          color: "green",
+          fill: "solid",
+          label: "Store",
+        }),
+        shape({
+          id: "shape:arrow-out",
+          type: "arrow",
+          x: 260,
+          y: 120,
+          dash: "solid",
+          label: "resolve",
+          fromShapeId: "shape:client",
+          toShapeId: "shape:store",
+          fromEdge: "right",
+          toEdge: "left",
+        }),
+      ],
+    });
+
+    const view = session.createConnection({
+      from: "shape:client",
+      to: "shape:api",
+      style: "sync",
+      label: "GET /codes",
+      fromEdge: "right",
+      toEdge: "left",
+    });
+    expect(view.connections.at(-1)).toMatchObject({
+      from: "shape:client",
+      to: "shape:api",
+      fromEdge: "top",
+      toEdge: "top",
+    });
+  });
+
+  it("refuses an unknown connection edge and leaves Canvas State unchanged", () => {
+    const { session } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+        shape({
+          id: "shape:api",
+          type: "geo",
+          x: 300,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "API",
+        }),
+      ],
+    });
+
+    expect(() =>
+      session.createConnection({
+        from: "shape:web",
+        to: "shape:api",
+        style: "sync",
+        fromEdge: "middle",
+      }),
+    ).toThrow("unknown edge");
     expect(session.readCanvasState().connections).toEqual([]);
   });
 
@@ -917,5 +1171,55 @@ describe("canvas-agent session", () => {
       h: 100,
     });
     expect(editor?.selectedIds).toEqual(["shape:web"]);
+  });
+
+  it("zooms this tab to named shapes without stealing selection", () => {
+    const { session, editor } = createHarness({
+      shapes: [
+        shape({
+          id: "shape:web",
+          type: "geo",
+          x: 40,
+          y: 80,
+          geo: "rectangle",
+          color: "blue",
+          fill: "solid",
+          label: "Web",
+        }),
+        shape({
+          id: "shape:api",
+          type: "geo",
+          x: 300,
+          y: 80,
+          geo: "rectangle",
+          color: "violet",
+          fill: "solid",
+          label: "API",
+        }),
+      ],
+    });
+    editor!.selectedIds.push("shape:web");
+    editor!.zoomCalls.length = 0;
+
+    session.zoomView({ ids: ["shape:web", "shape:api"] });
+
+    expect(editor?.zoomCalls).toEqual([{ x: 40, y: 80, w: 480, h: 100 }]);
+    expect(editor?.selectedIds).toEqual(["shape:web"]);
+  });
+
+  it("zooms in and out on this tab", () => {
+    const { session, editor } = createHarness();
+
+    session.zoomView({ zoom: "in" });
+    session.zoomView({ zoom: "out" });
+
+    expect(editor?.zoomInCount).toBe(1);
+    expect(editor?.zoomOutCount).toBe(1);
+  });
+
+  it("refuses zoom when the agent is not allowed on this tab", () => {
+    const { session } = createHarness({ allowed: false });
+
+    expect(() => session.zoomView({ zoom: "in" })).toThrow("not allowed");
   });
 });

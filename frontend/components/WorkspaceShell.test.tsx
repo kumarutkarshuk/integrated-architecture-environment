@@ -41,6 +41,8 @@ vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
     updateShape: () => undefined,
     deleteShape: () => undefined,
     zoomToBounds: () => undefined,
+    zoomIn: () => undefined,
+    zoomOut: () => undefined,
   }),
 }));
 

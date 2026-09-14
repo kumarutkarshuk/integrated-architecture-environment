@@ -78,7 +78,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "create_connection",
     description:
-      "Add a connection between two kind boxes. Style is sync (solid), async (dashed), or data (dotted). Optional short label.",
+      "Add a connection between two kind boxes. Style is sync (solid), async (dashed), or data (dotted). Optional short label. Optional fromEdge and toEdge are left, right, top, or bottom. Busy sides on either box are skipped, except a reverse arrow may share the facing sides on a parallel lane. Labels on the same pair are offset so they do not stack.",
     inputSchema: {
       type: "object",
       properties: {
@@ -86,6 +86,8 @@ export async function registerCanvasAgentTools(
         to: { type: "string" },
         style: { type: "string" },
         label: { type: "string" },
+        fromEdge: { type: "string" },
+        toEdge: { type: "string" },
       },
       required: ["from", "to", "style"],
     },
@@ -95,6 +97,8 @@ export async function registerCanvasAgentTools(
         to: stringArg(input, "to"),
         style: stringArg(input, "style"),
         label: optionalStringArg(input, "label"),
+        fromEdge: optionalStringArg(input, "fromEdge"),
+        toEdge: optionalStringArg(input, "toEdge"),
       }),
   });
 
@@ -172,6 +176,24 @@ export async function registerCanvasAgentTools(
     },
     run: (input) => session.deleteShape(stringArg(input, "id")),
   });
+
+  await registerTool(modelContext, session, signal, {
+    name: "zoom_view",
+    description:
+      "Move this tab's camera so the User can see the work. Pass ids to frame those shapes, zoom in or out, or zoom fit for the whole page. Does not change selection.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ids: { type: "array", items: { type: "string" } },
+        zoom: { type: "string" },
+      },
+    },
+    run: (input) =>
+      session.zoomView({
+        ids: stringArrayArg(input, "ids"),
+        zoom: optionalStringArg(input, "zoom"),
+      }),
+  });
 }
 
 async function registerTool(
@@ -230,6 +252,18 @@ function numberArg(
 ): number | undefined {
   const value = input?.[key];
   return typeof value === "number" ? value : undefined;
+}
+
+function stringArrayArg(
+  input: Record<string, unknown> | undefined,
+  key: string,
+): string[] | undefined {
+  const value = input?.[key];
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const ids = value.filter((item): item is string => typeof item === "string");
+  return ids.length > 0 ? ids : undefined;
 }
 
 async function getModelContext(): Promise<ModelContext | null> {
