@@ -348,10 +348,10 @@ describe("WorkspaceShell", () => {
     expect(screen.getByText("Cursor")).toBeTruthy();
     expect(screen.getByText("Claude Code")).toBeTruthy();
     expect(screen.getByText("Codex")).toBeTruthy();
-    expect(screen.getByText(/Tell your agent to use webmcp/i)).toBeTruthy();
     expect(
-      screen.getByText(/Codex does not find this canvas unless you put webmcp/i),
+      screen.getByText(/ask the agent to use WebMCP to modify the canvas/i),
     ).toBeTruthy();
+    expect(screen.getByText(/Reload turns it off/i)).toBeTruthy();
     expect(
       screen
         .getByRole("switch", { name: "Allow agent to edit this canvas" })
