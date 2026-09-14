@@ -47,7 +47,7 @@ export async function registerCanvasAgentTools(
   await registerTool(modelContext, session, signal, {
     name: "read_canvas_state",
     description:
-      "Read a compact live view of this tab's Canvas State: kind boxes with x/y/w/h, arrows, Flow titles with x/y/w/h, and other shapes that cannot be edited.",
+      "Read a compact live view of this tab's Canvas State: kind boxes with x/y/w/h, arrows, Flow titles with x/y/w/h, and other shapes that cannot be edited. If two windows have agents allowed, this fails and tells you to turn Allow agent off in one window.",
     inputSchema: { type: "object", properties: {} },
     run: () => session.readCanvasState(),
   });

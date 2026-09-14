@@ -24,6 +24,7 @@ export function useCanvasAgent(
   onAgentCursor?: (cursor: { x: number; y: number }) => void,
 ) {
   const [allowed, setAllowedState] = useState(false);
+  const [, setArmedTabIds] = useState("");
   const [armConflict, setArmConflict] = useState<ArmConflict | null>(null);
   const statusRef = useRef(projectStatus);
   const editorRef = useRef(editor);
@@ -59,10 +60,18 @@ export function useCanvasAgent(
   }, []);
 
   useEffect(() => {
-    setAllowedState(armBus.hasClaim());
-    return armBus.subscribe(() => {
+    const syncAllowed = () => {
       setAllowedState(armBus.hasClaim());
-    });
+      setArmedTabIds(
+        armBus
+          .listArmed()
+          .map((claim) => claim.tabId)
+          .sort()
+          .join(","),
+      );
+    };
+    syncAllowed();
+    return armBus.subscribe(syncAllowed);
   }, [armBus]);
 
   useEffect(() => {
@@ -130,7 +139,14 @@ export function useCanvasAgent(
     }
 
     const abort = new AbortController();
-    void registerCanvasAgentTools(sessionRef.current, abort.signal);
+    const session = sessionRef.current;
+    void (async () => {
+      await session.syncArms();
+      if (abort.signal.aborted || !session.shouldRegisterTools()) {
+        return;
+      }
+      await registerCanvasAgentTools(session, abort.signal);
+    })();
     return () => {
       abort.abort();
     };

@@ -182,7 +182,11 @@ export function createCanvasAgentSession(
 ): CanvasAgentSession {
   return {
     shouldRegisterTools() {
-      return isReady(deps.getProjectStatus()) && deps.armBus.hasClaim();
+      return (
+        isReady(deps.getProjectStatus()) &&
+        deps.armBus.hasClaim() &&
+        isToolHost(deps.armBus)
+      );
     },
     syncArms() {
       return deps.armBus.sync();
@@ -967,9 +971,22 @@ function assertExclusiveActiveProject(armBus: ArmBus): void {
   throw new CanvasAgentError(dualActiveProjectMessage(armed));
 }
 
+function isToolHost(armBus: ArmBus): boolean {
+  const armed = armBus.listArmed();
+  if (armed.length <= 1) {
+    return true;
+  }
+  const host = [...armed].sort((left, right) =>
+    left.tabId.localeCompare(right.tabId),
+  )[0];
+  return host?.tabId === armBus.tabId;
+}
+
 function dualActiveProjectMessage(armed: ArmedProject[]): string {
-  const names = armed.map((claim) => `"${claim.projectName}"`).join(" and ");
-  return `${names} are both Active Projects.`;
+  const names = [...new Set(armed.map((claim) => claim.projectName))]
+    .map((name) => `"${name}"`)
+    .join(" and ");
+  return `Two windows have agents allowed (${names}). Turn off Allow agent in one window, then try again.`;
 }
 
 function isReady(status: string | null): boolean {

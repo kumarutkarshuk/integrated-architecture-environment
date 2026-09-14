@@ -463,7 +463,42 @@ describe("canvas-agent session", () => {
     expect(session.shouldRegisterTools()).toBe(true);
     await session.syncArms();
     expect(() => session.readCanvasState()).toThrow(
-      '"Checkout" and "Payments" are both Active Projects.',
+      'Two windows have agents allowed ("Checkout" and "Payments"). Turn off Allow agent in one window, then try again.',
+    );
+  });
+
+  it("keeps tools on one window so the agent hears that two windows have agents allowed", () => {
+    const network = createMemoryArmNetwork();
+    network.seed([
+      {
+        tabId: "tab-a",
+        projectId: "project-1",
+        projectName: "Checkout",
+      },
+      {
+        tabId: "tab-b",
+        projectId: "project-1",
+        projectName: "Checkout",
+      },
+    ]);
+    const first = createHarness({
+      network,
+      armBus: network.attach("tab-a"),
+      allowed: false,
+    });
+    const second = createHarness({
+      network,
+      armBus: network.attach("tab-b"),
+      allowed: false,
+    });
+
+    const hosts = [first, second].filter((item) =>
+      item.session.shouldRegisterTools(),
+    );
+
+    expect(hosts).toHaveLength(1);
+    expect(() => hosts[0]?.session.readCanvasState()).toThrow(
+      'Two windows have agents allowed ("Checkout"). Turn off Allow agent in one window, then try again.',
     );
   });
 
@@ -1471,7 +1506,9 @@ describe("canvas-agent session", () => {
     await dual.session.syncArms();
     expect(() =>
       dual.session.createComponent({ kind: "client", label: "Web" }),
-    ).toThrow('"Checkout" and "Payments" are both Active Projects.');
+    ).toThrow(
+      'Two windows have agents allowed ("Checkout" and "Payments"). Turn off Allow agent in one window, then try again.',
+    );
     expect(dual.editor?.getCurrentPageShapes()).toEqual([]);
   });
 
