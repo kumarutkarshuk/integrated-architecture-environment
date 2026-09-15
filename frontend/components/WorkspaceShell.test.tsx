@@ -15,6 +15,8 @@ const workspaceState = vi.hoisted(() => ({
   exportSpec: async () => undefined as void,
 }));
 
+const webMcpSupport = vi.hoisted(() => ({ compatible: true }));
+
 vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div>Account</div>,
 }));
@@ -39,6 +41,10 @@ vi.mock("./ProjectCanvas", () => ({
 vi.mock("../lib/canvas-agent/webmcp", () => ({
   mountWebMcpRelayEmbed: () => undefined,
   registerCanvasAgentTools: async () => undefined,
+}));
+
+vi.mock("../lib/canvas-agent/webmcp-support", () => ({
+  isWebMcpCompatibleBrowser: () => webMcpSupport.compatible,
 }));
 
 vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
@@ -219,6 +225,7 @@ describe("WorkspaceShell", () => {
     workspaceState.projectStatus = "ready";
     workspaceState.spec = null;
     workspaceState.exportSpec = async () => undefined;
+    webMcpSupport.compatible = true;
     vi.mocked(toast).mockReset();
     vi.mocked(toast.error).mockReset();
     vi.mocked(toast.success).mockReset();
@@ -388,10 +395,16 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
     expect(screen.getByText(/Reload turns it off/i)).toBeTruthy();
     expect(
-      screen.getByText(
-        /Only WebMCP browsers can let an AI agent draw on this canvas/i,
-      ),
-    ).toBeTruthy();
+      (
+        screen.getByRole("switch", {
+          name: "Allow agent to edit this canvas",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      screen.queryByText(/This browser cannot let an agent draw/i),
+    ).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
     expect(
       screen
         .getByRole("switch", { name: "Allow agent to edit this canvas" })
@@ -409,6 +422,25 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy Codex setup" })).toBeTruthy();
     expect(screen.queryByText("Chat coming soon...")).toBeNull();
+  });
+
+  it("disables Allow agent with a reason when the browser is not WebMCP compatible", () => {
+    webMcpSupport.compatible = false;
+
+    render(<WorkspaceShell />);
+
+    const allowSwitch = screen.getByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    }) as HTMLButtonElement;
+
+    expect(allowSwitch.disabled).toBe(true);
+    expect(
+      screen.getByText(
+        "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Reload turns it off/i)).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
   });
 
   it("copies Cursor setup from the AI panel", async () => {

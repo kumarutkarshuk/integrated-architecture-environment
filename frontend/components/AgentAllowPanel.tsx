@@ -1,7 +1,6 @@
 "use client";
 
 import { Bot, Copy } from "lucide-react";
-import { useEffect } from "react";
 import { toast } from "sonner";
 import { FadeIn } from "./FadeIn";
 import { AiCue } from "./AiCue";
@@ -29,8 +28,6 @@ interface AgentAllowPanelProps {
   onAllowedChange: (allowed: boolean) => void;
 }
 
-let webMcpSupportToasted = false;
-
 export function AgentAllowPanel({
   allowed,
   isLoading = false,
@@ -38,15 +35,6 @@ export function AgentAllowPanel({
 }: AgentAllowPanelProps) {
   const origin = getWidgetOrigin();
   const webMcpCompatible = isWebMcpCompatibleBrowser();
-
-  useEffect(() => {
-    if (!webMcpCompatible || webMcpSupportToasted) {
-      return;
-    }
-
-    webMcpSupportToasted = true;
-    toast("This browser can let an AI agent draw on the canvas.");
-  }, [webMcpCompatible]);
 
   return (
     <FadeIn
@@ -63,13 +51,15 @@ export function AgentAllowPanel({
             >
               Allow an agent to edit this canvas
             </Label>
-            <p className="text-[10px] leading-relaxed text-muted">
-              Note: Reload turns it off.
+            <p
+              id="allow-agent-reason"
+              className="text-[10px] leading-relaxed text-muted"
+            >
               {webMcpCompatible
-                ? null
-                : " Only WebMCP browsers can let an AI agent draw on this canvas."}
+                ? "Note: Reload turns it off."
+                : "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge."}
             </p>
-            {allowed ? (
+            {allowed && webMcpCompatible ? (
               <p className="text-[10px] text-accent">
                 The agent can read this canvas.
               </p>
@@ -77,9 +67,11 @@ export function AgentAllowPanel({
           </div>
           <Switch
             id="allow-agent"
-            checked={allowed}
+            checked={allowed && webMcpCompatible}
+            disabled={!webMcpCompatible}
             onCheckedChange={onAllowedChange}
             aria-label="Allow agent to edit this canvas"
+            aria-describedby="allow-agent-reason"
           />
         </div>
       </div>
