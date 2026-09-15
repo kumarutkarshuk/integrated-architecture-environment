@@ -5,6 +5,10 @@ export const TLDRAW_OPTIONS = {
   maxPages: 1,
 } as const;
 
+// Public client key. tldraw checks it locally; it is not a secret.
+export const TLDRAW_LICENSE_KEY =
+  "tldraw-2026-09-29/WyJTWGhwd0dpUCIsWyIqIl0sMTYsIjIwMjYtMDktMjkiXQ.N6K8CC2Nux0ZSIxMXo6XXZaBCE1q6rITtYuhdQ2qYBLnvnXxFKTdjmfiaqKDnxlbkGY1HQXpwHtonui5Pbmxng";
+
 const LEGACY_PAGE_ID = "page:preview";
 const INDEX_DIGITS =
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

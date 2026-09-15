@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { Tldraw } from "tldraw";
 import type { Editor, TLStoreWithStatus } from "tldraw";
 import type { CanvasSaveStatus } from "../hooks/useYjsTldrawStore";
-import { TLDRAW_OPTIONS } from "../lib/canvas";
+import { TLDRAW_LICENSE_KEY, TLDRAW_OPTIONS } from "../lib/canvas";
 import "tldraw/tldraw.css";
 
 function applyReadOnly(editor: Editor | null, readOnly: boolean) {
@@ -77,6 +77,7 @@ export function ProjectCanvas({
       <Tldraw
         store={storeWithStatus.store}
         options={TLDRAW_OPTIONS}
+        licenseKey={TLDRAW_LICENSE_KEY}
         colorScheme="dark"
         onMount={handleMount}
       />

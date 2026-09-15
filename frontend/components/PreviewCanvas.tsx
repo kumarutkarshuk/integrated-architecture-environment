@@ -14,6 +14,7 @@ import {
   CANVAS_PAGE_ID,
   frameCanvasContent,
   normalizeCanvasRecords,
+  TLDRAW_LICENSE_KEY,
   TLDRAW_OPTIONS,
 } from "../lib/canvas";
 import "tldraw/tldraw.css";
@@ -83,6 +84,7 @@ export function PreviewCanvas({ records }: PreviewCanvasProps) {
       <Tldraw
         store={storeWithStatus.store}
         options={TLDRAW_OPTIONS}
+        licenseKey={TLDRAW_LICENSE_KEY}
         hideUi
         colorScheme="dark"
         onMount={(editor) => {
