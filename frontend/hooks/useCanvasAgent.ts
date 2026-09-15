@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "tldraw";
+import { captureProductEvent } from "../lib/analytics";
 import { createBrowserArmBus, type ArmBus } from "../lib/canvas-agent/arm-bus";
 import { createCanvasAgentSession } from "../lib/canvas-agent/session";
 import { createTldrawEditorPort } from "../lib/canvas-agent/tldraw-editor";
@@ -102,9 +103,14 @@ export function useCanvasAgent(
   const requestAllowed = useCallback(
     (next: boolean) => {
       if (!next) {
+        const projectId = projectRef.current?.id;
         armBus.release();
         setAllowedState(false);
         setArmConflict(null);
+        captureProductEvent(
+          "agent_disallowed",
+          projectId ? { projectId } : undefined,
+        );
         return;
       }
 
@@ -117,6 +123,7 @@ export function useCanvasAgent(
       if (result.ok) {
         setAllowedState(true);
         setArmConflict(null);
+        captureProductEvent("agent_allowed", { projectId: current.id });
         return;
       }
 
@@ -124,6 +131,7 @@ export function useCanvasAgent(
         thisProjectName: current.name,
         otherProjectName: result.holder.projectName,
       });
+      captureProductEvent("agent_arm_conflict", { projectId: current.id });
     },
     [armBus],
   );
@@ -134,6 +142,7 @@ export function useCanvasAgent(
       if (choice === "switch" && current) {
         armBus.takeOver(current);
         setAllowedState(true);
+        captureProductEvent("agent_allowed", { projectId: current.id });
       }
       setArmConflict(null);
     },

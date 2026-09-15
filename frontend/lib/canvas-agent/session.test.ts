@@ -190,6 +190,14 @@ describe("canvas-agent session", () => {
     expect(session.shouldRegisterTools()).toBe(false);
   });
 
+  it("reports the armed Project id for this tab", () => {
+    const { session, setAllowed } = createHarness();
+
+    expect(session.armedProjectId()).toBe("project-1");
+    setAllowed(false);
+    expect(session.armedProjectId()).toBe(null);
+  });
+
   it("registers tools only when the Project is ready and this tab is allowed", () => {
     const { session, setStatus, setAllowed } = createHarness({
       status: "ready",

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureProductEvent } from "../lib/analytics";
 import { createMemoryArmNetwork } from "../lib/canvas-agent/arm-bus";
 import { toast } from "sonner";
 import { WorkspaceShell } from "./WorkspaceShell";
@@ -23,6 +24,12 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     error: vi.fn(),
   }),
+}));
+
+vi.mock("../lib/analytics", () => ({
+  captureProductEvent: vi.fn(),
+  identifySignedInUser: vi.fn(),
+  initSignedInAnalytics: vi.fn(),
 }));
 
 vi.mock("./ProjectCanvas", () => ({
@@ -215,6 +222,7 @@ describe("WorkspaceShell", () => {
     vi.mocked(toast).mockReset();
     vi.mocked(toast.error).mockReset();
     vi.mocked(toast.success).mockReset();
+    vi.mocked(captureProductEvent).mockReset();
     clipboardWriteText.mockReset();
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -413,6 +421,25 @@ describe("WorkspaceShell", () => {
         expect.stringContaining("mcpServers"),
       );
     });
+    expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+      client: "cursor",
+    });
+  });
+
+  it("records mcp_config_copied for Claude Code and Codex", async () => {
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Claude Code setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Codex setup" }));
+
+    await waitFor(() => {
+      expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+        client: "claude_code",
+      });
+    });
+    expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+      client: "codex",
+    });
   });
 
   it("shows Allow agent on a ready prompt Project", () => {
@@ -478,6 +505,9 @@ describe("WorkspaceShell", () => {
       screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
         .getAttribute("aria-checked"),
     ).toBe("true");
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_allowed", {
+      projectId: "project-1",
+    });
 
     unmount();
     render(<WorkspaceShell />);
@@ -498,6 +528,9 @@ describe("WorkspaceShell", () => {
     expect(within(dialog).getByRole("button", { name: "Switch" })).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
     expect(armHarness.getBus().hasClaim()).toBe(false);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_arm_conflict", {
+      projectId: "project-1",
+    });
   });
 
   it("keeps the first tab armed when Keep is chosen", () => {
@@ -530,6 +563,9 @@ describe("WorkspaceShell", () => {
         projectName: "Owned Canvas",
       },
     ]);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_allowed", {
+      projectId: "project-1",
+    });
   });
 
   it("leaves the first tab armed when Cancel is chosen", () => {
@@ -562,6 +598,9 @@ describe("WorkspaceShell", () => {
     ).toBe("false");
     expect(armHarness.getBus().hasClaim()).toBe(false);
     expect(armHarness.getBus().listArmed()).toEqual([]);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_disallowed", {
+      projectId: "project-1",
+    });
   });
 });
 

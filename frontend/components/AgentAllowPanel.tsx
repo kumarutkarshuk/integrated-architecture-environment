@@ -8,6 +8,7 @@ import { AiCue } from "./AiCue";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
+import { captureProductEvent } from "../lib/analytics";
 import {
   claudeCodeRelayCommand,
   codexRelayConfig,
@@ -15,6 +16,12 @@ import {
   getWidgetOrigin,
 } from "../lib/canvas-agent/relay-copy";
 import { isWebMcpCompatibleBrowser } from "../lib/canvas-agent/webmcp-support";
+
+const MCP_CLIENT_BY_TITLE = {
+  Cursor: "cursor",
+  "Claude Code": "claude_code",
+  Codex: "codex",
+} as const;
 
 interface AgentAllowPanelProps {
   allowed: boolean;
@@ -127,6 +134,11 @@ async function copySetup(title: string, code: string) {
   try {
     await navigator.clipboard.writeText(code);
     toast.success(`Copied ${title} config`);
+    const client =
+      MCP_CLIENT_BY_TITLE[title as keyof typeof MCP_CLIENT_BY_TITLE];
+    if (client) {
+      captureProductEvent("mcp_config_copied", { client });
+    }
   } catch {
     toast.error("Could not copy");
   }

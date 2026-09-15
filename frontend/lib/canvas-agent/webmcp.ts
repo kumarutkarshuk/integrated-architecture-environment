@@ -1,3 +1,4 @@
+import { captureProductEvent } from "../analytics";
 import type { CanvasAgentSession, CompactCanvasState } from "./session";
 
 const EMBED_SRC =
@@ -242,6 +243,7 @@ async function registerTool(
       description: tool.description,
       inputSchema: tool.inputSchema,
       async execute(input) {
+        let ok = true;
         try {
           await session.syncArms();
           const view = tool.run(input);
@@ -249,12 +251,21 @@ async function registerTool(
             content: [{ type: "text", text: JSON.stringify(view) }],
           };
         } catch (error) {
+          ok = false;
           const text =
             error instanceof Error ? error.message : "not ready";
           return {
             content: [{ type: "text", text }],
             isError: true,
           };
+        } finally {
+          const projectId = session.armedProjectId();
+          captureProductEvent(
+            "webmcp_tool_used",
+            projectId
+              ? { tool: tool.name, ok, projectId }
+              : { tool: tool.name, ok },
+          );
         }
       },
     },
