@@ -30,7 +30,6 @@ export function LandingActivityBar() {
                   avatarBox: "h-7 w-7 cursor-pointer",
                 },
               }}
-              afterSignOutUrl="/"
             />
           </div>
         ) : (

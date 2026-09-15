@@ -30,7 +30,6 @@ export function ActivityBar({
                 avatarBox: "h-7 w-7 cursor-pointer",
               },
             }}
-            afterSignOutUrl="/"
           />
         </div>
       }
