@@ -211,7 +211,7 @@ function buildConnectionRecords(
         kind: "elbow",
         labelColor: "black",
         color: "black",
-        fill: "none",
+        fill: "semi",
         dash: STYLE_DASH[connection.style],
         size: "s",
         arrowheadStart: "none",

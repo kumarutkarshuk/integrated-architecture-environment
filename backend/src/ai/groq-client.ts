@@ -1,5 +1,5 @@
 import { parseDiagramPlan, InvalidInferenceJsonError, type DiagramPlan } from "./diagram-plan.js";
-import { takeGroqApiKey } from "./groq-keys.js";
+import { groqKeyForAttempt, startGroqKeyIndex } from "./groq-keys.js";
 import { GENERATE_DIAGRAM_SYSTEM_PROMPT } from "./prompts/generate-diagram.js";
 import { EXPORT_SPEC_SYSTEM_PROMPT } from "./prompts/export-spec.js";
 import { PROMPT_GUARD_SYSTEM_PROMPT } from "./prompts/prompt-guard.js";
@@ -140,10 +140,11 @@ async function requestGroqJsonOnce(
   maxTokens: number,
 ): Promise<{ parsed: unknown; tokensUsed?: number; model: string }> {
   const keys = groqKeysFromConfig(config);
+  const startIndex = startGroqKeyIndex(keys);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < keys.length; attempt += 1) {
-    const apiKey = takeGroqApiKey(keys);
+    const apiKey = groqKeyForAttempt(keys, startIndex, attempt);
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {

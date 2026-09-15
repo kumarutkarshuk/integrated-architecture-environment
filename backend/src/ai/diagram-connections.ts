@@ -128,11 +128,12 @@ function pickConnectionPlacement(
     ...edges,
     along: pickAlong(placed, from.id, edges.fromEdge, to.id, edges.toEdge),
     labelPosition: pickLabelPosition(
-      placed,
-      from.id,
+      from,
+      to,
       edges.fromEdge,
-      to.id,
       edges.toEdge,
+      placed,
+      boxes,
     ),
   };
 }
@@ -248,34 +249,141 @@ function pairConnections(
   );
 }
 
-function pickLabelPosition(
-  placed: PlacedConnection[],
-  fromId: string,
+export function connectionPathPoints(
+  from: LayoutBox,
+  to: LayoutBox,
   fromEdge: ConnectionEdge,
-  toId: string,
   toEdge: ConnectionEdge,
+): Array<{ x: number; y: number }> {
+  return corridorPoints(from, to, fromEdge, toEdge);
+}
+
+export function connectionLabelPoint(
+  from: LayoutBox,
+  to: LayoutBox,
+  placement: Pick<PlacedConnection, "fromEdge" | "toEdge" | "labelPosition">,
+): { x: number; y: number } {
+  return pointAlongPath(
+    corridorPoints(from, to, placement.fromEdge, placement.toEdge),
+    placement.labelPosition,
+  );
+}
+
+function pickLabelPosition(
+  from: LayoutBox,
+  to: LayoutBox,
+  fromEdge: ConnectionEdge,
+  toEdge: ConnectionEdge,
+  placed: PlacedConnection[],
+  boxes: Map<string, LayoutBox>,
 ): number {
-  const pair = pairConnections(placed, fromId, toId);
-  const used = pair.map((item) => item.labelPosition);
-  for (const connection of placed) {
-    if (pair.some((item) => item === connection)) {
+  const points = corridorPoints(from, to, fromEdge, toEdge);
+  const candidates = labelSlotsOnPath(points);
+  const usedT = placed.map((item) => item.labelPosition);
+  const usedPoints = placed.map((item) => {
+    const start = boxes.get(item.from);
+    const end = boxes.get(item.to);
+    if (!start || !end) {
+      return null;
+    }
+    return connectionLabelPoint(start, end, item);
+  });
+
+  for (const slot of candidates) {
+    if (usedT.some((value) => Math.abs(value - slot) < 0.12)) {
       continue;
     }
-    const sharesEdge =
-      (connection.from === fromId && connection.fromEdge === fromEdge) ||
-      (connection.to === fromId && connection.toEdge === fromEdge) ||
-      (connection.from === toId && connection.fromEdge === toEdge) ||
-      (connection.to === toId && connection.toEdge === toEdge);
-    if (sharesEdge) {
-      used.push(connection.labelPosition);
-    }
-  }
-  for (const slot of LABEL_SLOTS) {
-    if (used.every((value) => Math.abs(value - slot) > 0.08)) {
+    const point = pointAlongPath(points, slot);
+    if (
+      usedPoints.every(
+        (other) => !other || Math.hypot(point.x - other.x, point.y - other.y) > 56,
+      )
+    ) {
       return slot;
     }
   }
-  return LABEL_SLOTS[used.length % LABEL_SLOTS.length] ?? 0.28;
+
+  return candidates.find((slot) => usedT.every((value) => Math.abs(value - slot) > 0.12))
+    ?? candidates[0]
+    ?? 0.4;
+}
+
+function labelSlotsOnPath(points: Array<{ x: number; y: number }>): number[] {
+  const segments: Array<{ start: number; length: number }> = [];
+  let total = 0;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index];
+    const b = points[index + 1];
+    if (!a || !b) {
+      continue;
+    }
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    segments.push({ start: total, length });
+    total += length;
+  }
+  if (total <= 0) {
+    return [...LABEL_SLOTS];
+  }
+
+  const slots: number[] = [];
+  const ordered = [...segments].sort((a, b) => b.length - a.length);
+  for (const segment of ordered) {
+    if (segment.length < 64) {
+      continue;
+    }
+    for (const t of [0.5, 0.34, 0.66, 0.25, 0.75]) {
+      const inset = Math.min(24, segment.length / 4);
+      const along = Math.min(
+        Math.max(segment.length * t, inset),
+        segment.length - inset,
+      );
+      slots.push((segment.start + along) / total);
+    }
+  }
+
+  return slots.length > 0 ? slots : [...LABEL_SLOTS];
+}
+
+function pointAlongPath(
+  points: Array<{ x: number; y: number }>,
+  t: number,
+): { x: number; y: number } {
+  if (points.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  if (points.length === 1) {
+    return points[0]!;
+  }
+
+  let total = 0;
+  const lengths: number[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index]!;
+    const b = points[index + 1]!;
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    lengths.push(length);
+    total += length;
+  }
+  if (total <= 0) {
+    return points[0]!;
+  }
+
+  let remaining = Math.min(1, Math.max(0, t)) * total;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index]!;
+    const a = points[index]!;
+    const b = points[index + 1]!;
+    if (remaining <= length || index === lengths.length - 1) {
+      const ratio = length === 0 ? 0 : remaining / length;
+      return {
+        x: a.x + (b.x - a.x) * ratio,
+        y: a.y + (b.y - a.y) * ratio,
+      };
+    }
+    remaining -= length;
+  }
+
+  return points[points.length - 1]!;
 }
 
 function pointOnEdge(

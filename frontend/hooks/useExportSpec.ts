@@ -19,7 +19,44 @@ export interface ExportedSpec {
 }
 
 export function formatSpecFile(spec: ExportedSpec): string {
-  return `${spec.markdown}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`;
+  return `${repairMarkdownTables(spec.markdown)}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`;
+}
+
+export function repairMarkdownTables(markdown: string): string {
+  return markdown
+    .split("\n")
+    .flatMap((line) => splitCollapsedTableLine(line))
+    .join("\n");
+}
+
+function splitCollapsedTableLine(line: string): string[] {
+  const trimmed = line.trim();
+  const separator = trimmed.match(/\|(?:\s*:?-{3,}:?\s*\|)+/);
+  if (!separator || separator.index == null) {
+    return [line];
+  }
+
+  const header = trimmed.slice(0, separator.index).trim();
+  const rest = trimmed.slice(separator.index + separator[0].length).trim();
+  if (!header.startsWith("|") || !rest.startsWith("|")) {
+    return [line];
+  }
+
+  const colCount = Math.max(1, (separator[0].match(/\|/g) ?? []).length - 1);
+  const cells = rest
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+  const rows = [header, separator[0].trim()];
+  for (let index = 0; index < cells.length; index += colCount) {
+    const slice = cells.slice(index, index + colCount);
+    if (slice.every((cell) => !cell)) {
+      continue;
+    }
+    rows.push(`| ${slice.join(" | ")} |`);
+  }
+  return rows;
 }
 
 function toDownloadFileName(projectName: string): string {

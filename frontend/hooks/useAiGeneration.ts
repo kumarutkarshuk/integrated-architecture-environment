@@ -47,10 +47,12 @@ export function useAiGeneration(
   const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
   const selectNewestAfterRegenerateRef = useRef(false);
   const failureToastForJobRef = useRef<string | null>(null);
+  const promptProjectIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     activeProjectIdRef.current = project?.id ?? null;
     failureToastForJobRef.current = null;
+    promptProjectIdRef.current = null;
     setGenerationError(null);
   }, [project?.id]);
 
@@ -103,6 +105,7 @@ export function useAiGeneration(
 
         const latestPrompt = nextPreviews[0]?.prompt;
         if (latestPrompt) {
+          promptProjectIdRef.current = projectId;
           setPrompt(latestPrompt);
         }
       } catch (loadError) {
@@ -141,15 +144,17 @@ export function useAiGeneration(
           return;
         }
 
-        if (latest.prompt?.trim()) {
-          setPrompt((current) =>
-            current.trim() ? current : latest.prompt!.trim(),
-          );
-        }
-
         if (latest.status !== "failed") {
           setGenerationError(null);
           return;
+        }
+
+        if (
+          latest.prompt?.trim() &&
+          promptProjectIdRef.current !== projectId
+        ) {
+          promptProjectIdRef.current = projectId;
+          setPrompt(latest.prompt.trim());
         }
 
         const message = latest.error?.trim() || GENERATE_FAILED_MESSAGE;
@@ -196,9 +201,9 @@ export function useAiGeneration(
     setIsRegenerating(false);
     setIsApplying(false);
     setIsBusy(false);
-
+    setPrompt(initialPrompt?.trim() ?? "");
     if (initialPrompt?.trim()) {
-      setPrompt(initialPrompt.trim());
+      promptProjectIdRef.current = project.id;
     }
 
     if (project.status === "preview" || project.status === "failed") {

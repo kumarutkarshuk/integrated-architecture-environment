@@ -707,6 +707,46 @@ describe("useAiGeneration polling", () => {
     expect(result.current.generationError).toBe("Failed to generate JSON");
   });
 
+  it("replaces the prompt when switching from another prompt project to a first-time failed project", async () => {
+    fetchAiPreviewsMock.mockResolvedValue([completedPreview]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      ...completedPreview,
+      error: null,
+    });
+    const preview = projectWith("preview", "rag-project");
+    const failed = projectWith("failed", "threat-project");
+    const refreshProject = vi.fn(async (projectId: string) =>
+      projectId === failed.id ? failed : preview,
+    );
+    const updateProjectInList = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ project }) =>
+        useAiGeneration(project, refreshProject, updateProjectInList),
+      { initialProps: { project: preview } },
+    );
+
+    await flushEffects();
+    expect(result.current.prompt).toBe("Design a todo API");
+
+    fetchAiPreviewsMock.mockResolvedValue([]);
+    fetchLatestAiGenerationMock.mockResolvedValue({
+      id: "job-failed",
+      prompt: "make a threat model",
+      status: "failed",
+      result: null,
+      appliedAt: null,
+      createdAt: "2026-09-05T00:00:01.000Z",
+      error: "This prompt is not allowed",
+    });
+
+    rerender({ project: failed });
+    await flushEffects();
+
+    expect(result.current.prompt).toBe("make a threat model");
+    expect(result.current.generationError).toBe("This prompt is not allowed");
+  });
+
   it("keeps the previous error while regenerate is in flight", async () => {
     fetchAiPreviewsMock.mockResolvedValue([]);
     fetchLatestAiGenerationMock.mockResolvedValue({

@@ -168,6 +168,37 @@ describe("ExportSpecToolbar", () => {
     expect(screen.queryByText("# Todo API")).toBeNull();
   });
 
+  it("renders markdown tables instead of a pipe paragraph", () => {
+    renderExport({
+      spec: {
+        markdown:
+          "## Core Components\n\n| Component | Role | Primary Interactions |\n|------------|------|----------------------|\n| Ingestion Client | Front-end that submits raw documents for ingestion. | Calls Ingest API. |",
+        gaps_summary: "None",
+      },
+    });
+
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Component" })).toBeTruthy();
+    expect(screen.getByRole("cell", { name: "Ingestion Client" })).toBeTruthy();
+    expect(
+      screen.queryByText(/\| Component \| Role \| Primary Interactions \|/),
+    ).toBeNull();
+  });
+
+  it("repairs a table that was flattened onto one line", () => {
+    renderExport({
+      spec: {
+        markdown:
+          "## Core Components\n\n| Component | Role | Primary Interactions | |------------|------|----------------------| | Ingestion Client | Front-end that submits raw documents for ingestion. | Calls Ingest API. |",
+        gaps_summary: "None",
+      },
+    });
+
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Component" })).toBeTruthy();
+    expect(screen.getByRole("cell", { name: "Ingestion Client" })).toBeTruthy();
+  });
+
   it("warns that the Spec is from the canvas at click", () => {
     renderExport({ spec });
 

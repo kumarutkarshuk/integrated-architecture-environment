@@ -157,7 +157,7 @@ function createArrow(editor: Editor, shape: CanvasAgentPageShape): void {
       kind: "elbow",
       labelColor: "black",
       color: "black",
-      fill: "none",
+      fill: "semi",
       dash: arrowDash(shape.dash),
       size: "s",
       arrowheadStart: "none",

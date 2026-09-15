@@ -5,7 +5,7 @@ import { InvalidDiagramPlanError, InvalidInferenceJsonError } from "./diagram-pl
 import { classifyPromptSafetyWithGroq } from "./groq-client.js";
 import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL, DEFAULT_PROMPT_GUARD_MODEL } from "./inference-defaults.js";
 import { getInferenceProvider } from "./inference-provider.js";
-import { parseGroqApiKeys } from "./groq-keys.js";
+import { parseGroqApiKeys, runWithGroqKeySlot } from "./groq-keys.js";
 import {
   assertPromptBlockedByCode,
   InappropriatePromptError,
@@ -97,30 +97,39 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
 
   const prompt = job.prompt ?? "";
 
-  try {
-    assertPromptBlockedByCode(prompt);
-    const safe = await classifyPromptForGenerate(prompt);
-    if (!safe) {
-      await failGenerateJob(
-        aiGenerationId,
-        PROMPT_NOT_ALLOWED_MESSAGE,
-        "classifier",
-      );
-      return;
-    }
+  const run = async () => {
+    try {
+      assertPromptBlockedByCode(prompt);
+      const safe = await classifyPromptForGenerate(prompt);
+      if (!safe) {
+        await failGenerateJob(
+          aiGenerationId,
+          PROMPT_NOT_ALLOWED_MESSAGE,
+          "classifier",
+        );
+        return;
+      }
 
-    const result = await produceGenerateResult(prompt);
-    if (!result.plan) {
-      throw new InvalidDiagramPlanError("Generate result is missing a Plan");
+      const result = await produceGenerateResult(prompt);
+      if (!result.plan) {
+        throw new InvalidDiagramPlanError("Generate result is missing a Plan");
+      }
+      await completeGenerateJob(aiGenerationId, result);
+    } catch (error) {
+      if (error instanceof InappropriatePromptError) {
+        await failGenerateJob(aiGenerationId, error.message, "code");
+        return;
+      }
+      throw error;
     }
-    await completeGenerateJob(aiGenerationId, result);
-  } catch (error) {
-    if (error instanceof InappropriatePromptError) {
-      await failGenerateJob(aiGenerationId, error.message, "code");
-      return;
-    }
-    throw error;
+  };
+
+  if (inferenceConfig.groqApiKeys.length > 0) {
+    await runWithGroqKeySlot(inferenceConfig.groqApiKeys, run);
+    return;
   }
+
+  await run();
 }
 
 export async function failGenerateJob(

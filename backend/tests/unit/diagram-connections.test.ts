@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeDiagramConnections } from "../../src/ai/diagram-connections.js";
+import { placeDiagramConnections, connectionLabelPoint, connectionPathPoints } from "../../src/ai/diagram-connections.js";
 import { layoutDiagramComponents } from "../../src/ai/diagram-layout.js";
 import { parseDiagramPlan } from "../../src/ai/diagram-plan.js";
 import { buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
@@ -15,6 +15,24 @@ function edgeOf(anchor: { x: number; y: number }): "left" | "right" | "top" | "b
     return "top";
   }
   return "bottom";
+}
+
+function cornerPoints(
+  points: Array<{ x: number; y: number }>,
+): Array<{ x: number; y: number }> {
+  const corners: Array<{ x: number; y: number }> = [];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1]!;
+    const current = points[index]!;
+    const next = points[index + 1]!;
+    const cross =
+      (current.x - previous.x) * (next.y - current.y) -
+      (current.y - previous.y) * (next.x - current.x);
+    if (Math.abs(cross) > 1) {
+      corners.push(current);
+    }
+  }
+  return corners;
 }
 
 describe("placeDiagramConnections", () => {
@@ -152,5 +170,53 @@ describe("complex generate layout", () => {
 
     expect(edgeOf(generateStart.props.normalizedAnchor)).toBe("right");
     expect(edgeOf(fetchStart.props.normalizedAnchor)).toBe("bottom");
+  });
+
+  it("keeps elbow arrow labels on a long segment, not on the corner", () => {
+    const plan = parseDiagramPlan({
+      components: [
+        { id: "cache", label: "Cache", kind: "store" },
+        { id: "api", label: "API", kind: "service" },
+        { id: "orchestrator", label: "Orchestrator", kind: "service" },
+        { id: "llm", label: "LLM", kind: "external" },
+        { id: "client", label: "Client", kind: "client" },
+        { id: "vector-store", label: "Vector Store", kind: "store" },
+      ],
+      connections: [
+        { from: "client", to: "api", style: "sync", label: "query" },
+        { from: "api", to: "client", style: "sync", label: "reply/qry" },
+        { from: "api", to: "orchestrator", style: "sync", label: "handle" },
+        { from: "orchestrator", to: "llm", style: "sync", label: "generate" },
+        { from: "orchestrator", to: "vector-store", style: "data", label: "docsrch" },
+        { from: "vector-store", to: "orchestrator", style: "data", label: "chunks" },
+      ],
+    });
+    const flow = plan.flows[0]!;
+    const boxes = layoutDiagramComponents(flow.components, flow.connections);
+    const placed = placeDiagramConnections(boxes, flow.connections);
+    const labels: Array<{ x: number; y: number }> = [];
+
+    for (const connection of placed) {
+      if (!flow.connections.find((item) => item.from === connection.from && item.to === connection.to)?.label) {
+        continue;
+      }
+      const from = boxes.get(connection.from)!;
+      const to = boxes.get(connection.to)!;
+      const path = connectionPathPoints(from, to, connection.fromEdge, connection.toEdge);
+      const label = connectionLabelPoint(from, to, connection);
+      labels.push(label);
+
+      for (const elbow of cornerPoints(path)) {
+        expect(Math.hypot(label.x - elbow.x, label.y - elbow.y)).toBeGreaterThan(28);
+      }
+    }
+
+    for (let i = 0; i < labels.length; i += 1) {
+      for (let j = i + 1; j < labels.length; j += 1) {
+        expect(
+          Math.hypot(labels[i]!.x - labels[j]!.x, labels[i]!.y - labels[j]!.y),
+        ).toBeGreaterThan(40);
+      }
+    }
   });
 });
