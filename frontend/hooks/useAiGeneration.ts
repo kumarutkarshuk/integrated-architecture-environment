@@ -51,11 +51,13 @@ export function useAiGeneration(
   const selectNewestAfterRegenerateRef = useRef(false);
   const failureToastForJobRef = useRef<string | null>(null);
   const promptProjectIdRef = useRef<string | null>(null);
+  const regenerateInFlightRef = useRef(false);
 
   useEffect(() => {
     activeProjectIdRef.current = project?.id ?? null;
     failureToastForJobRef.current = null;
     promptProjectIdRef.current = null;
+    regenerateInFlightRef.current = false;
     setGenerationError(null);
   }, [project?.id]);
 
@@ -323,10 +325,16 @@ export function useAiGeneration(
   ]);
 
   const regenerate = useCallback(async () => {
-    if (!project || !prompt.trim()) {
+    if (
+      !project ||
+      !prompt.trim() ||
+      regenerateInFlightRef.current ||
+      isRegenerating
+    ) {
       return;
     }
 
+    regenerateInFlightRef.current = true;
     setPreviewWaitTimedOut(false);
     setIsBusy(true);
     setIsRegenerating(true);
@@ -355,9 +363,12 @@ export function useAiGeneration(
           : "Failed to regenerate preview";
       setGenerationError(message);
       toast.error(message);
+    } finally {
+      regenerateInFlightRef.current = false;
     }
   }, [
     getToken,
+    isRegenerating,
     project,
     prompt,
     refreshProject,

@@ -32,6 +32,7 @@ export class WSSharedDoc extends Y.Doc {
   name: string;
   conns = new Map<WebSocket, Set<number>>();
   awareness: awarenessProtocol.Awareness;
+  bindPromise: Promise<void> = Promise.resolve();
 
   constructor(name: string) {
     super({ gc: gcEnabled });
@@ -106,11 +107,15 @@ export function getYDoc(docName: string, gc = true): WSSharedDoc {
     const doc = new WSSharedDoc(docName);
     doc.gc = gc;
     if (persistence !== null) {
-      void persistence.bindState(docName, doc);
+      doc.bindPromise = Promise.resolve(persistence.bindState(docName, doc));
     }
     docs.set(docName, doc);
     return doc;
   });
+}
+
+export function whenCanvasDocReady(doc: WSSharedDoc): Promise<void> {
+  return doc.bindPromise;
 }
 
 function messageListener(
@@ -157,10 +162,21 @@ function closeConn(doc: WSSharedDoc, conn: WebSocket): void {
     );
 
     if (doc.conns.size === 0 && persistence !== null) {
-      void persistence.writeState(doc.name, doc).then(() => {
-        doc.destroy();
-        docs.delete(doc.name);
-      });
+      void persistence
+        .writeState(doc.name, doc)
+        .then(() => {
+          if (docs.get(doc.name) === doc && doc.conns.size === 0) {
+            doc.destroy();
+            docs.delete(doc.name);
+          }
+        })
+        .catch((error) => {
+          console.error(
+            "Failed to persist canvas snapshot before room teardown",
+            doc.name,
+            error,
+          );
+        });
     }
   }
 
@@ -201,8 +217,16 @@ export function setupWSConnection(
   const doc = getYDoc(docName, gc);
   doc.conns.set(conn, new Set());
 
+  let bound = false;
+  const pending: Uint8Array[] = [];
+
   conn.on("message", (message) => {
-    messageListener(conn, doc, new Uint8Array(message as ArrayBuffer));
+    const bytes = new Uint8Array(message as ArrayBuffer);
+    if (!bound) {
+      pending.push(bytes);
+      return;
+    }
+    messageListener(conn, doc, bytes);
   });
 
   let pongReceived = true;
@@ -235,26 +259,42 @@ export function setupWSConnection(
     pongReceived = true;
   });
 
-  {
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, messageSync);
-    syncProtocol.writeSyncStep1(encoder, doc);
-    send(doc, conn, encoding.toUint8Array(encoder));
+  void doc.bindPromise
+    .then(() => {
+      if (!doc.conns.has(conn)) {
+        return;
+      }
 
-    const awarenessStates = doc.awareness.getStates();
-    if (awarenessStates.size > 0) {
-      const awarenessEncoder = encoding.createEncoder();
-      encoding.writeVarUint(awarenessEncoder, messageAwareness);
-      encoding.writeVarUint8Array(
-        awarenessEncoder,
-        awarenessProtocol.encodeAwarenessUpdate(
-          doc.awareness,
-          Array.from(awarenessStates.keys()),
-        ),
-      );
-      send(doc, conn, encoding.toUint8Array(awarenessEncoder));
-    }
-  }
+      bound = true;
+      for (const bytes of pending) {
+        messageListener(conn, doc, bytes);
+      }
+      pending.length = 0;
+
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, messageSync);
+      syncProtocol.writeSyncStep1(encoder, doc);
+      send(doc, conn, encoding.toUint8Array(encoder));
+
+      const awarenessStates = doc.awareness.getStates();
+      if (awarenessStates.size > 0) {
+        const awarenessEncoder = encoding.createEncoder();
+        encoding.writeVarUint(awarenessEncoder, messageAwareness);
+        encoding.writeVarUint8Array(
+          awarenessEncoder,
+          awarenessProtocol.encodeAwarenessUpdate(
+            doc.awareness,
+            Array.from(awarenessStates.keys()),
+          ),
+        );
+        send(doc, conn, encoding.toUint8Array(awarenessEncoder));
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to bind canvas snapshot", doc.name, error);
+      closeConn(doc, conn);
+      clearInterval(pingInterval);
+    });
 }
 
 export function clearCanvasDocs(): void {

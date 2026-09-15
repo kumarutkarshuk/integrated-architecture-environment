@@ -2,7 +2,7 @@ import http from "node:http";
 import WebSocket from "ws";
 import request from "supertest";
 import { afterEach, describe, expect, it } from "vitest";
-import { clearCanvasDocs, docs, getYDoc } from "../../src/canvas/yjs-ws-utils.js";
+import { clearCanvasDocs, docs, getYDoc, whenCanvasDocReady } from "../../src/canvas/yjs-ws-utils.js";
 import { clearCanvasPersistenceTimers } from "../../src/canvas/persistence.js";
 import { createApp } from "../../src/app.js";
 import { createTestAuthHeader } from "../../src/auth/test-token-verifier.js";
@@ -68,7 +68,7 @@ describe("Canvas Snapshot", () => {
     await upsertCanvasSnapshot(created.body.id, records);
 
     const doc = getYDoc(created.body.id);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await whenCanvasDocReady(doc);
 
     expect(readRecordsFromDoc(doc, created.body.id)).toEqual(records);
   });
@@ -143,7 +143,7 @@ describe("Canvas Snapshot", () => {
     docs.delete(created.body.id);
 
     const reloaded = getYDoc(created.body.id);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await whenCanvasDocReady(reloaded);
 
     expect(readRecordsFromDoc(reloaded, created.body.id)).toEqual({
       "shape:roundtrip": {

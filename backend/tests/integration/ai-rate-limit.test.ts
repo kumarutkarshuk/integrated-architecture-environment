@@ -21,6 +21,21 @@ function authHeader(clerkId: string, email: string) {
   return createTestAuthHeader({ clerkId, email });
 }
 
+async function settleGenerateJobs(projectId: string): Promise<void> {
+  await prisma.aiGeneration.updateMany({
+    where: {
+      projectId,
+      type: "generate",
+      status: { in: ["pending", "running"] },
+    },
+    data: { status: "completed" },
+  });
+  await prisma.project.updateMany({
+    where: { id: projectId },
+    data: { status: "preview" },
+  });
+}
+
 describe("AI rate limits", () => {
   beforeEach(() => {
     testJobRunner.reset();
@@ -45,6 +60,7 @@ describe("AI rate limits", () => {
       .expect(201);
 
     for (let index = 2; index <= 5; index += 1) {
+      await settleGenerateJobs(created.body.id);
       await request(app)
         .post(`/api/projects/${created.body.id}/ai/generate`)
         .set("Authorization", header)
@@ -52,6 +68,7 @@ describe("AI rate limits", () => {
         .expect(201);
     }
 
+    await settleGenerateJobs(created.body.id);
     const limited = await request(app)
       .post(`/api/projects/${created.body.id}/ai/generate`)
       .set("Authorization", header)
@@ -233,6 +250,7 @@ describe("AI rate limits", () => {
       .expect(201);
 
     for (let index = 2; index <= 5; index += 1) {
+      await settleGenerateJobs(promptProject.body.id);
       await request(app)
         .post(`/api/projects/${promptProject.body.id}/ai/generate`)
         .set("Authorization", header)
@@ -240,6 +258,7 @@ describe("AI rate limits", () => {
         .expect(201);
     }
 
+    await settleGenerateJobs(promptProject.body.id);
     await request(app)
       .post(`/api/projects/${promptProject.body.id}/ai/generate`)
       .set("Authorization", header)
@@ -279,6 +298,7 @@ describe("AI rate limits", () => {
       .expect(201);
 
     for (let index = 2; index <= 5; index += 1) {
+      await settleGenerateJobs(created.body.id);
       await request(app)
         .post(`/api/projects/${created.body.id}/ai/generate`)
         .set("Authorization", header)
@@ -286,6 +306,7 @@ describe("AI rate limits", () => {
         .expect(201);
     }
 
+    await settleGenerateJobs(created.body.id);
     await request(app)
       .post(`/api/projects/${created.body.id}/ai/generate`)
       .set("Authorization", header)

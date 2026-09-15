@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma, type User } from "@prisma/client";
 import { captureException } from "../analytics.js";
-import { notDeleted, prisma } from "../db.js";
+import { lockLiveProject, notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 import { getMailer } from "./mailer.js";
 
@@ -186,12 +186,27 @@ export async function listProjectCollaborators(
   return { ok: true, value: [...joined, ...pending] };
 }
 
-async function projectCollaboratorCount(projectId: string): Promise<number> {
+type InviteDb = Pick<typeof prisma, "collaborator" | "projectInvite">;
+
+class InviteFlowError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "InviteFlowError";
+  }
+}
+
+async function projectCollaboratorCount(
+  projectId: string,
+  db: InviteDb = prisma,
+): Promise<number> {
   const [joinedCount, pendingCount] = await Promise.all([
-    prisma.collaborator.count({
+    db.collaborator.count({
       where: { projectId, ...notDeleted },
     }),
-    prisma.projectInvite.count({
+    db.projectInvite.count({
       where: {
         projectId,
         redeemedAt: null,
@@ -228,62 +243,63 @@ export async function createProjectInvite(
     return { ok: false, status: 404, error: "Project not found" };
   }
 
-  const existingCollaborator = await prisma.collaborator.findFirst({
-    where: {
-      projectId,
-      ...notDeleted,
-      user: {
-        email: { equals: email, mode: "insensitive" },
-        ...notDeleted,
-      },
-    },
-  });
-
-  if (existingCollaborator) {
-    return {
-      ok: false,
-      status: 409,
-      error: "This User is already a Collaborator",
-    };
-  }
-
-  const pendingInvite = await prisma.projectInvite.findFirst({
-    where: { projectId, email, redeemedAt: null, ...notDeleted },
-  });
-
-  if (pendingInvite) {
-    return {
-      ok: false,
-      status: 409,
-      error: "An Invite was already sent to this email",
-    };
-  }
-
-  if ((await projectCollaboratorCount(projectId)) >= MAX_COLLABORATORS) {
-    return {
-      ok: false,
-      status: 409,
-      error: `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
-    };
-  }
-
   const token = randomBytes(32).toString("hex");
   let invite;
 
   try {
-    invite = await prisma.projectInvite.create({
-      data: {
-        projectId,
-        email,
-        token,
-        role: "editor",
-        sendCount: 1,
-        lastSentAt: new Date(),
-        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-      },
-      select: { ...inviteSelect, token: true },
+    invite = await prisma.$transaction(async (tx) => {
+      const locked = await lockLiveProject(tx, projectId);
+      if (!locked) {
+        throw new InviteFlowError(404, "Project not found");
+      }
+
+      const existingCollaborator = await tx.collaborator.findFirst({
+        where: {
+          projectId,
+          ...notDeleted,
+          user: {
+            email: { equals: email, mode: "insensitive" },
+            ...notDeleted,
+          },
+        },
+      });
+
+      if (existingCollaborator) {
+        throw new InviteFlowError(409, "This User is already a Collaborator");
+      }
+
+      const pendingInvite = await tx.projectInvite.findFirst({
+        where: { projectId, email, redeemedAt: null, ...notDeleted },
+      });
+
+      if (pendingInvite) {
+        throw new InviteFlowError(409, "An Invite was already sent to this email");
+      }
+
+      if ((await projectCollaboratorCount(projectId, tx)) >= MAX_COLLABORATORS) {
+        throw new InviteFlowError(
+          409,
+          `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
+        );
+      }
+
+      return tx.projectInvite.create({
+        data: {
+          projectId,
+          email,
+          token,
+          role: "editor",
+          sendCount: 1,
+          lastSentAt: new Date(),
+          expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+        },
+        select: { ...inviteSelect, token: true },
+      });
     });
   } catch (error) {
+    if (error instanceof InviteFlowError) {
+      return { ok: false, status: error.status, error: error.message };
+    }
     if (isUniqueViolation(error)) {
       return {
         ok: false,
@@ -297,7 +313,10 @@ export async function createProjectInvite(
   try {
     await sendInviteEmail(email, project.name, invite.token, user);
   } catch (error) {
-    await prisma.projectInvite.delete({ where: { id: invite.id } });
+    await prisma.projectInvite.update({
+      where: { id: invite.id },
+      data: { deletedAt: new Date() },
+    });
     logInviteMailFailure(user);
     const message =
       error instanceof Error ? error.message : "Failed to send Invite email";
@@ -465,28 +484,62 @@ export async function redeemProjectInvite(
     return { ok: false, status: 409, error: "Invite has already been redeemed" };
   }
 
-  await prisma.$transaction([
-    prisma.projectInvite.update({
-      where: { id: invite.id },
-      data: { redeemedAt: new Date() },
-    }),
-    prisma.collaborator.upsert({
-      where: {
-        projectId_userId: {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const marked = await tx.projectInvite.updateMany({
+        where: {
+          id: invite.id,
+          redeemedAt: null,
+          deletedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { redeemedAt: new Date() },
+      });
+
+      if (marked.count === 0) {
+        throw new InviteFlowError(409, "Invite has already been redeemed");
+      }
+
+      const joinedCount = await tx.collaborator.count({
+        where: { projectId: invite.projectId, ...notDeleted },
+      });
+
+      if (joinedCount >= MAX_COLLABORATORS) {
+        throw new InviteFlowError(
+          409,
+          `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
+        );
+      }
+
+      await tx.collaborator.upsert({
+        where: {
+          projectId_userId: {
+            projectId: invite.projectId,
+            userId: user.id,
+          },
+        },
+        create: {
           projectId: invite.projectId,
           userId: user.id,
+          role: invite.role,
         },
-      },
-      create: {
-        projectId: invite.projectId,
-        userId: user.id,
-        role: invite.role,
-      },
-      update: {
-        deletedAt: null,
-      },
-    }),
-  ]);
+        update: {
+          deletedAt: null,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof InviteFlowError) {
+      const existing = await prisma.collaborator.findFirst({
+        where: { projectId: invite.projectId, userId: user.id, ...notDeleted },
+      });
+      if (existing) {
+        return { ok: true, value: { projectId: invite.projectId } };
+      }
+      return { ok: false, status: error.status, error: error.message };
+    }
+    throw error;
+  }
 
   return { ok: true, value: { projectId: invite.projectId } };
 }

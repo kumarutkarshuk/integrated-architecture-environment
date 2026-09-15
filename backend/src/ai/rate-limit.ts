@@ -1,4 +1,5 @@
 import type { AiGenerationType } from "./types.js";
+import { INCR_IF_BELOW_LUA } from "../redis-counter.js";
 
 const AI_DAILY_LIMITS = {
   generate: 5,
@@ -97,10 +98,10 @@ function createUpstashAiRateLimiter(options: {
       const currentTime = new Date();
       const key = rateLimitKey(userId, kind, currentTime);
       const ttl = secondsUntilNextUtcMidnight(currentTime);
-      const results = await redis.pipeline().incr(key).expire(key, ttl).exec();
-      const count = Number(results[0]);
+      const count = Number(
+        await redis.eval(INCR_IF_BELOW_LUA, [key], [AI_DAILY_LIMITS[kind], ttl]),
+      );
       if (count > AI_DAILY_LIMITS[kind]) {
-        await redis.decr(key);
         return "limited";
       }
       return "ok";

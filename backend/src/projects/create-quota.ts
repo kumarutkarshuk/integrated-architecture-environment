@@ -1,3 +1,5 @@
+import { INCR_IF_BELOW_LUA } from "../redis-counter.js";
+
 const PROJECT_CREATE_DAILY_LIMIT = 10;
 
 export class ProjectCreateRateLimitError extends Error {
@@ -94,10 +96,14 @@ function createUpstashProjectCreateRateLimiter(options: {
       const currentTime = new Date();
       const key = rateLimitKey(userId, currentTime);
       const ttl = secondsUntilNextUtcMidnight(currentTime);
-      const results = await redis.pipeline().incr(key).expire(key, ttl).exec();
-      const count = Number(results[0]);
+      const count = Number(
+        await redis.eval(
+          INCR_IF_BELOW_LUA,
+          [key],
+          [PROJECT_CREATE_DAILY_LIMIT, ttl],
+        ),
+      );
       if (count > PROJECT_CREATE_DAILY_LIMIT) {
-        await redis.decr(key);
         return "limited";
       }
       return "ok";

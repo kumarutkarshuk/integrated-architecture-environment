@@ -729,9 +729,15 @@ describe("Invite create and redeem", () => {
     expect(testMailer.getSent()).toHaveLength(0);
 
     const pending = await prisma.projectInvite.findMany({
-      where: { projectId: created.body.id },
+      where: { projectId: created.body.id, deletedAt: null },
     });
     expect(pending).toEqual([]);
+
+    const stored = await prisma.projectInvite.findMany({
+      where: { projectId: created.body.id },
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.deletedAt).not.toBeNull();
   });
 
   it("returns 502 and rolls back Invite resend when SMTP user and pass are missing", async () => {

@@ -76,6 +76,7 @@ export function useExportSpec(project: ApiProject | null) {
   const [spec, setSpec] = useState<ExportedSpec | null>(null);
   const [specJob, setSpecJob] = useState<ApiAiJob | null>(null);
   const projectIdRef = useRef<string | null>(project?.id ?? null);
+  const exportInFlightRef = useRef(false);
 
   projectIdRef.current = project?.id ?? null;
 
@@ -86,6 +87,7 @@ export function useExportSpec(project: ApiProject | null) {
     setJobId(null);
     setSpec(null);
     setSpecJob(null);
+    exportInFlightRef.current = false;
   }, [project?.id]);
 
   useEffect(() => {
@@ -161,10 +163,16 @@ export function useExportSpec(project: ApiProject | null) {
   }, [getToken, project, jobId, isExporting]);
 
   const exportSpec = useCallback(async () => {
-    if (!project || project.status !== "ready") {
+    if (
+      !project ||
+      project.status !== "ready" ||
+      exportInFlightRef.current ||
+      isExporting
+    ) {
       return;
     }
 
+    exportInFlightRef.current = true;
     setIsExporting(true);
     setSpec(null);
     setSpecJob(null);
@@ -188,8 +196,10 @@ export function useExportSpec(project: ApiProject | null) {
           : "Failed to start Export Spec",
       );
       setIsExporting(false);
+    } finally {
+      exportInFlightRef.current = false;
     }
-  }, [getToken, project]);
+  }, [getToken, isExporting, project]);
 
   const clearSpec = useCallback(() => {
     setSpec(null);

@@ -10,7 +10,16 @@ import {
   isInappropriatePrompt,
 } from "./prompt-guard.js";
 import { consumeAiQuota } from "./rate-limit.js";
-import { prisma } from "../db.js";
+import { lockLiveProject, prisma } from "../db.js";
+
+export class GenerateInProgressError extends Error {
+  readonly status = 409;
+
+  constructor() {
+    super("A generate job is already running for this Project");
+    this.name = "GenerateInProgressError";
+  }
+}
 
 export async function createAndEnqueueGenerateJob(
   projectId: string,
@@ -19,18 +28,51 @@ export async function createAndEnqueueGenerateJob(
 ) {
   const trimmedPrompt = prompt.trim();
   assertPromptBlockedByCode(trimmedPrompt);
-  const job = await createGenerateJob(projectId, userId, trimmedPrompt);
 
-  await prisma.project.updateMany({
-    where: { id: projectId, deletedAt: null },
-    data: { status: "generating" },
+  const job = await prisma.$transaction(async (tx) => {
+    const locked = await lockLiveProject(tx, projectId);
+    if (!locked) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    const live = await tx.aiGeneration.findFirst({
+      where: {
+        projectId,
+        type: "generate",
+        status: { in: ["pending", "running"] },
+      },
+      select: { id: true },
+    });
+
+    if (live) {
+      throw new GenerateInProgressError();
+    }
+
+    const created = await createGenerateJob(
+      projectId,
+      userId,
+      trimmedPrompt,
+      tx,
+    );
+
+    await tx.project.updateMany({
+      where: { id: projectId, deletedAt: null },
+      data: { status: "generating" },
+    });
+
+    return created;
   });
 
-  await enqueueGenerateJob({
-    aiGenerationId: job.id,
-    projectId,
-    prompt: trimmedPrompt,
-  });
+  try {
+    await enqueueGenerateJob({
+      aiGenerationId: job.id,
+      projectId,
+      prompt: trimmedPrompt,
+    });
+  } catch (error) {
+    await failGenerateJob(job.id, error);
+    throw error;
+  }
 
   return job;
 }

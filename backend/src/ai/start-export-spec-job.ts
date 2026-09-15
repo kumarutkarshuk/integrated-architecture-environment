@@ -23,10 +23,15 @@ export async function startExportSpecJob(projectId: string, userId: string) {
 
   const job = await createExportSpecJob(projectId, userId, prompt);
 
-  await enqueueExportSpecJob({
-    aiGenerationId: job.id,
-    projectId,
-  });
+  try {
+    await enqueueExportSpecJob({
+      aiGenerationId: job.id,
+      projectId,
+    });
+  } catch (error) {
+    await failExportSpecJob(job.id, error);
+    throw error;
+  }
 
   return job;
 }

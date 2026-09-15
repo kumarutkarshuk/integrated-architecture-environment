@@ -97,16 +97,24 @@ export async function runExportSpecJob(aiGenerationId: string): Promise<void> {
     throw new Error(`Export spec job not found: ${aiGenerationId}`);
   }
 
-  if (job.status === "completed") {
+  if (job.status !== "pending" && job.status !== "running") {
     return;
   }
 
   const prompt = job.prompt?.trim() || EMPTY_CANVAS_PROMPT;
 
-  await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
+  const started = await prisma.aiGeneration.updateMany({
+    where: {
+      id: aiGenerationId,
+      type: "export_spec",
+      status: { in: ["pending", "running"] },
+    },
     data: { status: "running", error: null, blockedBy: null },
   });
+
+  if (started.count === 0) {
+    return;
+  }
 
   const run = async () => {
     try {
@@ -149,17 +157,16 @@ export async function failExportSpecJob(
     where: { id: aiGenerationId },
   });
 
-  if (
-    !job ||
-    job.type !== "export_spec" ||
-    job.status === "completed" ||
-    job.status === "failed"
-  ) {
+  if (!job || job.type !== "export_spec") {
     return;
   }
 
-  await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
+  await prisma.aiGeneration.updateMany({
+    where: {
+      id: aiGenerationId,
+      type: "export_spec",
+      status: { in: ["pending", "running"] },
+    },
     data: {
       status: "failed",
       error: summarizeExportSpecFailure(error),
@@ -244,8 +251,12 @@ export async function completeExportSpecJob(
   aiGenerationId: string,
   result: ExportSpecResult,
 ): Promise<void> {
-  await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
+  const completed = await prisma.aiGeneration.updateMany({
+    where: {
+      id: aiGenerationId,
+      type: "export_spec",
+      status: { in: ["pending", "running"] },
+    },
     data: {
       status: "completed",
       error: null,
@@ -258,4 +269,8 @@ export async function completeExportSpecJob(
       model: result.model ?? inferenceConfig.groqModel,
     },
   });
+
+  if (completed.count === 0) {
+    return;
+  }
 }

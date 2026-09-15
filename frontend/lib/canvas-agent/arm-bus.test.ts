@@ -63,7 +63,7 @@ describe("browser arm bus", () => {
     expect(second.hasClaim()).toBe(false);
   });
 
-  it("still lists both windows after a storage race so the agent cannot draw", () => {
+  it("does not steal an existing lock after a storage race", () => {
     const first = createBrowserArmBus();
     expect(first.claim(project()).ok).toBe(true);
 
@@ -76,15 +76,10 @@ describe("browser arm bus", () => {
       }),
     );
 
-    expect(first.listArmed()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ tabId: first.tabId, projectName: "Checkout" }),
-        expect.objectContaining({
-          tabId: "other-tab",
-          projectName: "Payments",
-        }),
-      ]),
-    );
+    expect(first.hasClaim()).toBe(true);
+    expect(first.listArmed()).toEqual([
+      expect.objectContaining({ tabId: first.tabId, projectName: "Checkout" }),
+    ]);
 
     const session = createCanvasAgentSession({
       getProjectStatus: () => "ready",
@@ -94,12 +89,10 @@ describe("browser arm bus", () => {
 
     expect(() =>
       session.createComponent({ kind: "service", label: "API" }),
-    ).toThrow(
-      'Two windows have agents allowed ("Checkout" and "Payments"). Turn off Allow agent in one window, then try again.',
-    );
+    ).not.toThrow();
   });
 
-  it("stops the agent on the window that took over while the other is still allowed", () => {
+  it("turns off the first window when another window takes over", () => {
     const channel = window.BroadcastChannel;
     Object.defineProperty(window, "BroadcastChannel", {
       configurable: true,
@@ -112,9 +105,14 @@ describe("browser arm bus", () => {
       expect(first.claim(project()).ok).toBe(true);
       second.takeOver(project("Payments"));
 
-      expect(first.hasClaim()).toBe(true);
+      expect(first.hasClaim()).toBe(false);
       expect(second.hasClaim()).toBe(true);
-      expect(second.listArmed().length).toBeGreaterThanOrEqual(2);
+      expect(second.listArmed()).toEqual([
+        expect.objectContaining({
+          tabId: second.tabId,
+          projectName: "Payments",
+        }),
+      ]);
 
       const session = createCanvasAgentSession({
         getProjectStatus: () => "ready",
@@ -124,7 +122,7 @@ describe("browser arm bus", () => {
 
       expect(() =>
         session.createComponent({ kind: "service", label: "API" }),
-      ).toThrow(/Two windows have agents allowed/);
+      ).not.toThrow();
     } finally {
       Object.defineProperty(window, "BroadcastChannel", {
         configurable: true,

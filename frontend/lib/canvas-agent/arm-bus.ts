@@ -31,6 +31,7 @@ export type MemoryArmNetwork = {
 
 const STORAGE_KEY = "iae.active-project";
 const STORAGE_PREFIX = "iae.active-project:";
+const LOCK_KEY = "iae.active-project.lock";
 const CENSUS_MS = 30;
 const CLAIM_TTL_MS = 45_000;
 const HEARTBEAT_MS = 10_000;
@@ -56,7 +57,7 @@ export function createBrowserArmBus(): ArmBus {
   const store = createArmStore();
   const local = createArmBus(tabId, store);
   hydrateFromStorage(store, tabId);
-  let heartbeat: ReturnType<typeof window.setInterval> | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | number | null = null;
 
   if (typeof window === "undefined") {
     return local;
@@ -81,26 +82,67 @@ export function createBrowserArmBus(): ArmBus {
         stopHeartbeat();
         return;
       }
-      writeTabClaim(asArmed(tabId, project));
+      const lock = readLock();
+      if (lock && lock.tabId !== tabId) {
+        dropLocalIfLost();
+        return;
+      }
+      const mine = asArmed(tabId, project);
+      writeTabClaim(mine);
+      writeLock(mine);
     }, HEARTBEAT_MS);
+  }
+
+  function dropLocalIfLost() {
+    const lock = readLock();
+    if (!lock || lock.tabId === tabId || !local.hasClaim()) {
+      return;
+    }
+    stopHeartbeat();
+    local.release();
+    removeTabClaim(tabId);
   }
 
   const bus: ArmBus = {
     tabId,
     listArmed() {
+      dropLocalIfLost();
+      const lock = readLock();
+      if (lock) {
+        return [lock];
+      }
       return mergeStoredClaims(local.listArmed());
     },
     hasClaim() {
+      dropLocalIfLost();
       return local.hasClaim();
     },
     claim(project) {
+      dropLocalIfLost();
+      const lock = readLock();
+      if (lock && lock.tabId !== tabId) {
+        return { ok: false, holder: lock };
+      }
       const others = rememberStoredOthers(store, tabId);
       if (others[0]) {
         return { ok: false, holder: others[0] };
       }
       const result = local.claim(project);
       if (result.ok) {
-        writeTabClaim(asArmed(tabId, project));
+        const mine = asArmed(tabId, project);
+        writeTabClaim(mine);
+        writeLock(mine);
+        const confirmed = readLock();
+        if (!confirmed || confirmed.tabId !== tabId) {
+          local.release();
+          removeTabClaim(tabId);
+          clearLockIfHolder(tabId);
+          stopHeartbeat();
+          return {
+            ok: false,
+            holder: confirmed ?? others[0] ?? mine,
+          };
+        }
         rememberStoredOthers(store, tabId);
         startHeartbeat(project);
         post(channel, {
@@ -115,7 +157,9 @@ export function createBrowserArmBus(): ArmBus {
     },
     takeOver(project) {
       local.takeOver(project);
-      writeTabClaim(asArmed(tabId, project));
+      const mine = asArmed(tabId, project);
+      writeTabClaim(mine);
+      writeLock(mine);
       rememberStoredOthers(store, tabId);
       startHeartbeat(project);
       post(channel, {
@@ -127,6 +171,7 @@ export function createBrowserArmBus(): ArmBus {
     },
     release() {
       stopHeartbeat();
+      clearLockIfHolder(tabId);
       if (!local.hasClaim()) {
         removeTabClaim(tabId);
         return;
@@ -136,6 +181,7 @@ export function createBrowserArmBus(): ArmBus {
       post(channel, { type: "release", tabId });
     },
     async sync() {
+      dropLocalIfLost();
       rememberStoredOthers(store, tabId);
       post(channel, { type: "who" });
       await wait(CENSUS_MS);
@@ -158,11 +204,13 @@ export function createBrowserArmBus(): ArmBus {
   window.addEventListener("storage", (event) => {
     if (
       event.key !== STORAGE_KEY &&
+      event.key !== LOCK_KEY &&
       event.key !== null &&
       !event.key.startsWith(STORAGE_PREFIX)
     ) {
       return;
     }
+    dropLocalIfLost();
     hydrateFromStorage(store, tabId);
     notify(store);
   });
@@ -470,6 +518,60 @@ function writeTabClaim(claim: ArmedProject): void {
       at: Date.now(),
     }),
   );
+}
+
+function writeLock(claim: ArmedProject): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(
+    LOCK_KEY,
+    JSON.stringify({
+      tabId: claim.tabId,
+      projectId: claim.projectId,
+      projectName: claim.projectName,
+      at: Date.now(),
+    }),
+  );
+}
+
+function readLock(): ArmedProject | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCK_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<ArmedProject> & { at?: number };
+    if (
+      typeof parsed.tabId !== "string" ||
+      typeof parsed.projectId !== "string" ||
+      typeof parsed.projectName !== "string"
+    ) {
+      return null;
+    }
+    if (typeof parsed.at === "number" && Date.now() - parsed.at > CLAIM_TTL_MS) {
+      return null;
+    }
+    return {
+      tabId: parsed.tabId,
+      projectId: parsed.projectId,
+      projectName: parsed.projectName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearLockIfHolder(tabId: string): void {
+  const lock = readLock();
+  if (lock?.tabId !== tabId) {
+    return;
+  }
+  window.localStorage.removeItem(LOCK_KEY);
 }
 
 function removeTabClaim(tabId: string): void {

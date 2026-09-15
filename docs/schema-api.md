@@ -85,7 +85,9 @@ rating
   -- one live Rating per User per AI Generation; switch up/down is allowed; no clear
 ```
 
-Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited.
+Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited. A failed Invite email sets `deleted_at` on that invite row instead of hard-deleting it.
+
+Generate jobs are single-flight per Project: `POST /api/projects/:id/ai/generate` returns 409 if another generate job is `pending` or `running`. Apply claims `applied_at` and writes the canvas snapshot in one transaction, then tears down the live Yjs room.
 
 ### Project status lifecycle
 
@@ -130,7 +132,7 @@ GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs i
 PUT    /api/projects/:id/ai/:jobId/rating -- { value: "up" | "down" }; author + collaborator + completed job; 403 if not author; 400 if not completed; switch allowed; no DELETE
 POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
-WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
+WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake; snapshot bind finishes before the first sync
 ```
 
 ### Prompt-mode creation flow

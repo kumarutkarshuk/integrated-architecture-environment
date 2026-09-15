@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { AppConfig } from "../config.js";
 import { captureEvent } from "../analytics.js";
 import { prisma } from "../db.js";
@@ -57,12 +58,15 @@ export function configureGenerateServiceFromEnv(): void {
   });
 }
 
+type GenerateDb = Pick<typeof prisma, "aiGeneration"> | Prisma.TransactionClient;
+
 export async function createGenerateJob(
   projectId: string,
   userId: string,
   prompt: string,
+  db: GenerateDb = prisma,
 ) {
-  return prisma.aiGeneration.create({
+  return db.aiGeneration.create({
     data: {
       projectId,
       userId,
@@ -85,14 +89,22 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
     throw new Error(`Generate job not found: ${aiGenerationId}`);
   }
 
-  if (job.status === "completed") {
+  if (job.status !== "pending" && job.status !== "running") {
     return;
   }
 
-  await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
+  const started = await prisma.aiGeneration.updateMany({
+    where: {
+      id: aiGenerationId,
+      type: "generate",
+      status: { in: ["pending", "running"] },
+    },
     data: { status: "running", error: null, blockedBy: null },
   });
+
+  if (started.count === 0) {
+    return;
+  }
 
   const prompt = job.prompt ?? "";
 
@@ -141,45 +153,70 @@ export async function failGenerateJob(
     include: { user: { select: { clerkId: true } } },
   });
 
-  if (!job || job.type !== "generate" || job.status === "completed" || job.status === "failed") {
+  if (!job || job.type !== "generate") {
     return;
   }
 
-  await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
-    data: {
-      status: "failed",
-      error: jobErrorMessage(error),
-      blockedBy: blockedBy ?? null,
-    },
+  const failed = await prisma.$transaction(async (tx) => {
+    const marked = await tx.aiGeneration.updateMany({
+      where: {
+        id: aiGenerationId,
+        type: "generate",
+        status: { in: ["pending", "running"] },
+      },
+      data: {
+        status: "failed",
+        error: jobErrorMessage(error),
+        blockedBy: blockedBy ?? null,
+      },
+    });
+
+    if (marked.count === 0) {
+      return false;
+    }
+
+    const liveSiblingCount = await tx.aiGeneration.count({
+      where: {
+        projectId: job.projectId,
+        type: "generate",
+        status: { in: ["pending", "running"] },
+        id: { not: aiGenerationId },
+      },
+    });
+
+    if (liveSiblingCount > 0) {
+      await tx.project.updateMany({
+        where: { id: job.projectId, deletedAt: null },
+        data: { status: "generating" },
+      });
+      return true;
+    }
+
+    const completedPreviewCount = await tx.aiGeneration.count({
+      where: {
+        projectId: job.projectId,
+        type: "generate",
+        status: "completed",
+        appliedAt: null,
+      },
+    });
+
+    await tx.project.updateMany({
+      where: { id: job.projectId, deletedAt: null },
+      data: { status: completedPreviewCount > 0 ? "preview" : "failed" },
+    });
+
+    return true;
   });
+
+  if (!failed) {
+    return;
+  }
 
   captureEvent(job.user.clerkId, "ai_generation_failed", {
     projectId: job.projectId,
     aiGenerationId: job.id,
     ...(blockedBy ? { blockedBy } : {}),
-  });
-
-  const completedPreviewCount = await prisma.aiGeneration.count({
-    where: {
-      projectId: job.projectId,
-      type: "generate",
-      status: "completed",
-      appliedAt: null,
-    },
-  });
-
-  if (completedPreviewCount > 0) {
-    await prisma.project.updateMany({
-      where: { id: job.projectId, deletedAt: null },
-      data: { status: "preview" },
-    });
-    return;
-  }
-
-  await prisma.project.updateMany({
-    where: { id: job.projectId, deletedAt: null },
-    data: { status: "failed" },
   });
 }
 
@@ -255,21 +292,40 @@ export async function completeGenerateJob(
   aiGenerationId: string,
   result: GenerateResult,
 ): Promise<void> {
-  const job = await prisma.aiGeneration.update({
-    where: { id: aiGenerationId },
-    data: {
-      status: "completed",
-      error: null,
-      blockedBy: null,
-      result: { records: result.records } as object,
-      plan: result.plan as object,
-      tokensUsed: result.tokensUsed ?? null,
-      model: result.model ?? inferenceConfig.groqModel,
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    const job = await tx.aiGeneration.findUnique({
+      where: { id: aiGenerationId },
+      select: { projectId: true, type: true },
+    });
 
-  await prisma.project.updateMany({
-    where: { id: job.projectId, deletedAt: null },
-    data: { status: "preview" },
+    if (!job || job.type !== "generate") {
+      return;
+    }
+
+    const completed = await tx.aiGeneration.updateMany({
+      where: {
+        id: aiGenerationId,
+        type: "generate",
+        status: { in: ["pending", "running"] },
+      },
+      data: {
+        status: "completed",
+        error: null,
+        blockedBy: null,
+        result: { records: result.records } as object,
+        plan: result.plan as object,
+        tokensUsed: result.tokensUsed ?? null,
+        model: result.model ?? inferenceConfig.groqModel,
+      },
+    });
+
+    if (completed.count === 0) {
+      return;
+    }
+
+    await tx.project.updateMany({
+      where: { id: job.projectId, deletedAt: null },
+      data: { status: "preview" },
+    });
   });
 }
