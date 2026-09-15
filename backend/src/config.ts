@@ -2,6 +2,7 @@ import { DEFAULT_GROQ_MODEL, DEFAULT_PROMPT_GUARD_MODEL } from "./ai/inference-d
 import { parseGroqApiKeys } from "./ai/groq-keys.js";
 
 export interface AppConfig {
+  host: string;
   port: number;
   corsOrigin: string;
   clerkSecretKey: string;
@@ -25,7 +26,10 @@ export function loadConfig(): AppConfig {
     throw new Error("SMTP_USER and SMTP_PASS are required");
   }
 
+  const isProduction = process.env.NODE_ENV === "production";
+
   return {
+    host: process.env.HOST ?? (isProduction ? "0.0.0.0" : "127.0.0.1"),
     port: Number(process.env.PORT ?? 4000),
     corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
     clerkSecretKey: clerkSecretKey ?? "test-secret",

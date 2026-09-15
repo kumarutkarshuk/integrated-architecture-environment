@@ -34,6 +34,6 @@ process.on("unhandledRejection", (reason) => {
   captureProcessError(reason);
 });
 
-server.listen(config.port, () => {
-  console.log(`Backend listening on port ${config.port}`);
+server.listen(config.port, config.host, () => {
+  console.log(`Backend listening on ${config.host}:${config.port}`);
 });
