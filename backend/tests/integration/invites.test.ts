@@ -13,7 +13,7 @@ import {
   resetMailer,
   setMailer,
 } from "../../src/invites/mailer.js";
-import { RESEND_COOLDOWN_MS } from "../../src/invites/service.js";
+import { RESEND_COOLDOWN_MS, MAX_COLLABORATORS } from "../../src/invites/service.js";
 import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
@@ -729,9 +729,15 @@ describe("Invite create and redeem", () => {
     expect(testMailer.getSent()).toHaveLength(0);
 
     const pending = await prisma.projectInvite.findMany({
-      where: { projectId: created.body.id },
+      where: { projectId: created.body.id, deletedAt: null },
     });
     expect(pending).toEqual([]);
+
+    const stored = await prisma.projectInvite.findMany({
+      where: { projectId: created.body.id },
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.deletedAt).not.toBeNull();
   });
 
   it("returns 502 and rolls back Invite resend when SMTP user and pass are missing", async () => {
@@ -774,5 +780,42 @@ describe("Invite create and redeem", () => {
       token: original.token,
       sendCount: 1,
     });
+  });
+
+  it("rejects a new Invite when the Project already has 20 Collaborators", async () => {
+    const header = authHeader("clerk_collab_cap", "collabcap@example.com");
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Full Canvas", mode: "blank" })
+      .expect(201);
+
+    const extras = MAX_COLLABORATORS - 1;
+    for (let index = 1; index <= extras; index += 1) {
+      const extra = await prisma.user.create({
+        data: {
+          clerkId: `clerk_collab_cap_${index}`,
+          email: `editor${index}@example.com`,
+        },
+      });
+      await prisma.collaborator.create({
+        data: {
+          projectId: created.body.id,
+          userId: extra.id,
+          role: "editor",
+        },
+      });
+    }
+
+    const limited = await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: "too-many@example.com" })
+      .expect(409);
+
+    expect(limited.body).toEqual({
+      error: `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
+    });
+    expect(testMailer.getSent()).toHaveLength(0);
   });
 });

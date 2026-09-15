@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureProductEvent } from "../lib/analytics";
 import { createMemoryArmNetwork } from "../lib/canvas-agent/arm-bus";
+import { toast } from "sonner";
 import { WorkspaceShell } from "./WorkspaceShell";
 
 const workspaceState = vi.hoisted(() => ({
@@ -9,27 +11,45 @@ const workspaceState = vi.hoisted(() => ({
   selectedProjectId: "project-1" as string | null,
   projectMode: "blank" as "blank" | "prompt",
   projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
+  hasPreview: false,
   spec: null as { markdown: string; gaps_summary: string } | null,
+  exportSpec: async () => undefined as void,
+  canvasStore: "live" as "live" | "loading" | "missing",
 }));
+
+const webMcpSupport = vi.hoisted(() => ({ compatible: true }));
 
 vi.mock("@clerk/nextjs", () => ({
   UserButton: () => <div>Account</div>,
 }));
 
 vi.mock("sonner", () => ({
-  toast: {
+  toast: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
-  },
+  }),
+}));
+
+vi.mock("../lib/analytics", () => ({
+  captureProductEvent: vi.fn(),
+  identifySignedInUser: vi.fn(),
+  initSignedInAnalytics: vi.fn(),
 }));
 
 vi.mock("./ProjectCanvas", () => ({
   ProjectCanvas: () => <div>Canvas</div>,
+  CanvasLoadingPing: ({ label = "Loading canvas..." }: { label?: string }) => (
+    <div>{label}</div>
+  ),
 }));
 
 vi.mock("../lib/canvas-agent/webmcp", () => ({
   mountWebMcpRelayEmbed: () => undefined,
   registerCanvasAgentTools: async () => undefined,
+}));
+
+vi.mock("../lib/canvas-agent/webmcp-support", () => ({
+  isWebMcpCompatibleBrowser: () => webMcpSupport.compatible,
 }));
 
 vi.mock("../lib/canvas-agent/tldraw-editor", () => ({
@@ -139,17 +159,40 @@ vi.mock("../hooks/useAiGeneration", () => ({
   useAiGeneration: () => ({
     prompt: "",
     setPrompt: () => undefined,
-    previews: [],
-    selectedPreview: null,
-    selectedPreviewId: null,
+    previews: workspaceState.hasPreview
+      ? [
+          {
+            id: "preview-1",
+            prompt: "Design a todo API",
+            status: "completed",
+            result: { records: {} },
+            appliedAt: null,
+            createdAt: "2026-09-14T00:00:01.000Z",
+            rating: null,
+          },
+        ]
+      : [],
+    selectedPreview: workspaceState.hasPreview
+      ? {
+          id: "preview-1",
+          prompt: "Design a todo API",
+          status: "completed",
+          result: { records: {} },
+          appliedAt: null,
+          createdAt: "2026-09-14T00:00:01.000Z",
+          rating: null,
+        }
+      : null,
+    selectedPreviewId: workspaceState.hasPreview ? "preview-1" : null,
     setSelectedPreviewId: () => undefined,
     isBusy: false,
     isApplying: false,
-    isGenerating: false,
+    isGenerating: workspaceState.projectStatus === "generating",
     generationFailed: false,
     generationError: null,
     previewWaitTimedOut: false,
     appliedJob: null,
+    isAppliedJobLoading: false,
     rateJob: async () => undefined,
     regenerate: async () => undefined,
     applySelectedPreview: async () => undefined,
@@ -166,7 +209,7 @@ vi.mock("../hooks/useExportSpec", () => ({
     spec: workspaceState.spec,
     specJob: null,
     downloadFileName: "owned-canvas-spec.md",
-    exportSpec: async () => undefined,
+    exportSpec: () => workspaceState.exportSpec(),
     clearSpec: () => undefined,
     downloadSpec: () => undefined,
     copySpec: async () => undefined,
@@ -190,11 +233,16 @@ vi.mock("../hooks/useCreateInvite", () => ({
 
 vi.mock("../hooks/useYjsTldrawStore", () => ({
   useYjsTldrawStore: () => ({
-    storeWithStatus: {
-      status: "synced-remote",
-      connectionStatus: "online",
-    },
-    saveStatus: "saved",
+    storeWithStatus:
+      workspaceState.canvasStore === "missing"
+        ? null
+        : workspaceState.canvasStore === "loading"
+          ? { status: "loading" }
+          : {
+              status: "synced-remote",
+              connectionStatus: "online",
+            },
+    saveStatus: workspaceState.canvasStore === "live" ? "saved" : "loading",
     onEditorReady: () => undefined,
   }),
 }));
@@ -208,7 +256,15 @@ describe("WorkspaceShell", () => {
     workspaceState.selectedProjectId = "project-1";
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
+    workspaceState.hasPreview = false;
     workspaceState.spec = null;
+    workspaceState.exportSpec = async () => undefined;
+    workspaceState.canvasStore = "live";
+    webMcpSupport.compatible = true;
+    vi.mocked(toast).mockReset();
+    vi.mocked(toast.error).mockReset();
+    vi.mocked(toast.success).mockReset();
+    vi.mocked(captureProductEvent).mockReset();
     clipboardWriteText.mockReset();
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -322,6 +378,22 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
   });
 
+  it("blocks Export Spec from the canvas tab while the spec tab is open", () => {
+    const exportSpec = vi.fn(async () => undefined);
+    workspaceState.spec = {
+      markdown: "# Spec",
+      gaps_summary: "None",
+    };
+    workspaceState.exportSpec = exportSpec;
+
+    render(<WorkspaceShell />);
+    fireEvent.click(screen.getByRole("button", { name: "Owned Canvas.canvas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export Spec" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Close the spec tab");
+    expect(exportSpec).not.toHaveBeenCalled();
+  });
+
   it("hides Invite on preview and always shows a solo session", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "generating";
@@ -358,6 +430,17 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
     expect(screen.getByText(/Reload turns it off/i)).toBeTruthy();
     expect(
+      (
+        screen.getByRole("switch", {
+          name: "Allow agent to edit this canvas",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      screen.queryByText(/This browser cannot let an agent draw/i),
+    ).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
+    expect(
       screen
         .getByRole("switch", { name: "Allow agent to edit this canvas" })
         .closest(".relative")
@@ -376,6 +459,25 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("Chat coming soon...")).toBeNull();
   });
 
+  it("disables Allow agent with a reason when the browser is not WebMCP compatible", () => {
+    webMcpSupport.compatible = false;
+
+    render(<WorkspaceShell />);
+
+    const allowSwitch = screen.getByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    }) as HTMLButtonElement;
+
+    expect(allowSwitch.disabled).toBe(true);
+    expect(
+      screen.getByText(
+        "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Reload turns it off/i)).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
   it("copies Cursor setup from the AI panel", async () => {
     render(<WorkspaceShell />);
 
@@ -386,6 +488,39 @@ describe("WorkspaceShell", () => {
         expect.stringContaining("mcpServers"),
       );
     });
+    expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+      client: "cursor",
+    });
+  });
+
+  it("records mcp_config_copied for Claude Code and Codex", async () => {
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Claude Code setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Codex setup" }));
+
+    await waitFor(() => {
+      expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+        client: "claude_code",
+      });
+    });
+    expect(captureProductEvent).toHaveBeenCalledWith("mcp_config_copied", {
+      client: "codex",
+    });
+  });
+
+  it("shows sidebar loading text and a center ping while a ready Project canvas loads", () => {
+    workspaceState.projectMode = "blank";
+    workspaceState.projectStatus = "ready";
+    workspaceState.canvasStore = "missing";
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Loading canvas for Owned Canvas...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
   });
 
   it("shows Allow agent on a ready prompt Project", () => {
@@ -404,6 +539,7 @@ describe("WorkspaceShell", () => {
   it("keeps Preview iteration on a prompt Project that is not ready", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
 
     render(<WorkspaceShell />);
 
@@ -414,19 +550,37 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("Chat coming soon...")).toBeNull();
   });
 
-  it("keeps Preview iteration while generating or failed", () => {
+  it("disables the AI panel while generating or waiting for Preview", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "generating";
 
     const { unmount } = render(<WorkspaceShell />);
 
-    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
+    expect(screen.getAllByText("Generating preview...").length).toBeGreaterThan(
+      0,
+    );
     expect(
       screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
     ).toBeNull();
 
     unmount();
+    workspaceState.projectStatus = "preview";
+    render(<WorkspaceShell />);
+
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
+    expect(screen.getAllByText("Waiting for preview...").length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+  });
+
+  it("keeps Preview iteration when generate failed", () => {
+    workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "failed";
+
     render(<WorkspaceShell />);
 
     expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
@@ -448,6 +602,9 @@ describe("WorkspaceShell", () => {
       screen.getByRole("switch", { name: "Allow agent to edit this canvas" })
         .getAttribute("aria-checked"),
     ).toBe("true");
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_allowed", {
+      projectId: "project-1",
+    });
 
     unmount();
     render(<WorkspaceShell />);
@@ -468,6 +625,9 @@ describe("WorkspaceShell", () => {
     expect(within(dialog).getByRole("button", { name: "Switch" })).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
     expect(armHarness.getBus().hasClaim()).toBe(false);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_arm_conflict", {
+      projectId: "project-1",
+    });
   });
 
   it("keeps the first tab armed when Keep is chosen", () => {
@@ -500,6 +660,9 @@ describe("WorkspaceShell", () => {
         projectName: "Owned Canvas",
       },
     ]);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_allowed", {
+      projectId: "project-1",
+    });
   });
 
   it("leaves the first tab armed when Cancel is chosen", () => {
@@ -532,6 +695,9 @@ describe("WorkspaceShell", () => {
     ).toBe("false");
     expect(armHarness.getBus().hasClaim()).toBe(false);
     expect(armHarness.getBus().listArmed()).toEqual([]);
+    expect(captureProductEvent).toHaveBeenCalledWith("agent_disallowed", {
+      projectId: "project-1",
+    });
   });
 });
 

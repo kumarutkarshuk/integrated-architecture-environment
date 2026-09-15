@@ -61,13 +61,13 @@ describe("HomePage", () => {
     expect(screen.queryByText("Idle")).toBeNull();
     expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(1);
     expect(
-      screen.getAllByRole("link", { name: "Utkarsh Kumar" }),
+      screen.getAllByRole("link", { name: "Developer's portfolio" }),
     ).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "GitHub" })[0].getAttribute("href")).toBe(
       "https://github.com/kumarutkarshuk/integrated-architecture-environment",
     );
     expect(
-      screen.getAllByRole("link", { name: "Utkarsh Kumar" })[0].getAttribute("href"),
+      screen.getAllByRole("link", { name: "Developer's portfolio" })[0].getAttribute("href"),
     ).toBe("https://utkarshkumar.vercel.app/");
     expect(initSignedInAnalytics).not.toHaveBeenCalled();
     expect(identifySignedInUser).not.toHaveBeenCalled();

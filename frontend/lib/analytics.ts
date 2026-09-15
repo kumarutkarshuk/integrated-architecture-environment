@@ -1,5 +1,16 @@
+export type ClientProductEventName =
+  | "mcp_config_copied"
+  | "agent_allowed"
+  | "agent_disallowed"
+  | "agent_arm_conflict"
+  | "webmcp_tool_used";
+
 type SignedInAnalyticsClient = {
   identify: (distinctId: string) => void;
+  capture: (
+    event: ClientProductEventName,
+    properties?: Record<string, unknown>,
+  ) => void;
   captureException: (error: unknown) => void;
 };
 
@@ -15,10 +26,27 @@ export function identifySignedInUser(clerkId: string): void {
   });
 }
 
+export function captureProductEvent(
+  event: ClientProductEventName,
+  properties?: Record<string, unknown>,
+): void {
+  void getSignedInAnalyticsClient()
+    .then((client) => {
+      client?.capture(event, properties);
+    })
+    .catch((error) => {
+      console.error("Analytics capture failed", error);
+    });
+}
+
 export function captureException(error: unknown): void {
   void getSignedInAnalyticsClient().then((client) => {
     client?.captureException(error);
   });
+}
+
+export function resetSignedInAnalytics(): void {
+  clientPromise = null;
 }
 
 function getSignedInAnalyticsClient(): Promise<SignedInAnalyticsClient | null> {
@@ -53,6 +81,9 @@ async function loadSignedInPosthog(): Promise<SignedInAnalyticsClient | null> {
   return {
     identify(distinctId) {
       posthog.identify(distinctId);
+    },
+    capture(event, properties) {
+      posthog.capture(event, properties);
     },
     captureException(error) {
       posthog.captureException(error);

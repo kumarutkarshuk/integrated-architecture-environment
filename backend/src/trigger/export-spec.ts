@@ -4,6 +4,7 @@ import {
   configureExportSpecServiceFromEnv,
   failExportSpecJob,
   runExportSpecJob,
+  shouldSkipExportSpecRetry,
 } from "../ai/export-spec-service.js";
 import { EXPORT_SPEC_TASK_ID, type ExportSpecJobPayload } from "../ai/types.js";
 
@@ -16,8 +17,13 @@ export const exportSpecTask = task({
     await runExportSpecJob(payload.aiGenerationId);
     return { aiGenerationId: payload.aiGenerationId };
   },
-  onFailure: async ({ payload }) => {
+  catchError: async ({ error, ctx }) => {
+    if (shouldSkipExportSpecRetry(error, ctx.attempt.number)) {
+      return { skipRetrying: true };
+    }
+  },
+  onFailure: async ({ payload, error }) => {
     configureAnalyticsFromEnv();
-    await failExportSpecJob(payload.aiGenerationId);
+    await failExportSpecJob(payload.aiGenerationId, error);
   },
 });

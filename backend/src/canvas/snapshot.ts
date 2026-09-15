@@ -3,6 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { normalizeCanvasRecords } from "./records.js";
 import { notDeleted, prisma } from "../db.js";
 
+type SnapshotDb = Pick<typeof prisma, "project" | "canvasSnapshot">;
+
 export const CANVAS_YARRAY_PREFIX = "tl_";
 
 export interface CanvasSnapshotJson {
@@ -100,8 +102,9 @@ function toJsonValue(records: Record<string, unknown>): Prisma.InputJsonValue {
 export async function upsertCanvasSnapshot(
   projectId: string,
   records: Record<string, unknown>,
+  db: SnapshotDb = prisma,
 ): Promise<boolean> {
-  const project = await prisma.project.findFirst({
+  const project = await db.project.findFirst({
     where: { id: projectId, ...notDeleted },
     select: { id: true },
   });
@@ -113,7 +116,7 @@ export async function upsertCanvasSnapshot(
   const normalizedRecords = normalizeCanvasRecords(records);
   const tldrawJson = toJsonValue(normalizedRecords);
 
-  await prisma.canvasSnapshot.upsert({
+  await db.canvasSnapshot.upsert({
     where: { projectId },
     create: {
       projectId,
@@ -121,6 +124,7 @@ export async function upsertCanvasSnapshot(
     },
     update: {
       tldrawJson,
+      deletedAt: null,
     },
   });
 

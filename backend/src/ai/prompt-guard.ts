@@ -1,8 +1,13 @@
+import { classifyPromptSafetyWithGroq } from "./groq-client.js";
+import { DEFAULT_PROMPT_GUARD_MODEL } from "./inference-defaults.js";
+
+export const PROMPT_NOT_ALLOWED_MESSAGE = "This prompt is not allowed";
+
 export class InappropriatePromptError extends Error {
   readonly status = 400;
 
   constructor() {
-    super("This prompt is not allowed");
+    super(PROMPT_NOT_ALLOWED_MESSAGE);
     this.name = "InappropriatePromptError";
   }
 }
@@ -17,11 +22,50 @@ const HARD_BLOCK = [
   /\bhow\s+to\s+(kill|murder|rape)\b/i,
   /\b(make|build|assemble|create|craft|construct|design|draw|generate)\s+(me\s+)?(a\s+|an\s+)?(bomb|pipe\s*bomb|explosive|weapon|gun|firearm|rifle|pistol|missile|nuke)s?\b(?!\s+(detection|detector|inventory|tracking|moderation|filter|keyword|screening|classifier))/i,
   /\b(cook\s+meth|synthesize\s+(meth|fentanyl))\b/i,
-  /\b(ignore|bypass|override)\s+(all\s+)?(previous|prior|the)?\s*(instructions?|rules?|guardrails?|filters?|safety|policy)\b/i,
+  /\b(ignore|bypass|override)\s+(all\s+|any\s+)?(previous|prior|the|above|system)?\s*(instructions?|rules?|guardrails?|filters?|safety|policy|system\s+prompt)\b/i,
   /\b(you\s+are\s+(now\s+)?(dan|jailbroken)|do\s+anything\s+now|jailbreak)\b/i,
 ];
 
 export type PromptSafetyClassifier = (prompt: string) => Promise<boolean>;
+
+let classifierOverride: PromptSafetyClassifier | null = null;
+let guardConfig = {
+  groqApiKeys: [] as string[],
+  groqPromptGuardModel: DEFAULT_PROMPT_GUARD_MODEL,
+  isTest: true,
+};
+
+export function configurePromptGuard(config: {
+  groqApiKeys: string[];
+  groqPromptGuardModel: string;
+  isTest: boolean;
+}): void {
+  guardConfig = config;
+}
+
+export function setPromptSafetyClassifier(
+  classifier: PromptSafetyClassifier | null,
+): void {
+  classifierOverride = classifier;
+}
+
+export async function classifyPromptSafety(prompt: string): Promise<boolean> {
+  if (classifierOverride) {
+    return classifierOverride(prompt);
+  }
+
+  if (guardConfig.isTest) {
+    return true;
+  }
+
+  const classified = await classifyPromptSafetyWithGroq(prompt, {
+    apiKeys: guardConfig.groqApiKeys,
+    model: guardConfig.groqPromptGuardModel,
+    requestTimeoutMs: 15_000,
+  });
+
+  return classified.safe;
+}
 
 export function isInappropriatePrompt(prompt: string): boolean {
   const text = prompt.trim();

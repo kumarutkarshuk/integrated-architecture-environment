@@ -30,11 +30,35 @@ async function persistCanvasSnapshot(
   projectId: string,
   doc: WSSharedDoc,
 ): Promise<void> {
-  try {
-    await saveCanvasSnapshotFromDoc(projectId, doc);
-  } catch (error) {
-    console.error("Failed to persist canvas snapshot", projectId, error);
+  await saveCanvasSnapshotFromDoc(projectId, doc);
+}
+
+const WRITE_STATE_ATTEMPTS = 3;
+
+async function persistCanvasSnapshotWithRetry(
+  projectId: string,
+  doc: WSSharedDoc,
+): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= WRITE_STATE_ATTEMPTS; attempt += 1) {
+    try {
+      await persistCanvasSnapshot(projectId, doc);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        "Failed to persist canvas snapshot",
+        projectId,
+        `attempt ${attempt}/${WRITE_STATE_ATTEMPTS}`,
+        error,
+      );
+    }
   }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to persist canvas snapshot");
 }
 
 function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
@@ -47,7 +71,9 @@ function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
     projectId,
     setTimeout(() => {
       debounceTimers.delete(projectId);
-      void persistCanvasSnapshot(projectId, doc);
+      void persistCanvasSnapshot(projectId, doc).catch((error) => {
+        console.error("Failed to persist canvas snapshot", projectId, error);
+      });
     }, DEBOUNCE_MS),
   );
 }
@@ -70,7 +96,7 @@ export function configureCanvasPersistence(): void {
     writeState: async (docName, doc) => {
       const projectId = docName;
       clearCanvasPersistenceTimer(projectId);
-      await persistCanvasSnapshot(projectId, doc);
+      await persistCanvasSnapshotWithRetry(projectId, doc);
     },
   });
 }

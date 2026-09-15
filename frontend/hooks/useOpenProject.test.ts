@@ -185,6 +185,36 @@ describe("useOpenProject", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("clears selection and the query when the open Project leaves the list", () => {
+    setProjectParam("project-1");
+
+    const { result, rerender } = renderHook(
+      ({ projects, load }) => useOpenProject(projects, load),
+      {
+        initialProps: {
+          projects: accessibleProjects,
+          load: { isLoading: true, error: null as string | null },
+        },
+      },
+    );
+
+    rerender({
+      projects: accessibleProjects,
+      load: { isLoading: false, error: null },
+    });
+
+    expect(result.current.selectedProjectId).toBe("project-1");
+    replace.mockClear();
+
+    rerender({
+      projects: [{ id: "project-2" }],
+      load: { isLoading: false, error: null },
+    });
+
+    expect(result.current.selectedProjectId).toBeNull();
+    expect(replace).toHaveBeenCalledWith("/workspace");
+  });
+
   it("clears selection and the query when the open Project is closed", () => {
     const { result } = renderHook(() =>
       useOpenProject(accessibleProjects, { isLoading: false, error: null }),

@@ -44,15 +44,19 @@
 
 # Todos
 
-- Handle race conditions
-- Automated tests
-- Integrate with monitoring tool
-- review AI layer
-- Transactions wherever needed
-- in app accepting invitations
-- unique project names and limited projects
-- supabase and resend issues 
+- readme and oss license
+- separate dev and prod environments
+- test utc reset
+- docker push
+- supabase issue
 - unauthorized issue
+- Automated tests
+- in app accepting invitations
+- project rename feature
+- handle two different windows with allow agent on (currently no guard)
+- project list is polled currently to handle case when a project is deleted and collaborator is still present (inefficiency)
+- AI layer: LLM as a judge if needed
+- if db write fails, project creation quota is still consumed
 
 # Design
 
@@ -97,10 +101,3 @@
 - Soft delete data always
 - Add backend monitoring and logging
 
-let's review the current codebase for
-
-- rules in @prompt.md being followed or not
-- race conditions handled properly or not
-- is the behavior correct or not when frontend disconnects with the backend and reconnection is possible later
-- transactions in place or not wherever needed
-- saved status consistent or not as in later non-functional requirements in @prompt.md 

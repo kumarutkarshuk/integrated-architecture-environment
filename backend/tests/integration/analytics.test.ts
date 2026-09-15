@@ -191,6 +191,45 @@ describe("Product analytics", () => {
     expectNoRecipientEmail(recipient);
   });
 
+  it("records collaborator_limit_reached without the recipient email", async () => {
+    const header = authHeader("clerk_analytics_cap", "capowner@example.com");
+    const recipient = "too-many@example.com";
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({ name: "Full Canvas", mode: "blank" })
+      .expect(201);
+
+    for (let index = 1; index <= 19; index += 1) {
+      const extra = await prisma.user.create({
+        data: {
+          clerkId: `clerk_analytics_cap_${index}`,
+          email: `capeditor${index}@example.com`,
+        },
+      });
+      await prisma.collaborator.create({
+        data: {
+          projectId: created.body.id,
+          userId: extra.id,
+          role: "editor",
+        },
+      });
+    }
+
+    await request(app)
+      .post(`/api/projects/${created.body.id}/invites`)
+      .set("Authorization", header)
+      .send({ email: recipient })
+      .expect(409);
+
+    expectEvent("collaborator_limit_reached", "clerk_analytics_cap", {
+      projectId: created.body.id,
+    });
+    expect(eventsNamed("invite_sent")).toHaveLength(0);
+    expectNoRecipientEmail(recipient);
+  });
+
   it("records invite_resent with the Clerk id", async () => {
     const header = authHeader("clerk_analytics_resend", "resend@example.com");
 

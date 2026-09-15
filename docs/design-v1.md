@@ -40,6 +40,7 @@ Synthesized from design sessions. Human intent lives in [`prompt.md`](../prompt.
 - Roles: `owner`, `editor` (no viewer in v1)
 - Email-bound invite link sent via Gmail SMTP
 - Redeem: Clerk sign-in → verify email match → `collaborator` row created
+- At most 20 Collaborators per Project (owner + editors + pending Invites)
 
 ## AI
 

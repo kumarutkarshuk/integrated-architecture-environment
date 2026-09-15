@@ -27,10 +27,10 @@ export function LandingSourceLinks({ className }: { className?: string }) {
         href={DEVELOPER_SITE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        title="Utkarsh Kumar portfolio"
+        title="Developer's portfolio"
         className={linkClass}
       >
-        Utkarsh Kumar
+        {"Developer's portfolio"}
       </a>
     </nav>
   );

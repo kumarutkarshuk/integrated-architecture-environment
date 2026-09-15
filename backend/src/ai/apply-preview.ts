@@ -1,16 +1,20 @@
 import { clearCanvasPersistenceTimer } from "../canvas/persistence.js";
 import { normalizeCanvasRecords } from "../canvas/records.js";
-import {
-  replaceRecordsInDoc,
-  upsertCanvasSnapshot,
-} from "../canvas/snapshot.js";
-import { getYDoc, teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
-import { prisma } from "../db.js";
+import { upsertCanvasSnapshot } from "../canvas/snapshot.js";
+import { teardownCanvasDoc } from "../canvas/yjs-ws-utils.js";
+import { lockLiveProject, prisma } from "../db.js";
 import type { GenerateResult } from "./types.js";
 
 export type ApplyPreviewError =
   | { code: "not_found"; status: 404 }
   | { code: "invalid_job"; status: 400; message: string };
+
+class ApplyPreviewConflict extends Error {
+  constructor(readonly error: ApplyPreviewError) {
+    super(error.code);
+    this.name = "ApplyPreviewConflict";
+  }
+}
 
 export async function applyPreviewToCanvas(
   projectId: string,
@@ -63,22 +67,51 @@ export async function applyPreviewToCanvas(
 
   const normalizedRecords = normalizeCanvasRecords(result.records);
 
-  const doc = getYDoc(projectId);
-  replaceRecordsInDoc(doc, projectId, normalizedRecords);
-  await upsertCanvasSnapshot(projectId, normalizedRecords);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const locked = await lockLiveProject(tx, projectId);
+      if (!locked) {
+        throw new ApplyPreviewConflict({ code: "not_found", status: 404 });
+      }
+
+      const claimed = await tx.aiGeneration.updateMany({
+        where: {
+          id: aiGenerationId,
+          projectId,
+          type: "generate",
+          status: "completed",
+          appliedAt: null,
+        },
+        data: { appliedAt: new Date() },
+      });
+
+      if (claimed.count === 0) {
+        throw new ApplyPreviewConflict({
+          code: "invalid_job",
+          status: 400,
+          message: "Preview has already been applied",
+        });
+      }
+
+      const saved = await upsertCanvasSnapshot(projectId, normalizedRecords, tx);
+      if (!saved) {
+        throw new ApplyPreviewConflict({ code: "not_found", status: 404 });
+      }
+
+      await tx.project.updateMany({
+        where: { id: projectId, deletedAt: null },
+        data: { status: "ready" },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ApplyPreviewConflict) {
+      return error.error;
+    }
+    throw error;
+  }
+
   clearCanvasPersistenceTimer(projectId);
   teardownCanvasDoc(projectId);
-
-  await prisma.$transaction([
-    prisma.aiGeneration.update({
-      where: { id: aiGenerationId },
-      data: { appliedAt: new Date() },
-    }),
-    prisma.project.updateMany({
-      where: { id: projectId, deletedAt: null },
-      data: { status: "ready" },
-    }),
-  ]);
 
   return { ok: true };
 }

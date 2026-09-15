@@ -30,6 +30,7 @@ collaborator
   PRIMARY KEY (project_id, user_id)
   -- owner row inserted on project create
   -- editor row inserted when project_invite is redeemed
+  -- at most 20 live Collaborators per Project (joined rows plus unexpired pending Invites)
 
 project_invite
   id            uuid PK
@@ -62,12 +63,12 @@ ai_generation
   prompt        text           -- generate: user prompt; export_spec: canvas summary at click
   result        jsonb          -- generate: tldraw shapes; export_spec: { markdown, gaps_summary }
   plan          jsonb          -- generate: parsed Plan { flows: [{ id, label, components, connections }] }; a single-path Plan is one Flow; null for export_spec
-  prompt_version text          -- generate-diagram.v3 or export-spec.v1
+  prompt_version text          -- generate-diagram.v3 or export-spec.v2
   provider      text           -- groq
   model         text           -- LLM id used for the job
   tokens_used   integer
-  error         text           -- set when status is failed; generate: concise worker reason (Failed to generate JSON, Invalid API key, ...)
-  blocked_by    text           -- generate: 'code' | 'classifier' when the prompt was blocked; null otherwise
+  error         text           -- set when status is failed; concise worker reason (This prompt is not allowed, Failed to generate JSON, Invalid API key, Export Spec result was incomplete, ...)
+  blocked_by    text           -- 'code' | 'classifier' when the prompt or canvas was blocked; null otherwise
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
   created_at    timestamptz NOT NULL
   deleted_at    timestamptz
@@ -84,7 +85,9 @@ rating
   -- one live Rating per User per AI Generation; switch up/down is allowed; no clear
 ```
 
-Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited.
+Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited. A failed Invite email sets `deleted_at` on that invite row instead of hard-deleting it.
+
+Generate jobs are single-flight per Project: `POST /api/projects/:id/ai/generate` returns 409 if another generate job is `pending` or `running`. Apply claims `applied_at` and writes the canvas snapshot in one transaction, then tears down the live Yjs room.
 
 ### Project status lifecycle
 
@@ -115,7 +118,7 @@ GET    /api/projects/:id
 DELETE /api/projects/:id          -- owner only
 
 GET    /api/projects/:id/collaborators  -- owner only; joined + pending Invite status
-POST   /api/projects/:id/invites        -- { email }; rejects duplicate pending / joined
+POST   /api/projects/:id/invites        -- { email }; rejects duplicate pending / joined; max 20 Collaborators
 POST   /api/projects/:id/invites/:inviteId/resend  -- owner only; max 3 sends; 5 minute wait
 
 POST   /api/invites/:token/redeem
@@ -129,7 +132,7 @@ GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs i
 PUT    /api/projects/:id/ai/:jobId/rating -- { value: "up" | "down" }; author + collaborator + completed job; 403 if not author; 400 if not completed; switch allowed; no DELETE
 POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
-WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
+WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake; snapshot bind finishes before the first sync
 ```
 
 ### Prompt-mode creation flow

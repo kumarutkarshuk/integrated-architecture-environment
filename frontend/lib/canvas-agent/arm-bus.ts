@@ -30,7 +30,11 @@ export type MemoryArmNetwork = {
 };
 
 const STORAGE_KEY = "iae.active-project";
+const STORAGE_PREFIX = "iae.active-project:";
+const LOCK_KEY = "iae.active-project.lock";
 const CENSUS_MS = 30;
+const CLAIM_TTL_MS = 45_000;
+const HEARTBEAT_MS = 10_000;
 
 export function createMemoryArmNetwork(): MemoryArmNetwork {
   const store = createArmStore();
@@ -53,6 +57,7 @@ export function createBrowserArmBus(): ArmBus {
   const store = createArmStore();
   const local = createArmBus(tabId, store);
   hydrateFromStorage(store, tabId);
+  let heartbeat: ReturnType<typeof setInterval> | number | null = null;
 
   if (typeof window === "undefined") {
     return local;
@@ -63,35 +68,100 @@ export function createBrowserArmBus(): ArmBus {
       ? null
       : new BroadcastChannel("iae.active-project");
 
+  function stopHeartbeat() {
+    if (heartbeat !== null) {
+      window.clearInterval(heartbeat);
+      heartbeat = null;
+    }
+  }
+
+  function startHeartbeat(project: { id: string; name: string }) {
+    stopHeartbeat();
+    heartbeat = window.setInterval(() => {
+      if (!local.hasClaim()) {
+        stopHeartbeat();
+        return;
+      }
+      const lock = readLock();
+      if (lock && lock.tabId !== tabId) {
+        dropLocalIfLost();
+        return;
+      }
+      const mine = asArmed(tabId, project);
+      writeTabClaim(mine);
+      writeLock(mine);
+    }, HEARTBEAT_MS);
+  }
+
+  function dropLocalIfLost() {
+    const lock = readLock();
+    if (!lock || lock.tabId === tabId || !local.hasClaim()) {
+      return;
+    }
+    stopHeartbeat();
+    local.release();
+    removeTabClaim(tabId);
+  }
+
   const bus: ArmBus = {
     tabId,
     listArmed() {
-      return mergeStoredClaim(local.listArmed());
+      dropLocalIfLost();
+      const lock = readLock();
+      if (lock) {
+        return [lock];
+      }
+      return mergeStoredClaims(local.listArmed());
     },
     hasClaim() {
+      dropLocalIfLost();
       return local.hasClaim();
     },
     claim(project) {
-      const stored = readStoredClaim();
-      if (stored && stored.tabId !== tabId) {
-        store.claims.set(stored.tabId, stored);
-        return { ok: false, holder: stored };
+      dropLocalIfLost();
+      const lock = readLock();
+      if (lock && lock.tabId !== tabId) {
+        return { ok: false, holder: lock };
+      }
+      const others = rememberStoredOthers(store, tabId);
+      if (others[0]) {
+        return { ok: false, holder: others[0] };
       }
       const result = local.claim(project);
       if (result.ok) {
-        writeStoredClaim(asArmed(tabId, project));
+        const mine = asArmed(tabId, project);
+        writeTabClaim(mine);
+        writeLock(mine);
+        const confirmed = readLock();
+        if (!confirmed || confirmed.tabId !== tabId) {
+          local.release();
+          removeTabClaim(tabId);
+          clearLockIfHolder(tabId);
+          stopHeartbeat();
+          return {
+            ok: false,
+            holder: confirmed ?? others[0] ?? mine,
+          };
+        }
+        rememberStoredOthers(store, tabId);
+        startHeartbeat(project);
         post(channel, {
           type: "claim",
           tabId,
           projectId: project.id,
           projectName: project.name,
         });
+        post(channel, { type: "who" });
       }
       return result;
     },
     takeOver(project) {
       local.takeOver(project);
-      writeStoredClaim(asArmed(tabId, project));
+      const mine = asArmed(tabId, project);
+      writeTabClaim(mine);
+      writeLock(mine);
+      rememberStoredOthers(store, tabId);
+      startHeartbeat(project);
       post(channel, {
         type: "takeover",
         tabId,
@@ -100,17 +170,19 @@ export function createBrowserArmBus(): ArmBus {
       });
     },
     release() {
+      stopHeartbeat();
+      clearLockIfHolder(tabId);
       if (!local.hasClaim()) {
+        removeTabClaim(tabId);
         return;
       }
       local.release();
-      const stored = readStoredClaim();
-      if (stored?.tabId === tabId) {
-        writeStoredClaim(null);
-      }
+      removeTabClaim(tabId);
       post(channel, { type: "release", tabId });
     },
     async sync() {
+      dropLocalIfLost();
+      rememberStoredOthers(store, tabId);
       post(channel, { type: "who" });
       await wait(CENSUS_MS);
     },
@@ -121,15 +193,24 @@ export function createBrowserArmBus(): ArmBus {
 
   if (channel) {
     channel.onmessage = (event: MessageEvent<ArmMessage>) => {
-      applyRemoteMessage(store, tabId, event.data, channel);
+      applyRemoteMessage(store, tabId, event.data, channel, () => {
+        stopHeartbeat();
+        removeTabClaim(tabId);
+      });
     };
     post(channel, { type: "who" });
   }
 
   window.addEventListener("storage", (event) => {
-    if (event.key !== STORAGE_KEY) {
+    if (
+      event.key !== STORAGE_KEY &&
+      event.key !== LOCK_KEY &&
+      event.key !== null &&
+      !event.key.startsWith(STORAGE_PREFIX)
+    ) {
       return;
     }
+    dropLocalIfLost();
     hydrateFromStorage(store, tabId);
     notify(store);
   });
@@ -261,6 +342,7 @@ function applyRemoteMessage(
   tabId: string,
   message: ArmMessage,
   channel: BroadcastChannel,
+  releaseLocal: () => void,
 ): void {
   if (!message || typeof message !== "object" || !("type" in message)) {
     return;
@@ -294,7 +376,10 @@ function applyRemoteMessage(
   }
 
   if (message.type === "takeover") {
-    store.claims.clear();
+    if (store.claims.has(tabId)) {
+      store.claims.delete(tabId);
+      releaseLocal();
+    }
     store.claims.set(message.tabId, {
       tabId: message.tabId,
       projectId: message.projectId,
@@ -311,21 +396,164 @@ function applyRemoteMessage(
   }
 }
 
-function readStoredClaim(): ArmedProject | null {
+type StoredClaimValue = {
+  projectId: string;
+  projectName: string;
+  at?: number;
+};
+
+function readStoredClaims(): ArmedProject[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const claims = new Map<string, ArmedProject>();
+  const now = Date.now();
+
+  try {
+    const legacy = window.localStorage.getItem(STORAGE_KEY);
+    if (legacy) {
+      for (const claim of parseLegacyClaims(legacy)) {
+        claims.set(claim.tabId, claim);
+      }
+    }
+
+    for (const key of storageKeysWithPrefix(STORAGE_PREFIX)) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        continue;
+      }
+      const tabId = key.slice(STORAGE_PREFIX.length);
+      const claim = parseTabClaim(tabId, raw, now);
+      if (!claim) {
+        window.localStorage.removeItem(key);
+        continue;
+      }
+      claims.set(claim.tabId, claim);
+    }
+  } catch {
+    return [...claims.values()];
+  }
+
+  return [...claims.values()];
+}
+
+function parseLegacyClaims(raw: string): ArmedProject[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (isLegacyStoredClaim(parsed)) {
+      return [parsed];
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return [];
+    }
+    const claims: ArmedProject[] = [];
+    for (const [tabId, value] of Object.entries(
+      parsed as Record<string, StoredClaimValue>,
+    )) {
+      if (
+        typeof value?.projectId === "string" &&
+        typeof value.projectName === "string"
+      ) {
+        claims.push({
+          tabId,
+          projectId: value.projectId,
+          projectName: value.projectName,
+        });
+      }
+    }
+    return claims;
+  } catch {
+    return [];
+  }
+}
+
+function parseTabClaim(
+  tabId: string,
+  raw: string,
+  now: number,
+): ArmedProject | null {
+  try {
+    const parsed = JSON.parse(raw) as StoredClaimValue;
+    if (
+      typeof parsed?.projectId !== "string" ||
+      typeof parsed.projectName !== "string"
+    ) {
+      return null;
+    }
+    if (typeof parsed.at === "number" && now - parsed.at > CLAIM_TTL_MS) {
+      return null;
+    }
+    return {
+      tabId,
+      projectId: parsed.projectId,
+      projectName: parsed.projectName,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isLegacyStoredClaim(value: unknown): value is ArmedProject {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const parsed = value as Partial<ArmedProject>;
+  return (
+    typeof parsed.tabId === "string" &&
+    typeof parsed.projectId === "string" &&
+    typeof parsed.projectName === "string"
+  );
+}
+
+function writeTabClaim(claim: ArmedProject): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(
+    STORAGE_PREFIX + claim.tabId,
+    JSON.stringify({
+      projectId: claim.projectId,
+      projectName: claim.projectName,
+      at: Date.now(),
+    }),
+  );
+}
+
+function writeLock(claim: ArmedProject): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(
+    LOCK_KEY,
+    JSON.stringify({
+      tabId: claim.tabId,
+      projectId: claim.projectId,
+      projectName: claim.projectName,
+      at: Date.now(),
+    }),
+  );
+}
+
+function readLock(): ArmedProject | null {
   if (typeof window === "undefined") {
     return null;
   }
+
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(LOCK_KEY);
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<ArmedProject>;
+    const parsed = JSON.parse(raw) as Partial<ArmedProject> & { at?: number };
     if (
       typeof parsed.tabId !== "string" ||
       typeof parsed.projectId !== "string" ||
       typeof parsed.projectName !== "string"
     ) {
+      return null;
+    }
+    if (typeof parsed.at === "number" && Date.now() - parsed.at > CLAIM_TTL_MS) {
       return null;
     }
     return {
@@ -338,34 +566,61 @@ function readStoredClaim(): ArmedProject | null {
   }
 }
 
-function writeStoredClaim(claim: ArmedProject | null): void {
+function clearLockIfHolder(tabId: string): void {
+  const lock = readLock();
+  if (lock?.tabId !== tabId) {
+    return;
+  }
+  window.localStorage.removeItem(LOCK_KEY);
+}
+
+function removeTabClaim(tabId: string): void {
   if (typeof window === "undefined") {
     return;
   }
-  if (!claim) {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return;
+  window.localStorage.removeItem(STORAGE_PREFIX + tabId);
+}
+
+function storageKeysWithPrefix(prefix: string): string[] {
+  if (typeof window === "undefined") {
+    return [];
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(claim));
+  const keys: string[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key?.startsWith(prefix)) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+function rememberStoredOthers(store: ArmStore, tabId: string): ArmedProject[] {
+  const others = readStoredClaims().filter((claim) => claim.tabId !== tabId);
+  const seen = new Set(others.map((claim) => claim.tabId));
+  for (const [holderId] of store.claims) {
+    if (holderId !== tabId && !seen.has(holderId)) {
+      store.claims.delete(holderId);
+    }
+  }
+  for (const claim of others) {
+    store.claims.set(claim.tabId, claim);
+  }
+  return others;
 }
 
 function hydrateFromStorage(store: ArmStore, tabId: string): void {
-  const stored = readStoredClaim();
-  if (!stored || stored.tabId === tabId) {
-    return;
-  }
-  store.claims.set(stored.tabId, stored);
+  rememberStoredOthers(store, tabId);
 }
 
-function mergeStoredClaim(armed: ArmedProject[]): ArmedProject[] {
-  const stored = readStoredClaim();
-  if (!stored) {
-    return armed;
+function mergeStoredClaims(armed: ArmedProject[]): ArmedProject[] {
+  const merged = new Map(armed.map((claim) => [claim.tabId, claim]));
+  for (const claim of readStoredClaims()) {
+    if (!merged.has(claim.tabId)) {
+      merged.set(claim.tabId, claim);
+    }
   }
-  if (armed.some((claim) => claim.tabId === stored.tabId)) {
-    return armed;
-  }
-  return [...armed, stored];
+  return [...merged.values()];
 }
 
 function wait(ms: number): Promise<void> {

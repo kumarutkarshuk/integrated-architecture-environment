@@ -2,7 +2,7 @@ import http from "node:http";
 import WebSocket from "ws";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearCanvasDocs, docs, getYDoc } from "../../src/canvas/yjs-ws-utils.js";
+import { clearCanvasDocs, docs, getYDoc, whenCanvasDocReady } from "../../src/canvas/yjs-ws-utils.js";
 import { clearCanvasPersistenceTimers, configureCanvasPersistence } from "../../src/canvas/persistence.js";
 import { readRecordsFromDoc } from "../../src/canvas/snapshot.js";
 import { createApp } from "../../src/app.js";
@@ -362,7 +362,7 @@ describe("AI generation preview and apply", () => {
     docs.delete(created.body.id);
 
     const reloaded = getYDoc(created.body.id);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await whenCanvasDocReady(reloaded);
 
     expect(readRecordsFromDoc(reloaded, created.body.id)).toEqual({
       "shape:preview-box": expect.objectContaining({
@@ -455,6 +455,72 @@ describe("AI generation preview and apply", () => {
       .set("Authorization", header)
       .send({ aiGenerationId: jobId })
       .expect(400);
+  });
+
+  it("rejects a second generate while one is already pending", async () => {
+    const header = authHeader("clerk_gen_inflight", "geninflight@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Inflight Generate",
+        mode: "prompt",
+        prompt: "Design v1",
+      })
+      .expect(201);
+
+    const again = await request(app)
+      .post(`/api/projects/${created.body.id}/ai/generate`)
+      .set("Authorization", header)
+      .send({ prompt: "Design v2" })
+      .expect(409);
+
+    expect(again.body).toEqual({
+      error: "A generate job is already running for this Project",
+    });
+    expect(testJobRunner.getEnqueued()).toHaveLength(1);
+  });
+
+  it("lets only one concurrent apply claim the preview", async () => {
+    const header = authHeader("clerk_apply_race", "applyrace@example.com");
+
+    const created = await request(app)
+      .post("/api/projects")
+      .set("Authorization", header)
+      .send({
+        name: "Apply Race",
+        mode: "prompt",
+        prompt: "Race apply",
+      })
+      .expect(201);
+
+    const jobId = testJobRunner.getEnqueued()[0]!.aiGenerationId;
+    await runGenerateJob(jobId);
+
+    const [first, second] = await Promise.all([
+      request(app)
+        .post(`/api/projects/${created.body.id}/ai/apply`)
+        .set("Authorization", header)
+        .send({ aiGenerationId: jobId }),
+      request(app)
+        .post(`/api/projects/${created.body.id}/ai/apply`)
+        .set("Authorization", header)
+        .send({ aiGenerationId: jobId }),
+    ]);
+
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 400]);
+
+    const generation = await prisma.aiGeneration.findUnique({
+      where: { id: jobId },
+    });
+    expect(generation?.appliedAt).not.toBeNull();
+
+    const project = await prisma.project.findUnique({
+      where: { id: created.body.id },
+    });
+    expect(project?.status).toBe("ready");
   });
 
   it("blocks WebSocket access while a prompt-mode Project is generating or in preview", async () => {

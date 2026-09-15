@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import type { ApiProject } from "../lib/api";
 import { hasAuthorRating } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
@@ -20,16 +20,57 @@ interface AiSidebarProps {
   project: ApiProject | null;
   ai: AiGenerationState;
   agentAllowed: boolean;
+  canvasLive?: boolean;
   onAgentAllowedChange: (allowed: boolean) => void;
+}
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div
+      className="flex flex-1 flex-col items-center justify-center p-6 text-center text-xs font-mono"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <p className="text-muted">{label}</p>
+    </div>
+  );
+}
+
+function PreviewReveal({
+  itemsKey,
+  children,
+}: {
+  itemsKey: string;
+  children: ReactNode;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useStaggerReveal(listRef, {
+    itemsKey,
+    enabled: true,
+    fromX: 10,
+    fromY: 16,
+    duration: 0.7,
+    stagger: 0.14,
+    ease: "power3.out",
+  });
+
+  return (
+    <div
+      ref={listRef}
+      className="flex min-h-0 flex-1 flex-col font-mono text-xs"
+    >
+      {children}
+    </div>
+  );
 }
 
 export function AiSidebar({
   project,
   ai,
   agentAllowed,
+  canvasLive = true,
   onAgentAllowedChange,
 }: AiSidebarProps) {
-  const listRef = useRef<HTMLDivElement>(null);
   const {
     prompt,
     setPrompt,
@@ -43,28 +84,50 @@ export function AiSidebar({
     isGenerating,
     generationFailed,
     generationError,
+    previewWaitTimedOut,
+    isAppliedJobLoading,
     regenerate,
     applySelectedPreview,
   } = ai;
-
-  const previewIds = previews.map((preview) => preview.id).join("|");
-  useStaggerReveal(listRef, {
-    itemsKey: `${previewIds}|${selectedPreviewId ? "apply" : ""}`,
-    enabled: previews.length > 0,
-    fromX: 8,
-    fromY: 8,
-  });
 
   const showPreviewIteration =
     project != null &&
     ((project.mode === "prompt" && project.status !== "ready") || isApplying);
 
+  const waitingForPreview =
+    project?.mode === "prompt" &&
+    project.status !== "failed" &&
+    !generationFailed &&
+    !previewWaitTimedOut &&
+    previews.length === 0 &&
+    (isGenerating ||
+      project.status === "generating" ||
+      project.status === "preview");
+
+  if (showPreviewIteration && waitingForPreview) {
+    return (
+      <PanelLoading
+        label={isGenerating ? "Generating preview..." : "Waiting for preview..."}
+      />
+    );
+  }
+
   if (!showPreviewIteration) {
     if (project?.status === "ready") {
+      const ratingPending =
+        project.mode === "prompt" && Boolean(isAppliedJobLoading);
+      if (!canvasLive || ratingPending) {
+        return <PanelLoading label="Loading..." />;
+      }
+
       return (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {appliedJob && hasAuthorRating(appliedJob) ? (
-            <div className="border-b border-sidebar-border px-3 py-2">
+        <AgentAllowPanel
+          key={project.id}
+          revealKey={project.id}
+          allowed={agentAllowed}
+          onAllowedChange={onAgentAllowedChange}
+          header={
+            appliedJob && hasAuthorRating(appliedJob) ? (
               <RatingButtons
                 value={appliedJob.rating}
                 caption="Did you like this AI generation?"
@@ -72,13 +135,9 @@ export function AiSidebar({
                   void rateJob(appliedJob.id, value);
                 }}
               />
-            </div>
-          ) : null}
-          <AgentAllowPanel
-            allowed={agentAllowed}
-            onAllowedChange={onAgentAllowedChange}
-          />
-        </div>
+            ) : undefined
+          }
+        />
       );
     }
 
@@ -88,13 +147,14 @@ export function AiSidebar({
   const canRegenerate =
     !isBusy && !isApplying && !isGenerating && Boolean(prompt.trim());
   const showApply = Boolean(selectedPreviewId) || isApplying;
+  const previewIds = previews.map((preview) => preview.id).join("|");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col font-mono text-xs">
-      <div
-        ref={listRef}
-        className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
-      >
+    <PreviewReveal
+      key={project.id}
+      itemsKey={`${previewIds}|${showApply ? "apply" : ""}|composer`}
+    >
+      <div className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3">
         {previews.length > 0 && (
           <RadioGroup
             value={selectedPreviewId ?? undefined}
@@ -161,20 +221,24 @@ export function AiSidebar({
         )}
 
         {showApply && (
-          <Button
-            type="button"
-            size="sm"
-            className="mt-2 h-7 w-full text-xs"
-            data-stagger-item="apply"
-            disabled={isBusy || isApplying}
-            onClick={() => void applySelectedPreview()}
-          >
-            {isApplying ? "Applying..." : "Apply preview"}
-          </Button>
+          <div data-stagger-item="apply" className="mt-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-full text-xs"
+              disabled={isBusy || isApplying}
+              onClick={() => void applySelectedPreview()}
+            >
+              {isApplying ? "Applying..." : "Apply preview"}
+            </Button>
+          </div>
         )}
       </div>
 
-      <div className="border-t border-sidebar-border p-2">
+      <div
+        data-stagger-item="composer"
+        className="border-t border-sidebar-border p-2"
+      >
         {isGenerating ? null : generationError ? (
           <p className="mb-2 text-xs text-red-400">{generationError}</p>
         ) : generationFailed ? (
@@ -211,6 +275,6 @@ export function AiSidebar({
           </div>
         </div>
       </div>
-    </div>
+    </PreviewReveal>
   );
 }

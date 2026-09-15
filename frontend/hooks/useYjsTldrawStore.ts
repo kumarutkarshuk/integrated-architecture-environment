@@ -133,6 +133,7 @@ export function useYjsTldrawStore(
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let isConnected = false;
     let hasSyncedOnce = false;
+    let markedOffline = false;
 
     const activeProjectId = projectId;
     syncToYjsEnabledRef.current = false;
@@ -343,18 +344,18 @@ export function useYjsTldrawStore(
           });
 
           if (!isConnected) {
+            markedOffline = true;
+            clearSaveTimer();
             setSaveStatus((current) =>
               current === "loading" ? current : "offline",
             );
             return;
           }
 
-          setSaveStatus((current) => {
-            if (current === "offline") {
-              return "saved";
-            }
-            return current;
-          });
+          if (markedOffline) {
+            markedOffline = false;
+            markSaving();
+          }
         });
 
         isConnected = true;

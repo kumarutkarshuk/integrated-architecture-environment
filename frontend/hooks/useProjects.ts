@@ -10,22 +10,33 @@ import {
   type ApiProject,
 } from "../lib/api";
 
+const PROJECT_LIST_POLL_MS = 2500;
+
+function isProjectNotFoundError(error: unknown): boolean {
+  return error instanceof Error && error.message === "Project not found";
+}
+
 export function useProjects(enabled: boolean) {
   const { getToken } = useAuth();
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
+  const projectsRef = useRef<ApiProject[]>([]);
+  projectsRef.current = projects;
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
     if (!enabled) {
       setProjects([]);
       return;
     }
 
     const requestId = ++loadRequestIdRef.current;
-    setIsLoading(true);
-    setError(null);
+    const knownIds = new Set(projectsRef.current.map((project) => project.id));
+    if (!options?.silent) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
       const token = await getToken();
@@ -38,9 +49,11 @@ export function useProjects(enabled: boolean) {
         return;
       }
 
-      setProjects((current) => mergeProjectLists(projectList, current));
+      setProjects((current) =>
+        mergeServerProjects(projectList, current, knownIds),
+      );
     } catch (loadError) {
-      if (requestId !== loadRequestIdRef.current) {
+      if (requestId !== loadRequestIdRef.current || options?.silent) {
         return;
       }
 
@@ -50,7 +63,7 @@ export function useProjects(enabled: boolean) {
           : "Failed to load projects",
       );
     } finally {
-      if (requestId === loadRequestIdRef.current) {
+      if (requestId === loadRequestIdRef.current && !options?.silent) {
         setIsLoading(false);
       }
     }
@@ -59,6 +72,18 @@ export function useProjects(enabled: boolean) {
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void loadProjects({ silent: true });
+    }, PROJECT_LIST_POLL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [enabled, loadProjects]);
 
   const createBlankProject = useCallback(
     async (name: string) => {
@@ -69,7 +94,7 @@ export function useProjects(enabled: boolean) {
 
       loadRequestIdRef.current += 1;
       const project = await createProject(token, { name, mode: "blank" });
-      setProjects((current) => mergeProjectLists([project], current));
+      setProjects((current) => upsertProject(current, project));
       return project;
     },
     [getToken],
@@ -88,7 +113,7 @@ export function useProjects(enabled: boolean) {
         mode: "prompt",
         prompt,
       });
-      setProjects((current) => mergeProjectLists([project], current));
+      setProjects((current) => upsertProject(current, project));
       return project;
     },
     [getToken],
@@ -101,11 +126,18 @@ export function useProjects(enabled: boolean) {
         throw new Error("Missing auth token");
       }
 
-      const project = await fetchProject(token, projectId);
-      setProjects((current) =>
-        current.map((entry) => (entry.id === projectId ? project : entry)),
-      );
-      return project;
+      try {
+        const project = await fetchProject(token, projectId);
+        setProjects((current) => upsertProject(current, project));
+        return project;
+      } catch (error) {
+        if (isProjectNotFoundError(error)) {
+          setProjects((current) =>
+            current.filter((project) => project.id !== projectId),
+          );
+        }
+        throw error;
+      }
     },
     [getToken],
   );
@@ -143,21 +175,34 @@ export function useProjects(enabled: boolean) {
   };
 }
 
-function mergeProjectLists(
-  primary: ApiProject[],
-  secondary: ApiProject[],
+function upsertProject(
+  current: ApiProject[],
+  project: ApiProject,
 ): ApiProject[] {
-  const merged = new Map<string, ApiProject>();
+  return sortProjects([
+    project,
+    ...current.filter((entry) => entry.id !== project.id),
+  ]);
+}
 
-  for (const project of secondary) {
-    merged.set(project.id, project);
-  }
+function mergeServerProjects(
+  serverList: ApiProject[],
+  current: ApiProject[],
+  knownIds: Set<string>,
+): ApiProject[] {
+  const serverIds = new Set(serverList.map((project) => project.id));
+  const currentIds = new Set(current.map((project) => project.id));
+  const kept = current.filter(
+    (project) =>
+      serverIds.has(project.id) ||
+      (!knownIds.has(project.id) && !serverIds.has(project.id)),
+  );
+  const added = serverList.filter((project) => !currentIds.has(project.id));
+  return sortProjects([...kept, ...added]);
+}
 
-  for (const project of primary) {
-    merged.set(project.id, project);
-  }
-
-  return [...merged.values()].sort(
+function sortProjects(projects: ApiProject[]): ApiProject[] {
+  return [...projects].sort(
     (left, right) =>
       new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );

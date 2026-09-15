@@ -159,6 +159,7 @@ export type ZoomViewInput = {
 
 export type CanvasAgentSession = {
   shouldRegisterTools(): boolean;
+  armedProjectId(): string | null;
   syncArms(): Promise<void>;
   readCanvasState(): CompactCanvasState;
   createComponent(input: CreateComponentInput): CompactCanvasState;
@@ -186,6 +187,16 @@ export function createCanvasAgentSession(
         isReady(deps.getProjectStatus()) &&
         deps.armBus.hasClaim() &&
         isToolHost(deps.armBus)
+      );
+    },
+    armedProjectId() {
+      if (!deps.armBus.hasClaim()) {
+        return null;
+      }
+      return (
+        deps.armBus
+          .listArmed()
+          .find((claim) => claim.tabId === deps.armBus.tabId)?.projectId ?? null
       );
     },
     syncArms() {

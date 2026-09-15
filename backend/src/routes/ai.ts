@@ -15,7 +15,7 @@ import {
   upsertAuthorRating,
 } from "../ai/rating-service.js";
 import { startExportSpecJob } from "../ai/start-export-spec-job.js";
-import { startGenerateJob } from "../ai/start-generate-job.js";
+import { GenerateInProgressError, startGenerateJob } from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
@@ -23,7 +23,11 @@ function sendAiRouteError(
   res: { status: (code: number) => { json: (body: object) => void } },
   error: unknown,
 ): boolean {
-  if (error instanceof AiRateLimitError || error instanceof InappropriatePromptError) {
+  if (
+    error instanceof AiRateLimitError ||
+    error instanceof InappropriatePromptError ||
+    error instanceof GenerateInProgressError
+  ) {
     res.status(error.status).json({ error: error.message });
     return true;
   }

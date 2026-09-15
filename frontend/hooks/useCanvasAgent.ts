@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "tldraw";
+import { captureProductEvent } from "../lib/analytics";
 import { createBrowserArmBus, type ArmBus } from "../lib/canvas-agent/arm-bus";
 import { createCanvasAgentSession } from "../lib/canvas-agent/session";
 import { createTldrawEditorPort } from "../lib/canvas-agent/tldraw-editor";
@@ -24,6 +25,7 @@ export function useCanvasAgent(
   onAgentCursor?: (cursor: { x: number; y: number }) => void,
 ) {
   const [allowed, setAllowedState] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [, setArmedTabIds] = useState("");
   const [armConflict, setArmConflict] = useState<ArmConflict | null>(null);
   const statusRef = useRef(projectStatus);
@@ -56,7 +58,15 @@ export function useCanvasAgent(
   );
 
   useEffect(() => {
-    mountWebMcpRelayEmbed();
+    let cancelled = false;
+    void Promise.resolve(mountWebMcpRelayEmbed()).finally(() => {
+      if (!cancelled) {
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -93,9 +103,14 @@ export function useCanvasAgent(
   const requestAllowed = useCallback(
     (next: boolean) => {
       if (!next) {
+        const projectId = projectRef.current?.id;
         armBus.release();
         setAllowedState(false);
         setArmConflict(null);
+        captureProductEvent(
+          "agent_disallowed",
+          projectId ? { projectId } : undefined,
+        );
         return;
       }
 
@@ -108,6 +123,7 @@ export function useCanvasAgent(
       if (result.ok) {
         setAllowedState(true);
         setArmConflict(null);
+        captureProductEvent("agent_allowed", { projectId: current.id });
         return;
       }
 
@@ -115,6 +131,7 @@ export function useCanvasAgent(
         thisProjectName: current.name,
         otherProjectName: result.holder.projectName,
       });
+      captureProductEvent("agent_arm_conflict", { projectId: current.id });
     },
     [armBus],
   );
@@ -125,6 +142,7 @@ export function useCanvasAgent(
       if (choice === "switch" && current) {
         armBus.takeOver(current);
         setAllowedState(true);
+        captureProductEvent("agent_allowed", { projectId: current.id });
       }
       setArmConflict(null);
     },
@@ -140,17 +158,24 @@ export function useCanvasAgent(
 
     const abort = new AbortController();
     const session = sessionRef.current;
+    setIsLoading(true);
     void (async () => {
       await session.syncArms();
       if (abort.signal.aborted || !session.shouldRegisterTools()) {
+        if (!abort.signal.aborted) {
+          setIsLoading(false);
+        }
         return;
       }
       await registerCanvasAgentTools(session, abort.signal);
+      if (!abort.signal.aborted) {
+        setIsLoading(false);
+      }
     })();
     return () => {
       abort.abort();
     };
   }, [shouldRegister]);
 
-  return { allowed, requestAllowed, armConflict, resolveArmConflict };
+  return { allowed, isLoading, requestAllowed, armConflict, resolveArmConflict };
 }

@@ -28,7 +28,7 @@ Build **Integrated Architecture Environment (IAE) v1**: a VS Code–inspired web
 14. As a project owner, I want the right sidebar iteration panel to become dormant after apply, so that the UI reflects that chat features come later.
 15. As a collaborator with editor role, I want to edit the canvas on a ready project, so that I can contribute to the design.
 16. As a collaborator, I want my edits to appear for other connected users in real time, so that we are truly collaborating.
-17. As a project owner, I want to invite someone by email with an email-bound link, so that only the intended recipient gets access.
+17. As a project owner, I want to invite someone by email with an email-bound link, so that only the intended recipient gets access. A Project has at most 20 Collaborators.
 18. As an invite recipient without an account, I want to sign in via the invite link and land on the project, so that onboarding is seamless.
 19. As an invite recipient, I want my email to match the invite, so that invite links cannot be hijacked by another account.
 20. As a project owner, I want the app to send the invite email for me, so that I don't have to copy links manually.
@@ -63,7 +63,7 @@ Entities (see `docs/schema-api.md`):
 
 - `user` — lazy-created from Clerk claims
 - `project` — `mode`: `prompt` | `blank`; `status`: `generating` | `preview` | `failed` | `ready`
-- `collaborator` — `role`: `owner` | `editor`; owner row on create; editor row on invite redeem
+- `collaborator` — `role`: `owner` | `editor`; owner row on create; editor row on invite redeem; max 20 per Project
 - `project_invite` — email-bound token with expiry and `redeemed_at`
 - `canvas_snapshot` — one row per project, upserted (not append-only in v1)
 - `ai_generation` — tracks `generate` and `export_spec` jobs; stores `prompt`, `model`, `result`, `applied_at`
