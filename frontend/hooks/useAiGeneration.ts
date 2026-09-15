@@ -41,6 +41,9 @@ export function useAiGeneration(
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [previewWaitTimedOut, setPreviewWaitTimedOut] = useState(false);
   const [appliedJob, setAppliedJob] = useState<ApiAiPreview | null>(null);
+  const [appliedJobSourceId, setAppliedJobSourceId] = useState<string | null>(
+    null,
+  );
   const [generationError, setGenerationError] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
@@ -413,6 +416,7 @@ export function useAiGeneration(
       if (project?.status !== "ready") {
         setAppliedJob(null);
       }
+      setAppliedJobSourceId(null);
       return;
     }
 
@@ -444,6 +448,10 @@ export function useAiGeneration(
         toast.error(
           error instanceof Error ? error.message : "Failed to load applied generation",
         );
+      } finally {
+        if (!cancelled && activeProjectIdRef.current === projectId) {
+          setAppliedJobSourceId(projectId);
+        }
       }
     })();
 
@@ -451,6 +459,13 @@ export function useAiGeneration(
       cancelled = true;
     };
   }, [getToken, project?.id, project?.mode, project?.status]);
+
+  const isAppliedJobLoading = Boolean(
+    project &&
+      project.mode === "prompt" &&
+      project.status === "ready" &&
+      appliedJobSourceId !== project.id,
+  );
 
   const rateJob = useCallback(
     async (jobId: string, value: RatingValue) => {
@@ -526,6 +541,7 @@ export function useAiGeneration(
     selectedPreviewId,
     setSelectedPreviewId,
     appliedJob,
+    isAppliedJobLoading,
     rateJob,
     isBusy,
     isApplying,

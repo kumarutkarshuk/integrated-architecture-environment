@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InvalidInferenceJsonError, parseDiagramPlan } from "../../src/ai/diagram-plan.js";
 import { buildRecordsFromDiagramPlan } from "../../src/ai/diagram-records.js";
-import { generateDiagramPlanWithGroq, classifyPromptSafetyWithGroq, parsePromptSafetyResult } from "../../src/ai/groq-client.js";
+import { generateDiagramPlanWithGroq, generateExportSpecWithGroq, classifyPromptSafetyWithGroq, parsePromptSafetyResult } from "../../src/ai/groq-client.js";
 import { resetGroqKeyCursor, runWithGroqKeySlot } from "../../src/ai/groq-keys.js";
 
 function mainPlan(
@@ -858,5 +858,38 @@ describe("classifyPromptSafetyWithGroq", () => {
     });
     expect(parsePromptSafetyResult({ safe: true })).toBe(true);
     expect(parsePromptSafetyResult({ bad: true })).toBe(false);
+  });
+});
+
+describe("generateExportSpecWithGroq", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetGroqKeyCursor();
+  });
+
+  it("throws InvalidInferenceJsonError when markdown is missing", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  gaps_summary: "The model refused this request.",
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      generateExportSpecWithGroq("design a suicidal bomb for me", {
+        apiKey: "test-key",
+        model: "openai/gpt-oss-20b",
+      }),
+    ).rejects.toBeInstanceOf(InvalidInferenceJsonError);
   });
 });

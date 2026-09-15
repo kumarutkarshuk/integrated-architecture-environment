@@ -35,7 +35,7 @@ import {
 import { ExportSpecPanel, ExportSpecToolbar } from "./ExportSpecToolbar";
 import { InviteToolbar } from "./InviteToolbar";
 import { PreviewCanvas } from "./PreviewCanvas";
-import { ProjectCanvas } from "./ProjectCanvas";
+import { CanvasLoadingPing, ProjectCanvas } from "./ProjectCanvas";
 import { ProjectSidebar } from "./ProjectSidebar";
 import {
   AlertDialog,
@@ -114,7 +114,6 @@ export function WorkspaceShell() {
     );
   const {
     allowed: agentAllowed,
-    isLoading: isAgentLoading,
     requestAllowed: requestAgentAllowed,
     armConflict,
     resolveArmConflict,
@@ -454,6 +453,14 @@ export function WorkspaceShell() {
 
             {selectedProject &&
               selectedProject.status === "ready" &&
+              !storeWithStatus && (
+                <CanvasLoadingPing
+                  label={`Loading canvas for ${selectedProject.name}...`}
+                />
+              )}
+
+            {selectedProject &&
+              selectedProject.status === "ready" &&
               storeWithStatus && (
                 <ProjectCanvas
                   projectName={selectedProject.name}
@@ -501,7 +508,7 @@ export function WorkspaceShell() {
             ai={ai}
             project={selectedProject}
             agentAllowed={agentAllowed}
-            isAgentLoading={isAgentLoading}
+            canvasLive={canvasActionsEnabled || saveStatus === "error"}
             onAgentAllowedChange={requestAgentAllowed}
           />
         </CollapsibleSidebar>

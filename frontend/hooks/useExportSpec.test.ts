@@ -271,7 +271,33 @@ describe("useExportSpec", () => {
 
     expect(result.current.isExporting).toBe(false);
     expect(result.current.spec).toBeNull();
-    expect(toastErrorMock).toHaveBeenCalledWith("Export Spec failed");
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "Export Spec failed. Please try again.",
+    );
+  });
+
+  it("toasts the job error when Export Spec fails", async () => {
+    startExportSpecMock.mockResolvedValue(pendingJob);
+    fetchAiJobMock.mockResolvedValue({
+      ...pendingJob,
+      status: "failed",
+      error: "This prompt is not allowed",
+    });
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    await flushEffects();
+
+    expect(result.current.isExporting).toBe(false);
+    expect(result.current.spec).toBeNull();
+    expect(toastErrorMock).toHaveBeenCalledWith("This prompt is not allowed");
   });
 
   it("shows a toast when starting Export Spec is rate limited", async () => {
@@ -290,6 +316,22 @@ describe("useExportSpec", () => {
     expect(toastErrorMock).toHaveBeenCalledWith(
       "Daily Export Spec limit reached (10 per day)",
     );
+  });
+
+  it("shows a toast when Export Spec is blocked", async () => {
+    startExportSpecMock.mockRejectedValueOnce(
+      new Error("This prompt is not allowed"),
+    );
+
+    const { result } = renderHook(() => useExportSpec(projectWith("ready")));
+
+    await act(async () => {
+      await result.current.exportSpec();
+    });
+
+    expect(result.current.isExporting).toBe(false);
+    expect(result.current.spec).toBeNull();
+    expect(toastErrorMock).toHaveBeenCalledWith("This prompt is not allowed");
   });
 
   it("shows the Spec rating immediately while save is in flight", async () => {

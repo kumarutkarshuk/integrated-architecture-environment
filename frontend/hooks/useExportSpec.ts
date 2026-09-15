@@ -131,8 +131,10 @@ export function useExportSpec(project: ApiProject | null) {
             return;
           }
 
-            if (job.status === "failed") {
-              toast.error(job.error?.trim() || "Export Spec failed");
+          if (job.status === "failed") {
+            toast.error(
+              job.error?.trim() || "Export Spec failed. Please try again.",
+            );
             setIsExporting(false);
             setJobId(null);
           }

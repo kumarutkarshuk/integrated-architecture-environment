@@ -94,6 +94,15 @@ describe("ProjectCanvas", () => {
     expect(updateInstanceState).toHaveBeenLastCalledWith({ isReadonly: false });
   });
 
+  it("shows a blue loading ping with canvas copy", () => {
+    renderCanvas("loading", {
+      storeWithStatus: { status: "loading" },
+    });
+
+    expect(screen.getByText("Loading canvas for Todo API...")).toBeTruthy();
+    expect(screen.queryByTestId("live-canvas")).toBeNull();
+  });
+
   it("shows the existing error view when the first connection fails", () => {
     renderCanvas("error", {
       storeWithStatus: {

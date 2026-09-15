@@ -63,12 +63,12 @@ ai_generation
   prompt        text           -- generate: user prompt; export_spec: canvas summary at click
   result        jsonb          -- generate: tldraw shapes; export_spec: { markdown, gaps_summary }
   plan          jsonb          -- generate: parsed Plan { flows: [{ id, label, components, connections }] }; a single-path Plan is one Flow; null for export_spec
-  prompt_version text          -- generate-diagram.v3 or export-spec.v1
+  prompt_version text          -- generate-diagram.v3 or export-spec.v2
   provider      text           -- groq
   model         text           -- LLM id used for the job
   tokens_used   integer
-  error         text           -- set when status is failed; generate: concise worker reason (Failed to generate JSON, Invalid API key, ...)
-  blocked_by    text           -- generate: 'code' | 'classifier' when the prompt was blocked; null otherwise
+  error         text           -- set when status is failed; concise worker reason (This prompt is not allowed, Failed to generate JSON, Invalid API key, Export Spec result was incomplete, ...)
+  blocked_by    text           -- 'code' | 'classifier' when the prompt or canvas was blocked; null otherwise
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
   created_at    timestamptz NOT NULL
   deleted_at    timestamptz

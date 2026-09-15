@@ -211,7 +211,7 @@ function groqKeysFromConfig(config: GroqConfig): string[] {
 
 function parseExportSpecResult(raw: unknown): { markdown: string; gaps_summary: string } {
   if (!raw || typeof raw !== "object") {
-    throw new Error("Export spec result must be an object");
+    throw new InvalidInferenceJsonError("Export spec result must be an object");
   }
 
   const value = raw as Record<string, unknown>;
@@ -219,11 +219,11 @@ function parseExportSpecResult(raw: unknown): { markdown: string; gaps_summary: 
   const gapsSummary = value.gaps_summary;
 
   if (typeof markdown !== "string" || !markdown.trim()) {
-    throw new Error("Export spec result must include markdown");
+    throw new InvalidInferenceJsonError("Export spec result must include markdown");
   }
 
   if (typeof gapsSummary !== "string" || !gapsSummary.trim()) {
-    throw new Error("Export spec result must include gaps_summary");
+    throw new InvalidInferenceJsonError("Export spec result must include gaps_summary");
   }
 
   return {

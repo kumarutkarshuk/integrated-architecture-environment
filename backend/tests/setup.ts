@@ -28,6 +28,7 @@ configureGenerateService({
 configureExportSpecService({
   groqApiKeys: [],
   groqModel: "openai/gpt-oss-20b",
+  groqPromptGuardModel: "openai/gpt-oss-20b",
   isTest: true,
 });
 

@@ -11,8 +11,10 @@ const workspaceState = vi.hoisted(() => ({
   selectedProjectId: "project-1" as string | null,
   projectMode: "blank" as "blank" | "prompt",
   projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
+  hasPreview: false,
   spec: null as { markdown: string; gaps_summary: string } | null,
   exportSpec: async () => undefined as void,
+  canvasStore: "live" as "live" | "loading" | "missing",
 }));
 
 const webMcpSupport = vi.hoisted(() => ({ compatible: true }));
@@ -36,6 +38,9 @@ vi.mock("../lib/analytics", () => ({
 
 vi.mock("./ProjectCanvas", () => ({
   ProjectCanvas: () => <div>Canvas</div>,
+  CanvasLoadingPing: ({ label = "Loading canvas..." }: { label?: string }) => (
+    <div>{label}</div>
+  ),
 }));
 
 vi.mock("../lib/canvas-agent/webmcp", () => ({
@@ -154,9 +159,31 @@ vi.mock("../hooks/useAiGeneration", () => ({
   useAiGeneration: () => ({
     prompt: "",
     setPrompt: () => undefined,
-    previews: [],
-    selectedPreview: null,
-    selectedPreviewId: null,
+    previews: workspaceState.hasPreview
+      ? [
+          {
+            id: "preview-1",
+            prompt: "Design a todo API",
+            status: "completed",
+            result: { records: {} },
+            appliedAt: null,
+            createdAt: "2026-09-14T00:00:01.000Z",
+            rating: null,
+          },
+        ]
+      : [],
+    selectedPreview: workspaceState.hasPreview
+      ? {
+          id: "preview-1",
+          prompt: "Design a todo API",
+          status: "completed",
+          result: { records: {} },
+          appliedAt: null,
+          createdAt: "2026-09-14T00:00:01.000Z",
+          rating: null,
+        }
+      : null,
+    selectedPreviewId: workspaceState.hasPreview ? "preview-1" : null,
     setSelectedPreviewId: () => undefined,
     isBusy: false,
     isApplying: false,
@@ -165,6 +192,7 @@ vi.mock("../hooks/useAiGeneration", () => ({
     generationError: null,
     previewWaitTimedOut: false,
     appliedJob: null,
+    isAppliedJobLoading: false,
     rateJob: async () => undefined,
     regenerate: async () => undefined,
     applySelectedPreview: async () => undefined,
@@ -205,11 +233,16 @@ vi.mock("../hooks/useCreateInvite", () => ({
 
 vi.mock("../hooks/useYjsTldrawStore", () => ({
   useYjsTldrawStore: () => ({
-    storeWithStatus: {
-      status: "synced-remote",
-      connectionStatus: "online",
-    },
-    saveStatus: "saved",
+    storeWithStatus:
+      workspaceState.canvasStore === "missing"
+        ? null
+        : workspaceState.canvasStore === "loading"
+          ? { status: "loading" }
+          : {
+              status: "synced-remote",
+              connectionStatus: "online",
+            },
+    saveStatus: workspaceState.canvasStore === "live" ? "saved" : "loading",
     onEditorReady: () => undefined,
   }),
 }));
@@ -223,8 +256,10 @@ describe("WorkspaceShell", () => {
     workspaceState.selectedProjectId = "project-1";
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
+    workspaceState.hasPreview = false;
     workspaceState.spec = null;
     workspaceState.exportSpec = async () => undefined;
+    workspaceState.canvasStore = "live";
     webMcpSupport.compatible = true;
     vi.mocked(toast).mockReset();
     vi.mocked(toast.error).mockReset();
@@ -474,6 +509,20 @@ describe("WorkspaceShell", () => {
     });
   });
 
+  it("shows sidebar loading text and a center ping while a ready Project canvas loads", () => {
+    workspaceState.projectMode = "blank";
+    workspaceState.projectStatus = "ready";
+    workspaceState.canvasStore = "missing";
+
+    render(<WorkspaceShell />);
+
+    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Loading canvas for Owned Canvas...")).toBeTruthy();
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+  });
+
   it("shows Allow agent on a ready prompt Project", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "ready";
@@ -490,6 +539,7 @@ describe("WorkspaceShell", () => {
   it("keeps Preview iteration on a prompt Project that is not ready", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
 
     render(<WorkspaceShell />);
 
@@ -500,13 +550,13 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("Chat coming soon...")).toBeNull();
   });
 
-  it("keeps Preview iteration while generating or failed", () => {
+  it("disables the AI panel while generating or waiting for Preview", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "generating";
 
     const { unmount } = render(<WorkspaceShell />);
 
-    expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
     expect(screen.getAllByText("Generating preview...").length).toBeGreaterThan(
       0,
     );
@@ -515,7 +565,22 @@ describe("WorkspaceShell", () => {
     ).toBeNull();
 
     unmount();
+    workspaceState.projectStatus = "preview";
+    render(<WorkspaceShell />);
+
+    expect(screen.queryByPlaceholderText("Describe the system...")).toBeNull();
+    expect(screen.getAllByText("Waiting for preview...").length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
+    ).toBeNull();
+  });
+
+  it("keeps Preview iteration when generate failed", () => {
+    workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "failed";
+
     render(<WorkspaceShell />);
 
     expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();

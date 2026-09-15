@@ -1,8 +1,7 @@
 "use client";
 
-import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { useRef, type RefObject } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 
 export const STAGGER_ITEM_ATTR = "data-stagger-item";
 
@@ -31,6 +30,9 @@ interface UseStaggerRevealOptions {
   enabled?: boolean;
   fromX?: number;
   fromY?: number;
+  duration?: number;
+  stagger?: number;
+  ease?: string;
 }
 
 export function useStaggerReveal(
@@ -40,65 +42,83 @@ export function useStaggerReveal(
     enabled = true,
     fromX = 0,
     fromY = 8,
+    duration = 0.38,
+    stagger = 0.05,
+    ease = "power2.out",
   }: UseStaggerRevealOptions,
 ) {
   const revealedIdsRef = useRef(new Set<string>());
 
-  useGSAP(
-    () => {
-      if (!enabled) {
-        return;
+  useLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const newcomers = staggerNodes(container).filter((node) => {
+      const id = node.getAttribute(STAGGER_ITEM_ATTR);
+      return Boolean(id) && !revealedIdsRef.current.has(id as string);
+    });
+
+    if (newcomers.length === 0) {
+      return;
+    }
+
+    const newIds: string[] = [];
+    for (const node of newcomers) {
+      const id = node.getAttribute(STAGGER_ITEM_ATTR);
+      if (id) {
+        revealedIdsRef.current.add(id);
+        newIds.push(id);
       }
+    }
 
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const newcomers = staggerNodes(container).filter((node) => {
-        const id = node.getAttribute(STAGGER_ITEM_ATTR);
-        return Boolean(id) && !revealedIdsRef.current.has(id as string);
-      });
-
-      if (newcomers.length === 0) {
-        return;
-      }
-
-      for (const node of newcomers) {
-        const id = node.getAttribute(STAGGER_ITEM_ATTR);
-        if (id) {
-          revealedIdsRef.current.add(id);
-        }
-      }
-
-      if (prefersReducedMotion()) {
-        gsap.fromTo(
-          newcomers,
-          { opacity: 0 },
-          { opacity: 1, duration: 0.18, ease: "none", stagger: 0.03 },
-        );
-        return;
-      }
-
+    const reducedMotion = prefersReducedMotion();
+    let completed = false;
+    const ctx = gsap.context(() => {
       gsap.fromTo(
         newcomers,
-        { opacity: 0, x: fromX, y: fromY },
-        {
-          opacity: 1,
-          x: 0,
-          y: 0,
-          duration: 0.38,
-          stagger: 0.05,
-          ease: "power2.out",
-          clearProps: "transform",
-          overwrite: "auto",
-        },
+        reducedMotion ? { opacity: 0 } : { opacity: 0, x: fromX, y: fromY },
+        reducedMotion
+          ? {
+              opacity: 1,
+              duration: 0.18,
+              ease: "none",
+              stagger: 0.03,
+              clearProps: "opacity",
+              onComplete: () => {
+                completed = true;
+              },
+            }
+          : {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              duration,
+              stagger,
+              ease,
+              clearProps: "transform,opacity",
+              overwrite: "auto",
+              onComplete: () => {
+                completed = true;
+              },
+            },
       );
-    },
-    {
-      scope: containerRef,
-      dependencies: [itemsKey, enabled, fromX, fromY],
-      revertOnUpdate: false,
-    },
-  );
+    }, container);
+
+    return () => {
+      if (completed) {
+        return;
+      }
+
+      ctx.revert();
+      for (const id of newIds) {
+        revealedIdsRef.current.delete(id);
+      }
+    };
+  }, [containerRef, itemsKey, enabled, fromX, fromY, duration, stagger, ease]);
 }

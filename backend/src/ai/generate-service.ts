@@ -2,21 +2,23 @@ import type { AppConfig } from "../config.js";
 import { captureEvent } from "../analytics.js";
 import { prisma } from "../db.js";
 import { InvalidDiagramPlanError, InvalidInferenceJsonError } from "./diagram-plan.js";
-import { classifyPromptSafetyWithGroq } from "./groq-client.js";
 import { AI_INFERENCE_PROVIDER, DEFAULT_GROQ_MODEL, DEFAULT_PROMPT_GUARD_MODEL } from "./inference-defaults.js";
 import { getInferenceProvider } from "./inference-provider.js";
 import { parseGroqApiKeys, runWithGroqKeySlot } from "./groq-keys.js";
 import {
   assertPromptBlockedByCode,
+  classifyPromptSafety,
+  configurePromptGuard,
   InappropriatePromptError,
-  type PromptSafetyClassifier,
+  PROMPT_NOT_ALLOWED_MESSAGE,
 } from "./prompt-guard.js";
 import { GENERATE_DIAGRAM_PROMPT_VERSION } from "./prompts/generate-diagram.js";
 import type { GenerateResult, PromptBlockSource } from "./types.js";
 
+export { PROMPT_NOT_ALLOWED_MESSAGE, setPromptSafetyClassifier } from "./prompt-guard.js";
+
 export const GENERATE_PLAN_RETRY_ATTEMPTS = 2;
 export const GENERATE_FAILED_MESSAGE = "Generation failed. Please try again.";
-export const PROMPT_NOT_ALLOWED_MESSAGE = "This prompt is not allowed";
 
 export function shouldSkipGenerateRetry(error: unknown, attemptNumber: number): boolean {
   const isBadPlanOrJson =
@@ -34,12 +36,15 @@ let inferenceConfig: Pick<
   isTest: process.env.NODE_ENV === "test",
 };
 
-let classifierOverride: PromptSafetyClassifier | null = null;
-
 export function configureGenerateService(
   config: Pick<AppConfig, "groqApiKeys" | "groqModel" | "groqPromptGuardModel" | "isTest">,
 ): void {
   inferenceConfig = config;
+  configurePromptGuard({
+    groqApiKeys: config.groqApiKeys,
+    groqPromptGuardModel: config.groqPromptGuardModel,
+    isTest: config.isTest,
+  });
 }
 
 export function configureGenerateServiceFromEnv(): void {
@@ -50,12 +55,6 @@ export function configureGenerateServiceFromEnv(): void {
       process.env.GROQ_PROMPT_GUARD_MODEL ?? DEFAULT_PROMPT_GUARD_MODEL,
     isTest: process.env.NODE_ENV === "test",
   });
-}
-
-export function setPromptSafetyClassifier(
-  classifier: PromptSafetyClassifier | null,
-): void {
-  classifierOverride = classifier;
 }
 
 export async function createGenerateJob(
@@ -100,7 +99,7 @@ export async function runGenerateJob(aiGenerationId: string): Promise<void> {
   const run = async () => {
     try {
       assertPromptBlockedByCode(prompt);
-      const safe = await classifyPromptForGenerate(prompt);
+      const safe = await classifyPromptSafety(prompt);
       if (!safe) {
         await failGenerateJob(
           aiGenerationId,
@@ -186,24 +185,6 @@ export async function failGenerateJob(
 
 async function produceGenerateResult(prompt: string): Promise<GenerateResult> {
   return getInferenceProvider(inferenceConfig).generate(prompt);
-}
-
-async function classifyPromptForGenerate(prompt: string): Promise<boolean> {
-  if (classifierOverride) {
-    return classifierOverride(prompt);
-  }
-
-  if (inferenceConfig.isTest) {
-    return true;
-  }
-
-  const classified = await classifyPromptSafetyWithGroq(prompt, {
-    apiKeys: inferenceConfig.groqApiKeys,
-    model: inferenceConfig.groqPromptGuardModel,
-    requestTimeoutMs: 15_000,
-  });
-
-  return classified.safe;
 }
 
 export function summarizeGenerateFailure(error?: unknown): string {

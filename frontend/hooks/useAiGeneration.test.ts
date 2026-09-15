@@ -825,4 +825,54 @@ describe("useAiGeneration polling", () => {
 
     expect(result.current.previews[0]?.rating).toBe("up");
   });
+
+  it("marks applied job loading until the ready generate job is fetched", async () => {
+    let resolveJob: (value: ApiAiPreview) => void = () => undefined;
+    fetchAppliedAiGenerationMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveJob = resolve;
+        }),
+    );
+    const ready = projectWith("ready");
+    const refreshProject = vi.fn(async () => ready);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAiGeneration(ready, refreshProject, updateProjectInList),
+    );
+
+    expect(result.current.isAppliedJobLoading).toBe(true);
+    expect(result.current.appliedJob).toBeNull();
+
+    await flushEffects();
+    expect(result.current.isAppliedJobLoading).toBe(true);
+
+    await act(async () => {
+      resolveJob({
+        ...completedPreview,
+        appliedAt: "2026-09-14T00:01:00.000Z",
+        rating: null,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.isAppliedJobLoading).toBe(false);
+    expect(result.current.appliedJob?.id).toBe("preview-1");
+  });
+
+  it("does not wait for an applied job on a blank ready Project", async () => {
+    const blank: ApiProject = { ...projectWith("ready"), mode: "blank" };
+    const refreshProject = vi.fn(async () => blank);
+    const updateProjectInList = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAiGeneration(blank, refreshProject, updateProjectInList),
+    );
+
+    expect(result.current.isAppliedJobLoading).toBe(false);
+    await flushEffects();
+    expect(fetchAppliedAiGenerationMock).not.toHaveBeenCalled();
+  });
 });

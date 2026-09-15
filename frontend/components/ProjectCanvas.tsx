@@ -11,6 +11,24 @@ function applyReadOnly(editor: Editor | null, readOnly: boolean) {
   editor?.updateInstanceState({ isReadonly: readOnly });
 }
 
+export function CanvasLoadingPing({
+  label = "Loading canvas...",
+}: {
+  label?: string;
+}) {
+  return (
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs font-mono"
+      aria-busy="true"
+    >
+      <div className="flex items-center gap-2 text-sky-400">
+        <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
+        <p className="text-muted">{label}</p>
+      </div>
+    </div>
+  );
+}
+
 interface ProjectCanvasProps {
   projectName: string;
   storeWithStatus: TLStoreWithStatus;
@@ -43,11 +61,7 @@ export function ProjectCanvas({
   );
 
   if (storeWithStatus.status === "loading") {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted">
-        Loading canvas for {projectName}...
-      </div>
-    );
+    return <CanvasLoadingPing label={`Loading canvas for ${projectName}...`} />;
   }
 
   if (storeWithStatus.status === "error") {
