@@ -14,10 +14,13 @@ RUN bun run build
 
 FROM base AS runner
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 4000
-CMD ["sh", "-c", "bunx prisma migrate deploy && bun run start"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
