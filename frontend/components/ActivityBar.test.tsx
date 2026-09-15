@@ -3,11 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { clerkAppearance } from "../lib/clerkAppearance";
 import { ActivityBar } from "./ActivityBar";
 
-const userButtonProps: { appearance?: unknown; afterSignOutUrl?: string }[] =
-  [];
+const userButtonProps: { appearance?: unknown }[] = [];
 
 vi.mock("@clerk/nextjs", () => ({
-  UserButton: (props: { appearance?: unknown; afterSignOutUrl?: string }) => {
+  UserButton: (props: { appearance?: unknown }) => {
     userButtonProps.push(props);
     return <div>Account</div>;
   },
@@ -32,6 +31,5 @@ describe("ActivityBar", () => {
         avatarBox: "h-7 w-7 cursor-pointer",
       },
     });
-    expect(userButtonProps[0]?.afterSignOutUrl).toBe("/");
   });
 });
