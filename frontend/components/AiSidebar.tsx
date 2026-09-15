@@ -173,7 +173,10 @@ export function AiSidebar({
           <Button
             type="button"
             size="sm"
-            className="mt-2 h-7 w-full text-xs"
+            className={cn(
+              "mt-2 h-7 w-full text-xs",
+              isApplying && "opacity-60 hover:opacity-60",
+            )}
             data-stagger-item="apply"
             disabled={isBusy || isApplying}
             onClick={() => void applySelectedPreview()}

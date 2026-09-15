@@ -225,10 +225,12 @@ describe("AiSidebar ratings", () => {
       />,
     );
 
-    expect(
-      (screen.getByRole("button", { name: "Applying..." }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    const applyButton = screen.getByRole("button", {
+      name: "Applying...",
+    }) as HTMLButtonElement;
+
+    expect(applyButton.disabled).toBe(true);
+    expect(applyButton.className).toContain("opacity-60");
   });
 
   it("shows a loading state while generating a Preview", () => {
