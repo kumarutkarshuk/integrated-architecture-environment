@@ -451,8 +451,8 @@ describe("Export Spec job lifecycle", () => {
     expect(started.body).toMatchObject({
       status: "pending",
       type: "export_spec",
+      error: null,
     });
-    expect(started.body.error).toBeUndefined();
 
     const project = await request(app)
       .get(`/api/projects/${created.body.id}`)

@@ -3,21 +3,32 @@ import { captureEvent, captureException } from "../analytics.js";
 import type { AuthenticatedRequest } from "../auth/middleware.js";
 import { applyPreviewToCanvas } from "../ai/apply-preview.js";
 import { AiRateLimitError } from "../ai/rate-limit.js";
+import { InappropriatePromptError } from "../ai/prompt-guard.js";
+import {
+  findAppliedGenerateJob,
+  findLatestGenerateJob,
+  parseRatingValue,
+  presentJobForViewer,
+  presentJobsForViewer,
+  publicJobDetailSelect,
+  publicJobSelect,
+  upsertAuthorRating,
+} from "../ai/rating-service.js";
 import { startExportSpecJob } from "../ai/start-export-spec-job.js";
 import { startGenerateJob } from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
-function sendAiRateLimitError(
+function sendAiRouteError(
   res: { status: (code: number) => { json: (body: object) => void } },
   error: unknown,
 ): boolean {
-  if (!(error instanceof AiRateLimitError)) {
-    return false;
+  if (error instanceof AiRateLimitError || error instanceof InappropriatePromptError) {
+    res.status(error.status).json({ error: error.message });
+    return true;
   }
 
-  res.status(error.status).json({ error: error.message });
-  return true;
+  return false;
 }
 
 export const aiRouter = Router({ mergeParams: true });
@@ -34,23 +45,8 @@ function readProjectId(
   return projectId;
 }
 
-const jobSelect = {
-  id: true,
-  type: true,
-  prompt: true,
-  status: true,
-  result: true,
-  model: true,
-  promptVersion: true,
-  provider: true,
-  appliedAt: true,
-  createdAt: true,
-} as const;
-
-const jobDetailSelect = {
-  ...jobSelect,
-  plan: true,
-} as const;
+const jobSelect = publicJobSelect;
+const jobDetailSelect = publicJobDetailSelect;
 
 aiRouter.post("/generate", async (req, res) => {
   const user = (req as AuthenticatedRequest).user;
@@ -87,23 +83,23 @@ aiRouter.post("/generate", async (req, res) => {
   }
 
   try {
-    await startGenerateJob(projectId, user.id, prompt);
+    const job = await startGenerateJob(projectId, user.id, prompt);
+    const createdJob = await prisma.aiGeneration.findFirst({
+      where: { id: job.id, projectId, type: "generate" },
+      select: jobSelect,
+    });
+
+    captureEvent(user.clerkId, "ai_generation_started", { projectId });
+
+    res.status(201).json(
+      createdJob ? await presentJobForViewer(createdJob, user.id) : createdJob,
+    );
   } catch (error) {
-    if (sendAiRateLimitError(res, error)) {
+    if (sendAiRouteError(res, error)) {
       return;
     }
     throw error;
   }
-
-  const latestJob = await prisma.aiGeneration.findFirst({
-    where: { projectId, type: "generate" },
-    orderBy: { createdAt: "desc" },
-    select: jobSelect,
-  });
-
-  captureEvent(user.clerkId, "ai_generation_started", { projectId });
-
-  res.status(201).json(latestJob);
 });
 
 aiRouter.get("/previews", async (req, res) => {
@@ -137,7 +133,7 @@ aiRouter.get("/previews", async (req, res) => {
     select: jobSelect,
   });
 
-  res.json(previews);
+  res.json(await presentJobsForViewer(previews, user.id));
 });
 
 aiRouter.post("/export-spec", async (req, res) => {
@@ -175,9 +171,11 @@ aiRouter.post("/export-spec", async (req, res) => {
 
     captureEvent(user.clerkId, "spec_exported", { projectId });
 
-    res.status(201).json(createdJob);
+    res.status(201).json(
+      createdJob ? await presentJobForViewer(createdJob, user.id) : createdJob,
+    );
   } catch (error) {
-    if (sendAiRateLimitError(res, error)) {
+    if (sendAiRouteError(res, error)) {
       return;
     }
     console.error("Failed to start Export Spec", error);
@@ -242,6 +240,113 @@ aiRouter.post("/apply", async (req, res) => {
   res.json(project);
 });
 
+aiRouter.get("/applied", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const job = await findAppliedGenerateJob(projectId);
+
+  if (!job) {
+    res.status(404).json({ error: "Applied AI Generation not found" });
+    return;
+  }
+
+  res.json(await presentJobForViewer(job, user.id));
+});
+
+aiRouter.get("/latest", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const job = await findLatestGenerateJob(projectId);
+
+  if (!job) {
+    res.status(404).json({ error: "AI Generation job not found" });
+    return;
+  }
+
+  res.json(await presentJobForViewer(job, user.id));
+});
+
+aiRouter.put("/:jobId/rating", async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const projectId = readProjectId(req, res);
+  if (!projectId) {
+    return;
+  }
+
+  const project = await findAccessibleProject(projectId, user.id);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const value = parseRatingValue((req.body as { value?: unknown }).value);
+  if (!value) {
+    res.status(400).json({ error: "value must be up or down" });
+    return;
+  }
+
+  const jobId = req.params.jobId?.trim();
+  if (!jobId) {
+    res.status(400).json({ error: "Job id is required" });
+    return;
+  }
+
+  const result = await upsertAuthorRating({
+    projectId,
+    jobId,
+    userId: user.id,
+    value,
+  });
+
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.json({ value: result.value });
+});
+
 aiRouter.get("/:jobId", async (req, res) => {
   const user = (req as AuthenticatedRequest).user;
 
@@ -275,5 +380,5 @@ aiRouter.get("/:jobId", async (req, res) => {
     return;
   }
 
-  res.json(job);
+  res.json(await presentJobForViewer(job, user.id));
 });

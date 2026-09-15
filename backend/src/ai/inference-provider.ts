@@ -51,7 +51,7 @@ export function resetInferenceProvider(): void {
 }
 
 export function getInferenceProvider(config?: {
-  groqApiKey?: string;
+  groqApiKeys?: string[];
   groqModel: string;
   isTest: boolean;
 }): InferenceProvider {
@@ -59,9 +59,9 @@ export function getInferenceProvider(config?: {
     return activeInferenceProvider;
   }
 
-  if (config && !config.isTest && config.groqApiKey) {
+  if (config && !config.isTest && config.groqApiKeys && config.groqApiKeys.length > 0) {
     return createGroqInferenceProvider({
-      apiKey: config.groqApiKey,
+      apiKeys: config.groqApiKeys,
       model: config.groqModel,
     });
   }

@@ -3,9 +3,11 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRef } from "react";
 import type { ApiProject } from "../lib/api";
+import { hasAuthorRating } from "../lib/api";
 import type { useAiGeneration } from "../hooks/useAiGeneration";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
 import { AgentAllowEmpty, AgentAllowPanel } from "./AgentAllowPanel";
+import { RatingButtons } from "./RatingButtons";
 import { BorderBeam } from "./ui/border-beam";
 import { Button } from "./ui/button";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
@@ -34,10 +36,13 @@ export function AiSidebar({
     previews,
     selectedPreviewId,
     setSelectedPreviewId,
+    appliedJob,
+    rateJob,
     isBusy,
     isApplying,
     isGenerating,
     generationFailed,
+    generationError,
     regenerate,
     applySelectedPreview,
   } = ai;
@@ -57,10 +62,23 @@ export function AiSidebar({
   if (!showPreviewIteration) {
     if (project?.status === "ready") {
       return (
-        <AgentAllowPanel
-          allowed={agentAllowed}
-          onAllowedChange={onAgentAllowedChange}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          {appliedJob && hasAuthorRating(appliedJob) ? (
+            <div className="border-b border-sidebar-border px-3 py-2">
+              <RatingButtons
+                value={appliedJob.rating}
+                caption="Did you like this AI generation?"
+                onRate={(value) => {
+                  void rateJob(appliedJob.id, value);
+                }}
+              />
+            </div>
+          ) : null}
+          <AgentAllowPanel
+            allowed={agentAllowed}
+            onAllowedChange={onAgentAllowedChange}
+          />
+        </div>
       );
     }
 
@@ -77,12 +95,6 @@ export function AiSidebar({
         ref={listRef}
         className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
       >
-        {generationFailed && previews.length === 0 && (
-          <p className="text-xs text-red-400" data-stagger-item="failed">
-            Generation failed. Please try again.
-          </p>
-        )}
-
         {previews.length > 0 && (
           <RadioGroup
             value={selectedPreviewId ?? undefined}
@@ -115,6 +127,15 @@ export function AiSidebar({
                   >
                     {preview.prompt ?? "Untitled preview"}
                   </p>
+                  {hasAuthorRating(preview) ? (
+                    <RatingButtons
+                      value={preview.rating}
+                      disabled={isApplying}
+                      onRate={(value) => {
+                        void rateJob(preview.id, value);
+                      }}
+                    />
+                  ) : null}
                   <Button
                     type="button"
                     variant="ghost"
@@ -154,6 +175,11 @@ export function AiSidebar({
       </div>
 
       <div className="border-t border-sidebar-border p-2">
+        {isGenerating ? null : generationError ? (
+          <p className="mb-2 text-xs text-red-400">{generationError}</p>
+        ) : generationFailed ? (
+          <p className="mb-2 text-xs text-muted">Loading reason...</p>
+        ) : null}
         <div className="relative overflow-hidden rounded-lg border border-sidebar-border bg-panel">
           {isGenerating && <BorderBeam duration={8} borderWidth={1.5} />}
           <Textarea

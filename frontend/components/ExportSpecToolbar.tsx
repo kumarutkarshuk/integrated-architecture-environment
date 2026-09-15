@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { formatSpecFile, type ExportedSpec } from "../hooks/useExportSpec";
+import { hasAuthorRating, type ApiAiJob, type RatingValue } from "../lib/api";
+import { RatingButtons } from "./RatingButtons";
 import { Button } from "./ui/button";
 import {
   AlertDialog,
@@ -24,11 +27,13 @@ interface ExportSpecToolbarProps {
 
 interface ExportSpecPanelProps {
   spec: ExportedSpec | null;
+  specJob?: ApiAiJob | null;
   isExporting: boolean;
   downloadFileName: string;
   onClear: () => void;
   onCopy: () => void;
   onDownload: () => void;
+  onRate?: (value: RatingValue) => void;
   closeRef?: MutableRefObject<(() => void) | null>;
 }
 
@@ -201,11 +206,13 @@ export function ExportSpecConfirmDialog({
 
 export function ExportSpecPanel({
   spec,
+  specJob = null,
   isExporting,
   downloadFileName,
   onClear,
   onCopy,
   onDownload,
+  onRate,
   closeRef,
 }: ExportSpecPanelProps) {
   const confirm = useExportSpecConfirm({
@@ -264,8 +271,16 @@ export function ExportSpecPanel({
       )}
 
       {spec && (
-        <div className="min-h-0 flex-1 overflow-auto p-4 text-sm text-foreground [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_p]:mb-2 [&_hr]:my-3 [&_hr]:border-sidebar-border [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4">
-          <Markdown>{formatSpecFile(spec)}</Markdown>
+        <div className="min-h-0 flex-1 overflow-auto p-4 text-sm text-foreground [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_p]:mb-2 [&_hr]:my-3 [&_hr]:border-sidebar-border [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-sidebar-border [&_th]:bg-hover [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-sidebar-border [&_td]:px-2 [&_td]:py-1">
+          {onRate && hasAuthorRating(specJob) ? (
+            <div className="mb-3">
+              <RatingButtons
+                value={specJob.rating}
+                onRate={onRate}
+              />
+            </div>
+          ) : null}
+          <Markdown remarkPlugins={[remarkGfm]}>{formatSpecFile(spec)}</Markdown>
         </div>
       )}
 

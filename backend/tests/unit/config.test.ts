@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config.js";
 
-const envKeys = ["NODE_ENV", "CLERK_SECRET_KEY", "SMTP_USER", "SMTP_PASS", "GROQ_MODEL"] as const;
+const envKeys = [
+  "NODE_ENV",
+  "CLERK_SECRET_KEY",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "GROQ_MODEL",
+  "GROQ_API_KEY",
+  "GROQ_API_KEY_2",
+  "GROQ_API_KEY_3",
+  "GROQ_PROMPT_GUARD_MODEL",
+] as const;
 
 describe("loadConfig", () => {
   const previous = new Map<string, string | undefined>();
@@ -57,5 +67,28 @@ describe("loadConfig", () => {
     setEnv("GROQ_MODEL", "openai/gpt-oss-20b");
 
     expect(loadConfig().groqModel).toBe("openai/gpt-oss-20b");
+  });
+
+  it("defaults the prompt guard model to openai/gpt-oss-20b", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_PROMPT_GUARD_MODEL", undefined);
+
+    expect(loadConfig().groqPromptGuardModel).toBe("openai/gpt-oss-20b");
+  });
+
+  it("lets GROQ_PROMPT_GUARD_MODEL override the prompt guard model", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_PROMPT_GUARD_MODEL", "openai/gpt-oss-120b");
+
+    expect(loadConfig().groqPromptGuardModel).toBe("openai/gpt-oss-120b");
+  });
+
+  it("collects Groq keys for round robin", () => {
+    setEnv("NODE_ENV", "test");
+    setEnv("GROQ_API_KEY", "key-a");
+    setEnv("GROQ_API_KEY_2", "key-b");
+    setEnv("GROQ_API_KEY_3", "key-c");
+
+    expect(loadConfig().groqApiKeys).toEqual(["key-a", "key-b", "key-c"]);
   });
 });

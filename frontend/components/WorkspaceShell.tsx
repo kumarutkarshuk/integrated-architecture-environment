@@ -19,7 +19,6 @@ import {
 } from "../hooks/useSidebarOpen";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
-import { SHOW_AI_INFERENCE_ERROR_UI } from "../lib/ai-client-errors";
 import { isLiveCanvasOnline } from "../lib/canvas";
 import { deriveWorkspaceShellStatus } from "../lib/shellStatus";
 import { ActivityBar } from "./ActivityBar";
@@ -416,15 +415,13 @@ export function WorkspaceShell() {
               selectedProject.status !== "ready" &&
               !previewRecords && (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs font-mono">
-                  {ai.generationFailed ? (
+                  {ai.generationFailed && !ai.isGenerating ? (
                     <>
                       <p className="font-semibold text-red-400">
                         Preview generation failed.
                       </p>
                       <p className="text-muted">
-                        {SHOW_AI_INFERENCE_ERROR_UI
-                          ? "Check your API key and model settings, then try again from the AI panel."
-                          : "Try again from the AI panel."}
+                        {ai.generationError ?? "Loading reason..."}
                       </p>
                     </>
                   ) : ai.previewWaitTimedOut ? (
@@ -469,6 +466,7 @@ export function WorkspaceShell() {
             >
               <ExportSpecPanel
                 spec={exportSpec.spec}
+                specJob={exportSpec.specJob}
                 isExporting={exportSpec.isExporting}
                 downloadFileName={exportSpec.downloadFileName}
                 onClear={exportSpec.clearSpec}
@@ -476,6 +474,9 @@ export function WorkspaceShell() {
                   void exportSpec.copySpec();
                 }}
                 onDownload={exportSpec.downloadSpec}
+                onRate={(value) => {
+                  void exportSpec.rateSpec(value);
+                }}
                 closeRef={specCloseRef}
               />
             </div>

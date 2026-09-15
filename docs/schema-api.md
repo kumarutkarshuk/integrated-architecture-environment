@@ -60,15 +60,28 @@ ai_generation
   type          text NOT NULL  -- 'generate' | 'export_spec'
   status        text NOT NULL  -- 'pending' | 'running' | 'completed' | 'failed'
   prompt        text           -- generate: user prompt; export_spec: canvas summary at click
-  result        jsonb          -- tldraw shapes (generate) or { markdown, gaps_summary } (export_spec)
+  result        jsonb          -- generate: tldraw shapes; export_spec: { markdown, gaps_summary }
   plan          jsonb          -- generate: parsed Plan { flows: [{ id, label, components, connections }] }; a single-path Plan is one Flow; null for export_spec
   prompt_version text          -- generate-diagram.v3 or export-spec.v1
   provider      text           -- groq
   model         text           -- LLM id used for the job
   tokens_used   integer
+  error         text           -- set when status is failed; generate: concise worker reason (Failed to generate JSON, Invalid API key, ...)
+  blocked_by    text           -- generate: 'code' | 'classifier' when the prompt was blocked; null otherwise
   applied_at    timestamptz    -- set when user applies a generate preview to canvas
   created_at    timestamptz NOT NULL
   deleted_at    timestamptz
+
+rating
+  id               uuid PK
+  ai_generation_id uuid FK → ai_generation.id NOT NULL  -- Restrict
+  user_id          uuid FK → user.id NOT NULL           -- Restrict
+  value            text NOT NULL  -- 'up' | 'down'
+  created_at       timestamptz NOT NULL
+  updated_at       timestamptz NOT NULL
+  deleted_at       timestamptz
+  UNIQUE (ai_generation_id, user_id)
+  -- one live Rating per User per AI Generation; switch up/down is allowed; no clear
 ```
 
 Rows are hidden from the product when `deleted_at` is set. `DELETE /api/projects/:id` sets `deleted_at` on the project, its collaborators, invites, and canvas snapshot. `ai_generation` rows are left as they are so usage can be audited.
@@ -108,9 +121,12 @@ POST   /api/projects/:id/invites/:inviteId/resend  -- owner only; max 3 sends; 5
 POST   /api/invites/:token/redeem
 
 POST   /api/projects/:id/ai/generate     -- { prompt }; sets status → generating
-GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs
+GET    /api/projects/:id/ai/previews     -- completed, unapplied generate jobs; rating for the author only
 POST   /api/projects/:id/ai/apply        -- { aiGenerationId }; sets status → ready
-GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs include plan; all jobs include prompt_version and provider
+GET    /api/projects/:id/ai/applied      -- applied generate AI Generation; 404 if none; rating for the author only
+GET    /api/projects/:id/ai/latest       -- newest generate AI Generation; 404 if none; includes error and blocked_by when a prompt was blocked
+GET    /api/projects/:id/ai/:jobId       -- job status + result; generate jobs include plan; all jobs include prompt_version, provider, error, and blocked_by; rating for the author only
+PUT    /api/projects/:id/ai/:jobId/rating -- { value: "up" | "down" }; author + collaborator + completed job; 403 if not author; 400 if not completed; switch allowed; no DELETE
 POST   /api/projects/:id/ai/export-spec  -- stores click-time canvas summary; starts spec job
 
 WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
@@ -119,11 +135,12 @@ WS     /ws/projects/:id           -- Yjs sync; Clerk JWT in handshake
 ### Prompt-mode creation flow
 
 1. `POST /api/projects` with `{ name, mode: "prompt", prompt }` → status `generating`.
-2. Trigger.dev runs generate job; stores `prompt`, `model`, `prompt_version`, `provider`, parsed `plan`, and tldraw `result` on `ai_generation` row.
-3. On complete → project status `preview`; preview appears in picker.
-4. On first-job fail (no completed unapplied preview) → project status `failed`.
-5. User tweaks prompt → `POST .../ai/generate` again (new row, new prompt). If a later job fails but a completed unapplied preview still exists, status stays `preview`.
-6. User picks preview → `POST .../ai/apply { aiGenerationId }` → status `ready`, canvas unlocked.
+2. Trigger.dev runs the generate job. Code regex guardrails run first. If they pass, a small classifier (`GROQ_PROMPT_GUARD_MODEL`, default `openai/gpt-oss-20b`) checks the prompt. If either blocks, the generate job fails with `error` set, `blocked_by` set to `code` or `classifier`, and no diagram is produced.
+3. If safe, the same job runs diagram inference; stores parsed `plan` and tldraw `result` on that `ai_generation` row.
+4. On complete → project status `preview`; preview appears in picker.
+5. On first-job fail (no completed unapplied preview) → project status `failed`. The failed job's `error` is a concise worker reason (same class of message as Trigger.dev, e.g. Failed to generate JSON or Invalid API key) and is shown in the product.
+6. User tweaks prompt → `POST .../ai/generate` again (new generate row). If a later generate fails but a completed unapplied preview still exists, status stays `preview`.
+7. User picks preview → `POST .../ai/apply { aiGenerationId }` → status `ready`, canvas unlocked.
 
 ## Rate limiting
 

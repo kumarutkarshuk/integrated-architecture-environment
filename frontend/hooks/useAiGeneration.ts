@@ -5,16 +5,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   applyAiPreview,
+  hasAuthorRating,
   fetchAiPreviews,
+  fetchAppliedAiGeneration,
+  fetchLatestAiGeneration,
+  rateAiGeneration,
   regenerateAiPreview,
   type ApiAiPreview,
   type ApiProject,
+  type RatingValue,
 } from "../lib/api";
 import { PREVIEW_LOAD_TIMEOUT_MS } from "../lib/canvas";
 
 function isProjectNotFoundError(error: unknown): boolean {
   return error instanceof Error && error.message === "Project not found";
 }
+
+const GENERATE_FAILED_MESSAGE = "Generation failed. Please try again.";
 
 export function useAiGeneration(
   project: ApiProject | null,
@@ -33,13 +40,20 @@ export function useAiGeneration(
   const [isApplying, setIsApplying] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [previewWaitTimedOut, setPreviewWaitTimedOut] = useState(false);
+  const [appliedJob, setAppliedJob] = useState<ApiAiPreview | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
   const projectRef = useRef(project);
   const loadPreviewsRef = useRef<() => Promise<void>>(async () => {});
   const selectNewestAfterRegenerateRef = useRef(false);
+  const failureToastForJobRef = useRef<string | null>(null);
+  const promptProjectIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     activeProjectIdRef.current = project?.id ?? null;
+    failureToastForJobRef.current = null;
+    promptProjectIdRef.current = null;
+    setGenerationError(null);
   }, [project?.id]);
 
   projectRef.current = project;
@@ -50,7 +64,8 @@ export function useAiGeneration(
       if (
         !currentProject ||
         currentProject.mode !== "prompt" ||
-        currentProject.status !== "preview"
+        (currentProject.status !== "preview" &&
+          currentProject.status !== "failed")
       ) {
         return;
       }
@@ -90,6 +105,7 @@ export function useAiGeneration(
 
         const latestPrompt = nextPreviews[0]?.prompt;
         if (latestPrompt) {
+          promptProjectIdRef.current = projectId;
           setPrompt(latestPrompt);
         }
       } catch (loadError) {
@@ -115,11 +131,60 @@ export function useAiGeneration(
 
   loadPreviewsRef.current = loadPreviews;
 
+  const readLatestGenerateFailure = useCallback(
+    async (projectId: string, toastOnFail: boolean) => {
+      try {
+        const token = await getToken();
+        if (!token || activeProjectIdRef.current !== projectId) {
+          return;
+        }
+
+        const latest = await fetchLatestAiGeneration(token, projectId);
+        if (activeProjectIdRef.current !== projectId) {
+          return;
+        }
+
+        if (latest.status !== "failed") {
+          setGenerationError(null);
+          return;
+        }
+
+        if (
+          latest.prompt?.trim() &&
+          promptProjectIdRef.current !== projectId
+        ) {
+          promptProjectIdRef.current = projectId;
+          setPrompt(latest.prompt.trim());
+        }
+
+        const message = latest.error?.trim() || GENERATE_FAILED_MESSAGE;
+        setGenerationError(message);
+        if (toastOnFail && failureToastForJobRef.current !== latest.id) {
+          failureToastForJobRef.current = latest.id;
+          toast.error(message);
+        }
+      } catch (latestError) {
+        if (
+          activeProjectIdRef.current !== projectId ||
+          isProjectNotFoundError(latestError)
+        ) {
+          return;
+        }
+        if (toastOnFail) {
+          toast.error(GENERATE_FAILED_MESSAGE);
+        }
+        setGenerationError(GENERATE_FAILED_MESSAGE);
+      }
+    },
+    [getToken],
+  );
+
   useEffect(() => {
     if (!project || project.mode !== "prompt") {
       setPrompt("");
       setPreviews([]);
       setSelectedPreviewId(null);
+      setAppliedJob(null);
       setPreviewWaitTimedOut(false);
       selectNewestAfterRegenerateRef.current = false;
       setIsRegenerating(false);
@@ -130,17 +195,18 @@ export function useAiGeneration(
 
     setPreviews([]);
     setSelectedPreviewId(null);
+    setAppliedJob(null);
     setPreviewWaitTimedOut(false);
     selectNewestAfterRegenerateRef.current = false;
     setIsRegenerating(false);
     setIsApplying(false);
     setIsBusy(false);
-
+    setPrompt(initialPrompt?.trim() ?? "");
     if (initialPrompt?.trim()) {
-      setPrompt(initialPrompt.trim());
+      promptProjectIdRef.current = project.id;
     }
 
-    if (project.status === "preview") {
+    if (project.status === "preview" || project.status === "failed") {
       void loadPreviewsRef.current();
     }
   }, [project?.id, project?.mode, initialPrompt]);
@@ -157,11 +223,25 @@ export function useAiGeneration(
     const projectId = project.id;
     const poll = () => {
       void refreshProject(projectId)
-        .then((updated) => {
+        .then(async (updated) => {
           if (activeProjectIdRef.current !== projectId) {
             return;
           }
           updateProjectInList(updated);
+          if (updated.status === "generating") {
+            return;
+          }
+          if (updated.status === "failed" || updated.status === "preview") {
+            await readLatestGenerateFailure(projectId, true);
+          }
+          if (updated.status === "failed") {
+            selectNewestAfterRegenerateRef.current = false;
+            setIsRegenerating(false);
+            setIsBusy(false);
+            projectRef.current = updated;
+            await loadPreviewsRef.current();
+            return;
+          }
           if (updated.status === "preview") {
             projectRef.current = updated;
             return loadPreviewsRef.current();
@@ -178,21 +258,34 @@ export function useAiGeneration(
     const interval = window.setInterval(poll, 1500);
 
     return () => window.clearInterval(interval);
-  }, [project?.id, project?.status, refreshProject, updateProjectInList]);
+  }, [
+    project?.id,
+    project?.status,
+    refreshProject,
+    updateProjectInList,
+    readLatestGenerateFailure,
+  ]);
 
   const generationFailed = project?.status === "failed";
   const isGenerating = isRegenerating || project?.status === "generating";
 
   useEffect(() => {
-    if (project?.status !== "failed") {
+    if (
+      !project ||
+      project.mode !== "prompt" ||
+      (project.status !== "failed" && project.status !== "preview")
+    ) {
       return;
     }
 
-    selectNewestAfterRegenerateRef.current = false;
-    setIsRegenerating(false);
-    setIsApplying(false);
-    setIsBusy(false);
-  }, [project?.id, project?.status]);
+    if (project.status === "failed") {
+      selectNewestAfterRegenerateRef.current = false;
+      setIsRegenerating(false);
+      setIsApplying(false);
+      setIsBusy(false);
+    }
+    void readLatestGenerateFailure(project.id, false);
+  }, [project?.id, project?.mode, project?.status, readLatestGenerateFailure]);
 
   const selectedPreview = useMemo(
     () => previews.find((preview) => preview.id === selectedPreviewId) ?? null,
@@ -253,11 +346,12 @@ export function useAiGeneration(
       selectNewestAfterRegenerateRef.current = false;
       setIsRegenerating(false);
       setIsBusy(false);
-      toast.error(
+      const message =
         actionError instanceof Error
           ? actionError.message
-          : "Failed to regenerate preview",
-      );
+          : "Failed to regenerate preview";
+      setGenerationError(message);
+      toast.error(message);
     }
   }, [
     getToken,
@@ -310,6 +404,120 @@ export function useAiGeneration(
     setSelectedPreviewId(null);
   }, [isApplying, liveCanvasReady]);
 
+  useEffect(() => {
+    if (
+      !project ||
+      project.mode !== "prompt" ||
+      project.status !== "ready"
+    ) {
+      if (project?.status !== "ready") {
+        setAppliedJob(null);
+      }
+      return;
+    }
+
+    const projectId = project.id;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token || cancelled) {
+          return;
+        }
+        const job = await fetchAppliedAiGeneration(token, projectId);
+        if (cancelled || activeProjectIdRef.current !== projectId) {
+          return;
+        }
+        setAppliedJob(job);
+      } catch (error) {
+        if (cancelled || activeProjectIdRef.current !== projectId) {
+          return;
+        }
+        if (
+          error instanceof Error &&
+          error.message === "Applied AI Generation not found"
+        ) {
+          setAppliedJob(null);
+          return;
+        }
+        toast.error(
+          error instanceof Error ? error.message : "Failed to load applied generation",
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, project?.id, project?.mode, project?.status]);
+
+  const rateJob = useCallback(
+    async (jobId: string, value: RatingValue) => {
+      if (!project) {
+        return;
+      }
+
+      const previousPreview = previews.find((preview) => preview.id === jobId);
+      const previousRating = hasAuthorRating(previousPreview)
+        ? previousPreview.rating
+        : appliedJob?.id === jobId && hasAuthorRating(appliedJob)
+          ? appliedJob.rating
+          : undefined;
+
+      const applyLocalRating = (next: RatingValue | null) => {
+        setPreviews((current) =>
+          current.map((preview) =>
+            preview.id === jobId && hasAuthorRating(preview)
+              ? { ...preview, rating: next }
+              : preview,
+          ),
+        );
+        setAppliedJob((current) =>
+          current?.id === jobId && hasAuthorRating(current)
+            ? { ...current, rating: next }
+            : current,
+        );
+      };
+
+      applyLocalRating(value);
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Missing auth token");
+        }
+
+        const rated = await rateAiGeneration(token, project.id, jobId, value);
+        applyLocalRating(rated.value);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to save rating",
+        );
+        try {
+          const token = await getToken();
+          if (!token || activeProjectIdRef.current !== project.id) {
+            throw new Error("Missing auth token");
+          }
+          if (project.status === "ready") {
+            const job = await fetchAppliedAiGeneration(token, project.id);
+            if (activeProjectIdRef.current !== project.id) {
+              return;
+            }
+            setAppliedJob(job);
+          } else {
+            await loadPreviews();
+          }
+        } catch {
+          if (previousRating !== undefined) {
+            applyLocalRating(previousRating);
+          }
+        }
+      }
+    },
+    [appliedJob, getToken, loadPreviews, previews, project],
+  );
+
   return {
     prompt,
     setPrompt,
@@ -317,10 +525,13 @@ export function useAiGeneration(
     selectedPreview,
     selectedPreviewId,
     setSelectedPreviewId,
+    appliedJob,
+    rateJob,
     isBusy,
     isApplying,
     isGenerating,
     generationFailed,
+    generationError,
     previewWaitTimedOut,
     regenerate,
     applySelectedPreview,

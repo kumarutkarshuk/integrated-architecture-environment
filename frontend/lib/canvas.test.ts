@@ -3,6 +3,7 @@ import {
   CANVAS_WS_RECONNECT_MAX_MS,
   getCanvasWsReconnectDelayMs,
   isLiveCanvasOnline,
+  normalizeCanvasRecords,
 } from "./canvas";
 
 describe("isLiveCanvasOnline", () => {
@@ -32,5 +33,29 @@ describe("getCanvasWsReconnectDelayMs", () => {
     expect(getCanvasWsReconnectDelayMs(2)).toBe(400);
     expect(getCanvasWsReconnectDelayMs(3)).toBe(800);
     expect(getCanvasWsReconnectDelayMs(10)).toBe(CANVAS_WS_RECONNECT_MAX_MS);
+  });
+});
+
+describe("normalizeCanvasRecords", () => {
+  it("repairs invalid tldraw shape indexes like ba", () => {
+    const records = normalizeCanvasRecords({
+      "shape:box": {
+        id: "shape:box",
+        typeName: "shape",
+        type: "geo",
+        index: "a1",
+        parentId: "page:page",
+      },
+      "shape:arrow": {
+        id: "shape:arrow",
+        typeName: "shape",
+        type: "arrow",
+        index: "ba",
+        parentId: "page:page",
+      },
+    });
+
+    expect(records["shape:box"]).toMatchObject({ index: "a1" });
+    expect(records["shape:arrow"]).toMatchObject({ index: "a2" });
   });
 });

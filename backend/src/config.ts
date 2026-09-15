@@ -1,11 +1,13 @@
-import { DEFAULT_GROQ_MODEL } from "./ai/inference-defaults.js";
+import { DEFAULT_GROQ_MODEL, DEFAULT_PROMPT_GUARD_MODEL } from "./ai/inference-defaults.js";
+import { parseGroqApiKeys } from "./ai/groq-keys.js";
 
 export interface AppConfig {
   port: number;
   corsOrigin: string;
   clerkSecretKey: string;
-  groqApiKey?: string;
+  groqApiKeys: string[];
   groqModel: string;
+  groqPromptGuardModel: string;
   isTest: boolean;
 }
 
@@ -27,8 +29,10 @@ export function loadConfig(): AppConfig {
     port: Number(process.env.PORT ?? 4000),
     corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
     clerkSecretKey: clerkSecretKey ?? "test-secret",
-    groqApiKey: process.env.GROQ_API_KEY,
+    groqApiKeys: parseGroqApiKeys(),
     groqModel: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
+    groqPromptGuardModel:
+      process.env.GROQ_PROMPT_GUARD_MODEL ?? DEFAULT_PROMPT_GUARD_MODEL,
     isTest: process.env.NODE_ENV === "test",
   };
 }

@@ -1,5 +1,10 @@
 import { CANVAS_PAGE_ID } from "../canvas/records.js";
-import { layoutDiagramPlan, type FlowLayout, type LayoutBox } from "./diagram-layout.js";
+import {
+  anchorFromEdge,
+  placeDiagramConnections,
+  type PlacedConnection,
+} from "./diagram-connections.js";
+import { layoutDiagramPlan, type FlowLayout } from "./diagram-layout.js";
 import type {
   ComponentKind,
   ConnectionStyle,
@@ -11,13 +16,6 @@ import type { GenerateResult } from "./types.js";
 
 const DEFAULT_WIDTH = 220;
 const DEFAULT_HEIGHT = 100;
-const ANCHOR_SPREAD_MIN = 0.28;
-const ANCHOR_SPREAD_MAX = 0.72;
-const LABEL_POSITION_START = 0.28;
-const LABEL_POSITION_VERTICAL = 0.45;
-const LABEL_MIDPOINT_BAND = 0.06;
-const OPPOSITE_LANE_A = 0.34;
-const OPPOSITE_LANE_B = 0.66;
 
 const KIND_COLORS: Record<ComponentKind, string> = {
   client: "blue",
@@ -33,9 +31,6 @@ const STYLE_DASH: Record<ConnectionStyle, string> = {
   async: "dashed",
   data: "dotted",
 };
-
-type Anchor = { x: number; y: number };
-type EdgeDirection = "right" | "left" | "down" | "up";
 
 export function toRichText(text: string) {
   return {
@@ -152,11 +147,16 @@ export function buildRecordsFromDiagramPlan(plan: DiagramPlan): GenerateResult {
       shapeIndex += 1;
     });
 
-    flow.connections.forEach((connection) => {
+    const placements = placeDiagramConnections(layout.boxes, flow.connections);
+    flow.connections.forEach((connection, connectionIndex) => {
+      const placement = placements[connectionIndex];
+      if (!placement) {
+        return;
+      }
       const arrowRecords = buildConnectionRecords(
         flow,
         connection,
-        flow.connections,
+        placement,
         layout,
         toShapeIndex(shapeIndex),
         qualifyIds,
@@ -173,7 +173,7 @@ export function buildRecordsFromDiagramPlan(plan: DiagramPlan): GenerateResult {
 function buildConnectionRecords(
   flow: DiagramFlow,
   connection: DiagramConnection,
-  connections: DiagramConnection[],
+  placement: PlacedConnection,
   layout: FlowLayout,
   index: string,
   qualifyIds: boolean,
@@ -192,15 +192,16 @@ function buildConnectionRecords(
   const arrowId = `shape:arrow-${fromId}-to-${toId}`;
   const startBindingId = `binding:${fromId}-to-${toId}-start`;
   const endBindingId = `binding:${fromId}-to-${toId}-end`;
-  const anchors = resolveConnectionAnchors(connection, connections, layout.boxes);
+  const start = anchorFromEdge(placement.fromEdge, placement.along);
+  const end = anchorFromEdge(placement.toEdge, placement.along);
 
   return {
     [arrowId]: {
       id: arrowId,
       typeName: "shape",
       type: "arrow",
-      x: from.x + anchors.start.x * from.w,
-      y: from.y + anchors.start.y * from.h,
+      x: from.x,
+      y: from.y,
       rotation: 0,
       index,
       parentId: CANVAS_PAGE_ID,
@@ -210,7 +211,7 @@ function buildConnectionRecords(
         kind: "elbow",
         labelColor: "black",
         color: "black",
-        fill: "none",
+        fill: "semi",
         dash: STYLE_DASH[connection.style],
         size: "s",
         arrowheadStart: "none",
@@ -220,7 +221,7 @@ function buildConnectionRecords(
         end: { x: 1, y: 0 },
         bend: 0,
         richText: toRichText(connection.label ?? ""),
-        labelPosition: anchors.labelPosition,
+        labelPosition: placement.labelPosition,
         scale: 1,
         elbowMidPoint: 0.5,
       },
@@ -238,9 +239,9 @@ function buildConnectionRecords(
       meta: {},
       props: {
         terminal: "start",
-        normalizedAnchor: anchors.start,
+        normalizedAnchor: start,
         isExact: false,
-        isPrecise: false,
+        isPrecise: true,
         snap: "edge",
       },
     },
@@ -253,9 +254,9 @@ function buildConnectionRecords(
       meta: {},
       props: {
         terminal: "end",
-        normalizedAnchor: anchors.end,
+        normalizedAnchor: end,
         isExact: false,
-        isPrecise: false,
+        isPrecise: true,
         snap: "edge",
       },
     },
@@ -270,172 +271,18 @@ function recordComponentId(flow: DiagramFlow, componentId: string, qualifyIds: b
   return `${flow.id}-${componentId}`;
 }
 
-function resolveConnectionAnchors(
-  connection: DiagramConnection,
-  connections: DiagramConnection[],
-  layout: Map<string, LayoutBox>,
-): {
-  start: Anchor;
-  end: Anchor;
-  labelPosition: number;
-} {
-  const from = layout.get(connection.from)!;
-  const to = layout.get(connection.to)!;
-  const direction = edgeDirection(from, to);
-  const base = anchorsForDirection(direction, from, to);
-  const oppositeLane = oppositeLaneIndex(connection, connections);
-
-  if (oppositeLane !== null) {
-    return {
-      start: applyLane(base.start, direction, oppositeLane),
-      end: applyLane(base.end, direction, oppositeLane),
-      labelPosition: arrowLabelPosition(0, 1, direction),
-    };
-  }
-
-  const outgoing = connections.filter((candidate) => {
-    const candidateFrom = layout.get(candidate.from);
-    const candidateTo = layout.get(candidate.to);
-    return (
-      candidate.from === connection.from &&
-      candidateFrom &&
-      candidateTo &&
-      edgeDirection(candidateFrom, candidateTo) === direction
-    );
-  });
-  const incoming = connections.filter((candidate) => {
-    const candidateFrom = layout.get(candidate.from);
-    const candidateTo = layout.get(candidate.to);
-    return (
-      candidate.to === connection.to &&
-      candidateFrom &&
-      candidateTo &&
-      edgeDirection(candidateFrom, candidateTo) === direction
-    );
-  });
-
-  const outgoingIndex = outgoing.findIndex((candidate) => candidate === connection);
-
-  return {
-    start: offsetAnchor(base.start, outgoingIndex, outgoing.length),
-    end: offsetAnchor(
-      base.end,
-      incoming.findIndex((candidate) => candidate === connection),
-      incoming.length,
-    ),
-    labelPosition: arrowLabelPosition(outgoingIndex, outgoing.length, direction),
-  };
-}
-
-function oppositeLaneIndex(
-  connection: DiagramConnection,
-  connections: DiagramConnection[],
-): 0 | 1 | null {
-  const hasReverse = connections.some(
-    (candidate) => candidate.from === connection.to && candidate.to === connection.from,
-  );
-  if (!hasReverse) {
-    return null;
-  }
-
-  return connection.from < connection.to ? 0 : 1;
-}
-
-function applyLane(anchor: Anchor, direction: EdgeDirection, lane: 0 | 1): Anchor {
-  const offset = lane === 0 ? OPPOSITE_LANE_A : OPPOSITE_LANE_B;
-  if (direction === "right" || direction === "left") {
-    return { x: anchor.x, y: offset };
-  }
-  return { x: offset, y: anchor.y };
-}
-
-function edgeDirection(from: LayoutBox, to: LayoutBox): EdgeDirection {
-  const fromBottom = from.y + from.h;
-  const fromRight = from.x + from.w;
-  const toBottom = to.y + to.h;
-  const toRight = to.x + to.w;
-  const verticalOverlap = from.y < toBottom && fromBottom > to.y;
-  const horizontalOverlap = from.x < toRight && fromRight > to.x;
-
-  if (!verticalOverlap) {
-    return to.y >= fromBottom ? "down" : "up";
-  }
-  if (!horizontalOverlap) {
-    return to.x >= fromRight ? "right" : "left";
-  }
-
-  const deltaX = to.x + to.w / 2 - (from.x + from.w / 2);
-  const deltaY = to.y + to.h / 2 - (from.y + from.h / 2);
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-    return deltaX >= 0 ? "right" : "left";
-  }
-  return deltaY >= 0 ? "down" : "up";
-}
-
-function anchorsForDirection(
-  direction: EdgeDirection,
-  from: LayoutBox,
-  to: LayoutBox,
-): { start: Anchor; end: Anchor } {
-  if (direction === "right") {
-    return {
-      start: { x: 1, y: 0.5 },
-      end: to.y >= from.y + from.h ? { x: 0.5, y: 0 } : { x: 0, y: 0.5 },
-    };
-  }
-  if (direction === "left") {
-    return {
-      start: { x: 0, y: 0.5 },
-      end: to.y >= from.y + from.h ? { x: 0.5, y: 0 } : { x: 1, y: 0.5 },
-    };
-  }
-  if (direction === "down") {
-    return {
-      start: { x: 0.5, y: 1 },
-      end: to.x >= from.x + from.w ? { x: 0, y: 0.5 } : { x: 0.5, y: 0 },
-    };
-  }
-  return {
-    start: { x: 0.5, y: 0 },
-    end: to.x >= from.x + from.w ? { x: 0, y: 0.5 } : { x: 0.5, y: 1 },
-  };
-}
-
-function offsetAnchor(anchor: Anchor, index: number, count: number): Anchor {
-  const spread = spreadValue(index, count);
-  if (anchor.x === 0 || anchor.x === 1) {
-    return { x: anchor.x, y: spread };
-  }
-  return { x: spread, y: anchor.y };
-}
-
-function spreadValue(index: number, count: number): number {
-  if (count <= 1) {
-    return 0.5;
-  }
-  const t = index / (count - 1);
-  return ANCHOR_SPREAD_MIN + t * (ANCHOR_SPREAD_MAX - ANCHOR_SPREAD_MIN);
-}
-
-function arrowLabelPosition(index: number, count: number, direction: EdgeDirection): number {
-  if (direction === "down" || direction === "up") {
-    return LABEL_POSITION_VERTICAL;
-  }
-  if (count <= 1) {
-    return LABEL_POSITION_START;
-  }
-
-  const spread = spreadValue(index, count);
-  if (Math.abs(spread - 0.5) < LABEL_MIDPOINT_BAND) {
-    return LABEL_POSITION_START + 0.08;
-  }
-
-  return spread;
-}
-
 function toShapeIndex(index: number): string {
-  const alphabet = "abcdefghijklmnopqrstuvwxyz";
-  const first = alphabet[Math.floor(index / alphabet.length) % alphabet.length];
-  const second = alphabet[index % alphabet.length];
-  return `${first}${second}`;
+  const digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const n = index + 1;
+  if (n < digits.length) {
+    return `a${digits[n]}`;
+  }
+
+  const rest = n - digits.length;
+  const high = Math.floor(rest / digits.length);
+  const low = rest % digits.length;
+  if (high >= digits.length) {
+    throw new Error("Diagram has too many shapes to index");
+  }
+  return `b${digits[high]}${digits[low]}`;
 }

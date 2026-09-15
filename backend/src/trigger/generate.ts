@@ -22,8 +22,8 @@ export const generateTask = task({
       return { skipRetrying: true };
     }
   },
-  onFailure: async ({ payload }) => {
+  onFailure: async ({ payload, error }) => {
     configureAnalyticsFromEnv();
-    await failGenerateJob(payload.aiGenerationId);
+    await failGenerateJob(payload.aiGenerationId, error);
   },
 });

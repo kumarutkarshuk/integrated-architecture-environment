@@ -33,7 +33,7 @@ A markdown document of a Project's canvas as it was when a User asked for a Spec
 _Avoid_: Specification doc, export
 
 **AI Generation**:
-A tracked background job that runs an AI action (`generate` or `export_spec`) against a project. It records the prompt used (user prompt for generate, click-time canvas summary for export_spec), which prompt version produced it, the LLM model, the result, and `applied_at` when a generate Preview is written to the live canvas. A generate job also stores a Plan. Users may attach a Rating.
+A tracked background job that runs an AI action (`generate` or `export_spec`) against a project. It records the prompt used (user prompt for generate, click-time canvas summary for export_spec), which prompt version produced it, the LLM model, the result, and `applied_at` when a generate Preview is written to the live canvas. A generate job also stores a Plan. A failed job records why it failed, and whether a prompt was blocked by code or the classifier. Users may attach a Rating to a completed job.
 _Avoid_: AI job, inference request
 
 **Plan**:

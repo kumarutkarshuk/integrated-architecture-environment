@@ -5,8 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   fetchAiJob,
+  rateAiGeneration,
   startExportSpec as startExportSpecRequest,
+  hasAuthorRating,
+  type ApiAiJob,
   type ApiProject,
+  type RatingValue,
 } from "../lib/api";
 
 export interface ExportedSpec {
@@ -15,7 +19,44 @@ export interface ExportedSpec {
 }
 
 export function formatSpecFile(spec: ExportedSpec): string {
-  return `${spec.markdown}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`;
+  return `${repairMarkdownTables(spec.markdown)}\n\n---\n\n## Gaps summary\n\n${spec.gaps_summary}\n`;
+}
+
+export function repairMarkdownTables(markdown: string): string {
+  return markdown
+    .split("\n")
+    .flatMap((line) => splitCollapsedTableLine(line))
+    .join("\n");
+}
+
+function splitCollapsedTableLine(line: string): string[] {
+  const trimmed = line.trim();
+  const separator = trimmed.match(/\|(?:\s*:?-{3,}:?\s*\|)+/);
+  if (!separator || separator.index == null) {
+    return [line];
+  }
+
+  const header = trimmed.slice(0, separator.index).trim();
+  const rest = trimmed.slice(separator.index + separator[0].length).trim();
+  if (!header.startsWith("|") || !rest.startsWith("|")) {
+    return [line];
+  }
+
+  const colCount = Math.max(1, (separator[0].match(/\|/g) ?? []).length - 1);
+  const cells = rest
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+  const rows = [header, separator[0].trim()];
+  for (let index = 0; index < cells.length; index += colCount) {
+    const slice = cells.slice(index, index + colCount);
+    if (slice.every((cell) => !cell)) {
+      continue;
+    }
+    rows.push(`| ${slice.join(" | ")} |`);
+  }
+  return rows;
 }
 
 function toDownloadFileName(projectName: string): string {
@@ -33,6 +74,7 @@ export function useExportSpec(project: ApiProject | null) {
   const [isExporting, setIsExporting] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [spec, setSpec] = useState<ExportedSpec | null>(null);
+  const [specJob, setSpecJob] = useState<ApiAiJob | null>(null);
   const projectIdRef = useRef<string | null>(project?.id ?? null);
 
   projectIdRef.current = project?.id ?? null;
@@ -43,6 +85,7 @@ export function useExportSpec(project: ApiProject | null) {
     setIsExporting(false);
     setJobId(null);
     setSpec(null);
+    setSpecJob(null);
   }, [project?.id]);
 
   useEffect(() => {
@@ -82,13 +125,14 @@ export function useExportSpec(project: ApiProject | null) {
               markdown,
               gaps_summary: gapsSummary,
             });
+            setSpecJob(job);
             setIsExporting(false);
             setJobId(null);
             return;
           }
 
-          if (job.status === "failed") {
-            toast.error("Export Spec failed");
+            if (job.status === "failed") {
+              toast.error(job.error?.trim() || "Export Spec failed");
             setIsExporting(false);
             setJobId(null);
           }
@@ -121,6 +165,7 @@ export function useExportSpec(project: ApiProject | null) {
 
     setIsExporting(true);
     setSpec(null);
+    setSpecJob(null);
 
     try {
       const token = await getToken();
@@ -146,6 +191,7 @@ export function useExportSpec(project: ApiProject | null) {
 
   const clearSpec = useCallback(() => {
     setSpec(null);
+    setSpecJob(null);
   }, []);
 
   const downloadSpec = useCallback(() => {
@@ -172,14 +218,60 @@ export function useExportSpec(project: ApiProject | null) {
     await navigator.clipboard.writeText(formatSpecFile(spec));
   }, [spec]);
 
+  const rateSpec = useCallback(
+    async (value: RatingValue) => {
+      if (!project || !specJob || !hasAuthorRating(specJob)) {
+        return;
+      }
+
+      const previous = specJob.rating;
+      setSpecJob((current) =>
+        current && hasAuthorRating(current)
+          ? { ...current, rating: value }
+          : current,
+      );
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Missing auth token");
+        }
+
+        const rated = await rateAiGeneration(
+          token,
+          project.id,
+          specJob.id,
+          value,
+        );
+        setSpecJob((current) =>
+          current && hasAuthorRating(current)
+            ? { ...current, rating: rated.value }
+            : current,
+        );
+      } catch (error) {
+        setSpecJob((current) =>
+          current && hasAuthorRating(current)
+            ? { ...current, rating: previous }
+            : current,
+        );
+        toast.error(
+          error instanceof Error ? error.message : "Failed to save rating",
+        );
+      }
+    },
+    [getToken, project, specJob],
+  );
+
   return {
     canExport,
     isExporting,
     spec,
+    specJob,
     downloadFileName: toDownloadFileName(project?.name ?? "project"),
     exportSpec,
     clearSpec,
     downloadSpec,
     copySpec,
+    rateSpec,
   };
 }
