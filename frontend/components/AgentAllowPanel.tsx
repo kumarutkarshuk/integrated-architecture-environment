@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, Copy } from "lucide-react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { FadeIn } from "./FadeIn";
 import { AiCue } from "./AiCue";
@@ -13,17 +14,32 @@ import {
   cursorRelayConfig,
   getWidgetOrigin,
 } from "../lib/canvas-agent/relay-copy";
+import { isWebMcpCompatibleBrowser } from "../lib/canvas-agent/webmcp-support";
 
 interface AgentAllowPanelProps {
   allowed: boolean;
+  isLoading?: boolean;
   onAllowedChange: (allowed: boolean) => void;
 }
 
+let webMcpSupportToasted = false;
+
 export function AgentAllowPanel({
   allowed,
+  isLoading = false,
   onAllowedChange,
 }: AgentAllowPanelProps) {
   const origin = getWidgetOrigin();
+  const webMcpCompatible = isWebMcpCompatibleBrowser();
+
+  useEffect(() => {
+    if (!webMcpCompatible || webMcpSupportToasted) {
+      return;
+    }
+
+    webMcpSupportToasted = true;
+    toast("This browser can let an AI agent draw on the canvas.");
+  }, [webMcpCompatible]);
 
   return (
     <FadeIn
@@ -42,6 +58,9 @@ export function AgentAllowPanel({
             </Label>
             <p className="text-[10px] leading-relaxed text-muted">
               Note: Reload turns it off.
+              {webMcpCompatible
+                ? null
+                : " Only WebMCP browsers can let an AI agent draw on this canvas."}
             </p>
             {allowed ? (
               <p className="text-[10px] text-accent">
@@ -59,6 +78,12 @@ export function AgentAllowPanel({
       </div>
 
       <div className="space-y-2">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sky-400">
+            <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
+            <p className="text-muted">Loading WebMCP...</p>
+          </div>
+        ) : null}
         <p className="text-[10px] leading-relaxed text-muted">
           Add this MCP config to Cursor, Claude Code, or Codex and ask the agent to use WebMCP to modify the canvas.
         </p>

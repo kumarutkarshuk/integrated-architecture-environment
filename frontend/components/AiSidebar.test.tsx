@@ -200,4 +200,61 @@ describe("AiSidebar ratings", () => {
     expect(screen.queryByText("Loading reason...")).toBeNull();
     expect(screen.queryByText("Invalid API key")).toBeNull();
   });
+
+  it("disables Apply preview while applying", () => {
+    render(
+      <AiSidebar
+        project={projectWith("preview")}
+        ai={aiState({
+          previews: [
+            {
+              id: "preview-1",
+              prompt: "Design a todo API",
+              status: "completed",
+              result: { records: {} },
+              appliedAt: null,
+              createdAt: "2026-09-14T00:00:01.000Z",
+              rating: null,
+            },
+          ],
+          selectedPreviewId: "preview-1",
+          isApplying: true,
+        })}
+        agentAllowed={false}
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    expect(
+      (screen.getByRole("button", { name: "Applying..." }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it("shows a loading state while generating a Preview", () => {
+    render(
+      <AiSidebar
+        project={projectWith("generating")}
+        ai={aiState({ isGenerating: true })}
+        agentAllowed={false}
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Generating preview...")).toBeTruthy();
+  });
+
+  it("shows a loading state while WebMCP is connecting", () => {
+    render(
+      <AiSidebar
+        project={projectWith("ready", "blank")}
+        ai={aiState()}
+        agentAllowed={false}
+        isAgentLoading
+        onAgentAllowedChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("Loading WebMCP...")).toBeTruthy();
+  });
 });

@@ -49,13 +49,27 @@ describe("InviteToolbar", () => {
     ).toBe(true);
   });
 
-  it("loads Collaborators when the dialog opens", () => {
+  it("loads Collaborators when the Invite button is clicked", () => {
     const onOpen = vi.fn();
     renderToolbar({ onOpen });
 
     openDialog();
-
     expect(onOpen).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    openDialog();
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows validation when the Invite email is blank", () => {
+    const onInvite = vi.fn();
+    renderToolbar({ onInvite });
+
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invite" }));
+
+    expect(onInvite).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Email is required")).toBeTruthy();
   });
 
   it("sends an Invite to the typed email", () => {
@@ -169,5 +183,28 @@ describe("InviteToolbar", () => {
     const dialog = openDialog();
     expect(within(dialog).queryByRole("button", { name: "Resend" })).toBeNull();
     expect(within(dialog).getByText(/Resend in 4 min/)).toBeTruthy();
+  });
+
+  it("blocks a new Invite at 20 Collaborators", () => {
+    const onInvite = vi.fn();
+    renderToolbar({
+      onInvite,
+      collaborators: Array.from({ length: 20 }, (_, index) => ({
+        email: `user${index}@example.com`,
+        displayName: null,
+        role: index === 0 ? "owner" : "editor",
+        status: "joined" as const,
+      })),
+    });
+
+    const dialog = openDialog();
+    expect(
+      within(dialog).getByText("Collaborator limit reached (20 per Project)"),
+    ).toBeTruthy();
+    expect(
+      (within(dialog).getByRole("button", { name: "Send invite" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(onInvite).not.toHaveBeenCalled();
   });
 });

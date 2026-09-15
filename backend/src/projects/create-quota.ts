@@ -35,6 +35,7 @@ export function createMemoryProjectCreateRateLimiter(options?: {
   now?: () => Date;
 }): {
   limiter: ProjectCreateRateLimiter;
+  getCount: (userId: string) => number;
   reset: () => void;
 } {
   const counts = new Map<string, number>();
@@ -49,11 +50,15 @@ export function createMemoryProjectCreateRateLimiter(options?: {
       },
       async consume(userId) {
         const key = rateLimitKey(userId, now());
-        const nextCount = (counts.get(key) ?? 0) + 1;
-        counts.set(key, nextCount);
-        return nextCount > PROJECT_CREATE_DAILY_LIMIT ? "limited" : "ok";
+        const current = counts.get(key) ?? 0;
+        if (current >= PROJECT_CREATE_DAILY_LIMIT) {
+          return "limited";
+        }
+        counts.set(key, current + 1);
+        return "ok";
       },
     },
+    getCount: (userId) => counts.get(rateLimitKey(userId, now())) ?? 0,
     reset: () => {
       counts.clear();
     },
@@ -91,7 +96,11 @@ function createUpstashProjectCreateRateLimiter(options: {
       const ttl = secondsUntilNextUtcMidnight(currentTime);
       const results = await redis.pipeline().incr(key).expire(key, ttl).exec();
       const count = Number(results[0]);
-      return count > PROJECT_CREATE_DAILY_LIMIT ? "limited" : "ok";
+      if (count > PROJECT_CREATE_DAILY_LIMIT) {
+        await redis.decr(key);
+        return "limited";
+      }
+      return "ok";
     },
   };
 }

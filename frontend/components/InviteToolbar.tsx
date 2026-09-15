@@ -65,6 +65,7 @@ export function InviteToolbar({
   const listRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const collaboratorKey = collaborators
     .map((person) =>
@@ -73,6 +74,8 @@ export function InviteToolbar({
         : `${person.role}:${person.email}`,
     )
     .join("|");
+
+  const atCollaboratorLimit = collaborators.length >= 20;
 
   useStaggerReveal(listRef, {
     itemsKey: collaboratorKey,
@@ -111,6 +114,7 @@ export function InviteToolbar({
     setOpen(nextOpen);
     if (!nextOpen) {
       setEmail("");
+      setEmailError(null);
     }
   }
 
@@ -118,8 +122,18 @@ export function InviteToolbar({
     event.preventDefault();
     const trimmed = email.trim();
     if (!trimmed) {
+      setEmailError("Email is required");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError("A valid email is required");
+      return;
+    }
+    if (atCollaboratorLimit) {
+      setEmailError("Collaborator limit reached (20 per Project)");
+      return;
+    }
+    setEmailError(null);
     onInvite(trimmed);
     setEmail("");
   }
@@ -154,22 +168,33 @@ export function InviteToolbar({
                 type="email"
                 autoComplete="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                aria-invalid={emailError ? true : undefined}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (emailError) {
+                    setEmailError(null);
+                  }
+                }}
                 placeholder="editor@example.com"
               />
+              {emailError ? (
+                <p className="text-xs text-red-400">{emailError}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Collaborators
               </p>
-              {isLoadingCollaborators && collaborators.length === 0 ? (
-                <p className="text-sm text-muted">Loading...</p>
-              ) : (
-                <ul
-                  ref={listRef}
-                  className="max-h-48 space-y-2 overflow-y-auto"
-                >
+              {isLoadingCollaborators ? (
+                <p className="text-sm text-muted">
+                  {collaborators.length === 0 ? "Loading..." : "Refreshing..."}
+                </p>
+              ) : null}
+              <ul
+                ref={listRef}
+                className="max-h-48 space-y-2 overflow-y-auto"
+              >
                   {collaborators.map((person) => {
                     const waitLabel =
                       person.status === "pending" && person.resendAvailableAt
@@ -239,8 +264,13 @@ export function InviteToolbar({
                     );
                   })}
                 </ul>
-              )}
             </div>
+
+            {atCollaboratorLimit ? (
+              <p className="text-xs text-red-400">
+                Collaborator limit reached (20 per Project)
+              </p>
+            ) : null}
 
             <DialogFooter>
               <Button
@@ -251,7 +281,11 @@ export function InviteToolbar({
               >
                 Close
               </Button>
-              <Button type="submit" size="sm" disabled={isSending}>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSending || atCollaboratorLimit}
+              >
                 {isSending ? "Sending..." : "Send invite"}
               </Button>
             </DialogFooter>

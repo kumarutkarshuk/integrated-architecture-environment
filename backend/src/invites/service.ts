@@ -9,6 +9,7 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const MAX_INVITE_SENDS = 3;
 export const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
+export const MAX_COLLABORATORS = 20;
 
 const inviteSelect = {
   id: true,
@@ -185,6 +186,24 @@ export async function listProjectCollaborators(
   return { ok: true, value: [...joined, ...pending] };
 }
 
+async function projectCollaboratorCount(projectId: string): Promise<number> {
+  const [joinedCount, pendingCount] = await Promise.all([
+    prisma.collaborator.count({
+      where: { projectId, ...notDeleted },
+    }),
+    prisma.projectInvite.count({
+      where: {
+        projectId,
+        redeemedAt: null,
+        expiresAt: { gt: new Date() },
+        ...notDeleted,
+      },
+    }),
+  ]);
+
+  return joinedCount + pendingCount;
+}
+
 export async function createProjectInvite(
   projectId: string,
   user: User,
@@ -237,6 +256,14 @@ export async function createProjectInvite(
       ok: false,
       status: 409,
       error: "An Invite was already sent to this email",
+    };
+  }
+
+  if ((await projectCollaboratorCount(projectId)) >= MAX_COLLABORATORS) {
+    return {
+      ok: false,
+      status: 409,
+      error: `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
     };
   }
 

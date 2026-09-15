@@ -20,19 +20,48 @@ type ModelContext = {
   ): Promise<void>;
 };
 
-export function mountWebMcpRelayEmbed(): void {
+export function mountWebMcpRelayEmbed(): Promise<void> {
   if (typeof document === "undefined") {
-    return;
-  }
-  if (document.querySelector("script[data-iae-webmcp-embed]")) {
-    return;
+    return Promise.resolve();
   }
 
-  const script = document.createElement("script");
-  script.src = EMBED_SRC;
-  script.async = true;
-  script.dataset.iaeWebmcpEmbed = "";
-  document.body.appendChild(script);
+  const existing = document.querySelector(
+    "script[data-iae-webmcp-embed]",
+  ) as HTMLScriptElement | null;
+  if (existing) {
+    if (existing.dataset.loaded === "true" || existing.dataset.error === "true") {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => resolve(), { once: true });
+    });
+  }
+
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = EMBED_SRC;
+    script.async = true;
+    script.dataset.iaeWebmcpEmbed = "";
+    script.addEventListener(
+      "load",
+      () => {
+        script.dataset.loaded = "true";
+        resolve();
+      },
+      { once: true },
+    );
+    script.addEventListener(
+      "error",
+      () => {
+        script.dataset.error = "true";
+        resolve();
+      },
+      { once: true },
+    );
+    document.body.appendChild(script);
+  });
 }
 
 export async function registerCanvasAgentTools(

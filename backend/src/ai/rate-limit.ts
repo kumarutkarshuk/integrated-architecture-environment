@@ -49,6 +49,7 @@ export function createMemoryAiRateLimiter(options?: {
   now?: () => Date;
 }): {
   limiter: AiRateLimiter;
+  getCount: (userId: string, kind: AiGenerationType) => number;
   reset: () => void;
 } {
   const counts = new Map<string, number>();
@@ -58,11 +59,15 @@ export function createMemoryAiRateLimiter(options?: {
     limiter: {
       async consume(userId, kind) {
         const key = rateLimitKey(userId, kind, now());
-        const nextCount = (counts.get(key) ?? 0) + 1;
-        counts.set(key, nextCount);
-        return nextCount > AI_DAILY_LIMITS[kind] ? "limited" : "ok";
+        const current = counts.get(key) ?? 0;
+        if (current >= AI_DAILY_LIMITS[kind]) {
+          return "limited";
+        }
+        counts.set(key, current + 1);
+        return "ok";
       },
     },
+    getCount: (userId, kind) => counts.get(rateLimitKey(userId, kind, now())) ?? 0,
     reset: () => {
       counts.clear();
     },
@@ -94,7 +99,11 @@ function createUpstashAiRateLimiter(options: {
       const ttl = secondsUntilNextUtcMidnight(currentTime);
       const results = await redis.pipeline().incr(key).expire(key, ttl).exec();
       const count = Number(results[0]);
-      return count > AI_DAILY_LIMITS[kind] ? "limited" : "ok";
+      if (count > AI_DAILY_LIMITS[kind]) {
+        await redis.decr(key);
+        return "limited";
+      }
+      return "ok";
     },
   };
 }

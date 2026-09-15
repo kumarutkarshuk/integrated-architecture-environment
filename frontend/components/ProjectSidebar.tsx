@@ -85,6 +85,7 @@ export function ProjectSidebar({
 
     try {
       await onDeleteProject(projectPendingDelete.id);
+      toast.success(`Deleted "${projectPendingDelete.name}"`);
       setProjectPendingDelete(null);
     } catch (deleteError) {
       toast.error(

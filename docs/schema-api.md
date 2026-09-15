@@ -30,6 +30,7 @@ collaborator
   PRIMARY KEY (project_id, user_id)
   -- owner row inserted on project create
   -- editor row inserted when project_invite is redeemed
+  -- at most 20 live Collaborators per Project (joined rows plus unexpired pending Invites)
 
 project_invite
   id            uuid PK
@@ -115,7 +116,7 @@ GET    /api/projects/:id
 DELETE /api/projects/:id          -- owner only
 
 GET    /api/projects/:id/collaborators  -- owner only; joined + pending Invite status
-POST   /api/projects/:id/invites        -- { email }; rejects duplicate pending / joined
+POST   /api/projects/:id/invites        -- { email }; rejects duplicate pending / joined; max 20 Collaborators
 POST   /api/projects/:id/invites/:inviteId/resend  -- owner only; max 3 sends; 5 minute wait
 
 POST   /api/invites/:token/redeem

@@ -20,6 +20,7 @@ interface AiSidebarProps {
   project: ApiProject | null;
   ai: AiGenerationState;
   agentAllowed: boolean;
+  isAgentLoading?: boolean;
   onAgentAllowedChange: (allowed: boolean) => void;
 }
 
@@ -27,6 +28,7 @@ export function AiSidebar({
   project,
   ai,
   agentAllowed,
+  isAgentLoading = false,
   onAgentAllowedChange,
 }: AiSidebarProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -76,6 +78,7 @@ export function AiSidebar({
           ) : null}
           <AgentAllowPanel
             allowed={agentAllowed}
+            isLoading={isAgentLoading}
             onAllowedChange={onAgentAllowedChange}
           />
         </div>
@@ -95,6 +98,12 @@ export function AiSidebar({
         ref={listRef}
         className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto p-3"
       >
+        {isGenerating && (
+          <div className="flex items-center gap-2 text-sky-400">
+            <span className="h-2 w-2 animate-ping rounded-full bg-sky-400" />
+            <p className="text-muted">Generating preview...</p>
+          </div>
+        )}
         {previews.length > 0 && (
           <RadioGroup
             value={selectedPreviewId ?? undefined}

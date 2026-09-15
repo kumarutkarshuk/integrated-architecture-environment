@@ -4,6 +4,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { FileCode2, FileText, Layers, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { Editor } from "tldraw";
 import { useAiGeneration } from "../hooks/useAiGeneration";
 import { useCanvasAgent } from "../hooks/useCanvasAgent";
@@ -113,6 +114,7 @@ export function WorkspaceShell() {
     );
   const {
     allowed: agentAllowed,
+    isLoading: isAgentLoading,
     requestAllowed: requestAgentAllowed,
     armConflict,
     resolveArmConflict,
@@ -365,6 +367,10 @@ export function WorkspaceShell() {
                     actionsEnabled={canvasActionsEnabled}
                     isExporting={exportSpec.isExporting}
                     onExport={() => {
+                      if (specTabVisible) {
+                        toast.error("Close the spec tab");
+                        return;
+                      }
                       void exportSpec.exportSpec();
                     }}
                   />
@@ -495,6 +501,7 @@ export function WorkspaceShell() {
             ai={ai}
             project={selectedProject}
             agentAllowed={agentAllowed}
+            isAgentLoading={isAgentLoading}
             onAgentAllowedChange={requestAgentAllowed}
           />
         </CollapsibleSidebar>

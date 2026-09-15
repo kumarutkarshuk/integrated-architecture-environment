@@ -174,6 +174,7 @@ describe("ProjectSidebar", () => {
     await waitFor(() => {
       expect(onDeleteProject).toHaveBeenCalledWith("project-owned");
     });
+    expect(toast.success).toHaveBeenCalledWith('Deleted "Owned Canvas"');
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 

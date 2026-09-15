@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryArmNetwork } from "../lib/canvas-agent/arm-bus";
+import { toast } from "sonner";
 import { WorkspaceShell } from "./WorkspaceShell";
 
 const workspaceState = vi.hoisted(() => ({
@@ -10,6 +11,7 @@ const workspaceState = vi.hoisted(() => ({
   projectMode: "blank" as "blank" | "prompt",
   projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
   spec: null as { markdown: string; gaps_summary: string } | null,
+  exportSpec: async () => undefined as void,
 }));
 
 vi.mock("@clerk/nextjs", () => ({
@@ -17,10 +19,10 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: {
+  toast: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
-  },
+  }),
 }));
 
 vi.mock("./ProjectCanvas", () => ({
@@ -145,7 +147,7 @@ vi.mock("../hooks/useAiGeneration", () => ({
     setSelectedPreviewId: () => undefined,
     isBusy: false,
     isApplying: false,
-    isGenerating: false,
+    isGenerating: workspaceState.projectStatus === "generating",
     generationFailed: false,
     generationError: null,
     previewWaitTimedOut: false,
@@ -166,7 +168,7 @@ vi.mock("../hooks/useExportSpec", () => ({
     spec: workspaceState.spec,
     specJob: null,
     downloadFileName: "owned-canvas-spec.md",
-    exportSpec: async () => undefined,
+    exportSpec: () => workspaceState.exportSpec(),
     clearSpec: () => undefined,
     downloadSpec: () => undefined,
     copySpec: async () => undefined,
@@ -209,6 +211,10 @@ describe("WorkspaceShell", () => {
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
     workspaceState.spec = null;
+    workspaceState.exportSpec = async () => undefined;
+    vi.mocked(toast).mockReset();
+    vi.mocked(toast.error).mockReset();
+    vi.mocked(toast.success).mockReset();
     clipboardWriteText.mockReset();
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -322,6 +328,22 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
   });
 
+  it("blocks Export Spec from the canvas tab while the spec tab is open", () => {
+    const exportSpec = vi.fn(async () => undefined);
+    workspaceState.spec = {
+      markdown: "# Spec",
+      gaps_summary: "None",
+    };
+    workspaceState.exportSpec = exportSpec;
+
+    render(<WorkspaceShell />);
+    fireEvent.click(screen.getByRole("button", { name: "Owned Canvas.canvas" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export Spec" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Close the spec tab");
+    expect(exportSpec).not.toHaveBeenCalled();
+  });
+
   it("hides Invite on preview and always shows a solo session", () => {
     workspaceState.projectMode = "prompt";
     workspaceState.projectStatus = "generating";
@@ -357,6 +379,11 @@ describe("WorkspaceShell", () => {
       screen.getByText(/ask the agent to use WebMCP to modify the canvas/i),
     ).toBeTruthy();
     expect(screen.getByText(/Reload turns it off/i)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Only WebMCP browsers can let an AI agent draw on this canvas/i,
+      ),
+    ).toBeTruthy();
     expect(
       screen
         .getByRole("switch", { name: "Allow agent to edit this canvas" })
@@ -421,6 +448,9 @@ describe("WorkspaceShell", () => {
     const { unmount } = render(<WorkspaceShell />);
 
     expect(screen.getByPlaceholderText("Describe the system...")).toBeTruthy();
+    expect(screen.getAllByText("Generating preview...").length).toBeGreaterThan(
+      0,
+    );
     expect(
       screen.queryByRole("switch", { name: "Allow agent to edit this canvas" }),
     ).toBeNull();

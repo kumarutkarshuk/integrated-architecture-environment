@@ -24,6 +24,7 @@ export function useCanvasAgent(
   onAgentCursor?: (cursor: { x: number; y: number }) => void,
 ) {
   const [allowed, setAllowedState] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [, setArmedTabIds] = useState("");
   const [armConflict, setArmConflict] = useState<ArmConflict | null>(null);
   const statusRef = useRef(projectStatus);
@@ -56,7 +57,15 @@ export function useCanvasAgent(
   );
 
   useEffect(() => {
-    mountWebMcpRelayEmbed();
+    let cancelled = false;
+    void Promise.resolve(mountWebMcpRelayEmbed()).finally(() => {
+      if (!cancelled) {
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -140,17 +149,24 @@ export function useCanvasAgent(
 
     const abort = new AbortController();
     const session = sessionRef.current;
+    setIsLoading(true);
     void (async () => {
       await session.syncArms();
       if (abort.signal.aborted || !session.shouldRegisterTools()) {
+        if (!abort.signal.aborted) {
+          setIsLoading(false);
+        }
         return;
       }
       await registerCanvasAgentTools(session, abort.signal);
+      if (!abort.signal.aborted) {
+        setIsLoading(false);
+      }
     })();
     return () => {
       abort.abort();
     };
   }, [shouldRegister]);
 
-  return { allowed, requestAllowed, armConflict, resolveArmConflict };
+  return { allowed, isLoading, requestAllowed, armConflict, resolveArmConflict };
 }

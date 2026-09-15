@@ -5,6 +5,7 @@ export type ProductEventName =
   | "invite_resent"
   | "invite_redeemed"
   | "invite_redeem_failed"
+  | "collaborator_limit_reached"
   | "ai_generation_started"
   | "ai_generation_failed"
   | "preview_applied"

@@ -260,6 +260,14 @@ projectsRouter.post("/:id/invites", async (req, res) => {
   );
 
   if (!result.ok) {
+    if (
+      result.status === 409 &&
+      result.error.startsWith("Collaborator limit reached")
+    ) {
+      captureEvent(user.clerkId, "collaborator_limit_reached", {
+        projectId: req.params.id,
+      });
+    }
     res.status(result.status).json({ error: result.error });
     return;
   }

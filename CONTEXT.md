@@ -17,7 +17,7 @@ A person who can sign in via Clerk with Google or email + OTP. A Postgres row is
 _Avoid_: Account, member
 
 **Collaborator**:
-A user who has been granted access to a project. Has role `owner` or `editor`. A coding agent that edits the canvas is this Collaborator, not a separate person.
+A user who has been granted access to a project. Has role `owner` or `editor`. A Project has at most 20 Collaborators, counting the owner, joined editors, and pending Invites. A coding agent that edits the canvas is this Collaborator, not a separate person.
 _Avoid_: Member, participant, agent
 
 **Invite**:
