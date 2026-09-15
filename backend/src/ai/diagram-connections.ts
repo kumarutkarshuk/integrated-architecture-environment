@@ -98,6 +98,7 @@ function pickConnectionPlacement(
     fromEdge: ConnectionEdge;
     toEdge: ConnectionEdge;
   }) =>
+    !usesSideOnDiagonal(from, to, candidate.fromEdge, candidate.toEdge) &&
     !corridorHits(from, to, candidate.fromEdge, candidate.toEdge, obstacles) &&
     !corridorHitsArrows(from, to, candidate.fromEdge, candidate.toEdge, placed, boxes);
 
@@ -204,18 +205,35 @@ function geometricEdges(
   from: LayoutBox,
   to: LayoutBox,
 ): { fromEdge: ConnectionEdge; toEdge: ConnectionEdge } {
-  const deltaX = to.x + to.w / 2 - (from.x + from.w / 2);
-  const deltaY = to.y + to.h / 2 - (from.y + from.h / 2);
-  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-    if (deltaX >= 0) {
+  const vOverlap = from.y < to.y + to.h && from.y + from.h > to.y;
+  if (vOverlap) {
+    if (to.x + to.w / 2 >= from.x + from.w / 2) {
       return { fromEdge: "right", toEdge: "left" };
     }
     return { fromEdge: "left", toEdge: "right" };
   }
-  if (deltaY >= 0) {
+  if (to.y >= from.y + from.h) {
     return { fromEdge: "bottom", toEdge: "top" };
   }
   return { fromEdge: "top", toEdge: "bottom" };
+}
+
+function usesSideOnDiagonal(
+  from: LayoutBox,
+  to: LayoutBox,
+  fromEdge: ConnectionEdge,
+  toEdge: ConnectionEdge,
+): boolean {
+  const vOverlap = from.y < to.y + to.h && from.y + from.h > to.y;
+  if (vOverlap) {
+    return false;
+  }
+  return (
+    fromEdge === "left" ||
+    fromEdge === "right" ||
+    toEdge === "left" ||
+    toEdge === "right"
+  );
 }
 
 function pairConnections(

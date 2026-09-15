@@ -51,6 +51,48 @@ describe("placeDiagramConnections", () => {
     expect(getVectors?.fromEdge).toBe("bottom");
     expect(getVectors?.fromEdge).not.toBe(generate?.fromEdge);
   });
+
+  it("does not send fetch-vectors through the generate gap when that arrow is listed first", () => {
+    const plan = parseDiagramPlan({
+      components: [
+        { id: "client", label: "Client", kind: "client" },
+        { id: "query-api", label: "Query API", kind: "service" },
+        { id: "retriever", label: "Retriever", kind: "service" },
+        { id: "vector-store", label: "Vector Store", kind: "store" },
+        { id: "llm", label: "LLM", kind: "external" },
+        { id: "formatter", label: "Formatter", kind: "service" },
+      ],
+      connections: [
+        { from: "client", to: "query-api", style: "sync", label: "ask" },
+        { from: "query-api", to: "retriever", style: "async", label: "search" },
+        {
+          from: "retriever",
+          to: "vector-store",
+          style: "data",
+          label: "fetch vectors",
+        },
+        { from: "vector-store", to: "retriever", style: "data", label: "vectors" },
+        { from: "retriever", to: "llm", style: "async", label: "generate" },
+        { from: "llm", to: "formatter", style: "data", label: "raw answer" },
+        { from: "formatter", to: "query-api", style: "sync", label: "format" },
+        { from: "query-api", to: "client", style: "sync", label: "answer" },
+      ],
+    });
+    const flow = plan.flows[0]!;
+    const boxes = layoutDiagramComponents(flow.components, flow.connections);
+    const placed = placeDiagramConnections(boxes, flow.connections);
+
+    const fetchVectors = placed.find(
+      (item) => item.from === "retriever" && item.to === "vector-store",
+    );
+    const generate = placed.find(
+      (item) => item.from === "retriever" && item.to === "llm",
+    );
+
+    expect(fetchVectors?.fromEdge).toBe("bottom");
+    expect(generate?.fromEdge).toBe("right");
+    expect(fetchVectors?.fromEdge).not.toBe(generate?.fromEdge);
+  });
 });
 
 describe("complex generate layout", () => {
