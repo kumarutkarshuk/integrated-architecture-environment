@@ -109,3 +109,22 @@ body {
     animation: none;
   }
 }
+
+@media (max-width: 767px) {
+  .iae-sidebar-panel {
+    translate: var(--iae-sidebar-x, 0);
+    will-change: translate;
+    transition: translate 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .iae-sidebar-scrim {
+    transition: opacity 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .iae-sidebar-panel,
+  .iae-sidebar-scrim {
+    transition: none;
+  }
+}

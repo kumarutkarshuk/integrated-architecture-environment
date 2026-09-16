@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelLeftClose, PanelRightClose } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
@@ -16,11 +16,15 @@ interface CollapsibleSidebarProps {
   children: ReactNode;
 }
 
-const SIDEBAR_MOTION =
-  "motion-safe:transition-[width,transform,border-color,opacity] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]";
+const DESKTOP_MOTION =
+  "md:motion-safe:transition-[width,border-color] md:motion-safe:duration-300 md:motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]";
 
 function desktopOpenWidth(openWidthClass: string): string {
   return openWidthClass.includes("w-64") ? "md:w-64" : "md:w-72";
+}
+
+function mobileClosedX(side: "left" | "right"): string {
+  return side === "left" ? "calc(-100% - 3rem)" : "calc(100% + 3rem)";
 }
 
 export function CollapsibleSidebar({
@@ -48,8 +52,7 @@ export function CollapsibleSidebar({
       <button
         type="button"
         className={cn(
-          "absolute inset-y-0 left-12 right-12 z-[15] bg-black/50 md:hidden",
-          SIDEBAR_MOTION,
+          "iae-sidebar-scrim absolute inset-y-0 left-12 right-12 z-[15] bg-black/50 md:hidden",
           isMobileShown ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         aria-label={`Dismiss ${title}`}
@@ -67,17 +70,17 @@ export function CollapsibleSidebar({
         aria-label={title}
         aria-hidden={!isOpen}
         inert={!isOpen}
+        style={
+          {
+            "--iae-sidebar-x": isMobileShown ? "0px" : mobileClosedX(side),
+          } as CSSProperties
+        }
         className={cn(
-          "flex h-full min-w-0 flex-col overflow-hidden bg-sidebar",
-          SIDEBAR_MOTION,
+          "iae-sidebar-panel flex h-full min-w-0 flex-col overflow-hidden bg-sidebar",
+          DESKTOP_MOTION,
           "absolute inset-y-0 z-20 w-[min(18rem,calc(100%-6rem))]",
           side === "left" ? "left-12" : "right-12",
-          isMobileShown
-            ? "translate-x-0"
-            : side === "left"
-              ? "-translate-x-[calc(100%+3rem)]"
-              : "translate-x-[calc(100%+3rem)]",
-          "md:static md:left-auto md:right-auto md:z-auto md:translate-x-0",
+          "md:static md:left-auto md:right-auto md:z-auto",
           isOpen
             ? cn(
                 "md:shrink-0",
