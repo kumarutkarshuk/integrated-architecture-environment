@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-if (typeof window !== "undefined" && !window.matchMedia) {
+function stubMatchMedia(matchesFor: (query: string) => boolean) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
+    configurable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
+      matches: matchesFor(query),
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -16,6 +17,8 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     })),
   });
 }
+
+stubMatchMedia((query) => query.includes("min-width: 768px"));
 
 import { identifySignedInUser, initSignedInAnalytics } from "../lib/analytics";
 import { HomePage } from "./HomePage";
@@ -34,6 +37,10 @@ vi.mock("../lib/analytics", () => ({
 }));
 
 describe("HomePage", () => {
+  afterEach(() => {
+    stubMatchMedia((query) => query.includes("min-width: 768px"));
+  });
+
   it("renders the studio chrome, hero, and workspace actions", () => {
     render(<HomePage />);
 
@@ -84,5 +91,20 @@ describe("HomePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
     expect(screen.getByText("AI panel")).toBeDefined();
     expect(screen.getByLabelText("WebMCP local agent preview")).toBeDefined();
+  });
+
+  it("keeps the landing visible and closes the AI panel on a phone viewport", () => {
+    stubMatchMedia((query) => query.includes("max-width: 767px"));
+
+    render(<HomePage />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: /Integrated Architecture Environment/i,
+      }),
+    ).toBeDefined();
+    expect(screen.getByRole("link", { name: /Open Workspace/i })).toBeDefined();
+    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByText("Only supported on desktop browsers.")).toBeNull();
   });
 });

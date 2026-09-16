@@ -16,6 +16,7 @@ import {
   cursorRelayConfig,
   getWidgetOrigin,
 } from "../lib/canvas-agent/relay-copy";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { isWebMcpCompatibleBrowser } from "../lib/canvas-agent/webmcp-support";
 
 const MCP_CLIENT_BY_TITLE = {
@@ -40,6 +41,8 @@ export function AgentAllowPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const origin = getWidgetOrigin();
   const webMcpCompatible = isWebMcpCompatibleBrowser();
+  const isMobile = useIsMobile();
+  const canAllowAgent = webMcpCompatible && !isMobile;
 
   useStaggerReveal(listRef, {
     itemsKey: revealKey,
@@ -77,11 +80,13 @@ export function AgentAllowPanel({
                 id="allow-agent-reason"
                 className="text-[10px] leading-relaxed text-muted"
               >
-                {webMcpCompatible
-                  ? "Note: Reload turns it off."
-                  : "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge."}
+                {isMobile
+                  ? "Agents cannot edit the canvas on phones. Use desktop Chrome or Edge."
+                  : webMcpCompatible
+                    ? "Note: Reload turns it off."
+                    : "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge."}
               </p>
-              {allowed && webMcpCompatible ? (
+              {allowed && canAllowAgent ? (
                 <p className="text-[10px] text-accent">
                   The agent can read this canvas.
                 </p>
@@ -89,8 +94,8 @@ export function AgentAllowPanel({
             </div>
             <Switch
               id="allow-agent"
-              checked={allowed && webMcpCompatible}
-              disabled={!webMcpCompatible}
+              checked={allowed && canAllowAgent}
+              disabled={!canAllowAgent}
               onCheckedChange={onAllowedChange}
               aria-label="Allow agent to edit this canvas"
               aria-describedby="allow-agent-reason"

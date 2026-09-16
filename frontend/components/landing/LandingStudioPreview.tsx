@@ -127,7 +127,7 @@ export function LandingStudioPreview() {
   return (
     <div
       ref={canvasRef}
-      className="landing-preview relative h-full min-h-72 overflow-hidden rounded-lg border border-sidebar-border bg-panel"
+      className="landing-preview relative h-full min-h-56 overflow-hidden rounded-lg border border-sidebar-border bg-panel sm:min-h-72"
     >
       <BorderBeam
         size={64}
@@ -167,7 +167,7 @@ export function LandingStudioPreview() {
         pathWidth={2}
       />
 
-      <div className="relative z-10 flex h-full min-h-72 items-center justify-center gap-3 px-4 py-8 md:gap-6 md:px-6">
+      <div className="relative z-10 flex h-full min-h-56 items-center justify-center gap-2 px-2 py-6 sm:min-h-72 sm:gap-3 sm:px-4 sm:py-8 md:gap-6 md:px-6">
         <CanvasNode
           nodeRef={gatewayRef}
           title="API Gateway"
@@ -217,14 +217,14 @@ function CanvasNode({
     <div
       ref={nodeRef}
       title={`${title} - ${meta}`}
-      className={`min-w-28 rounded-lg border px-3 py-3 shadow-md ${
+      className={`min-w-0 flex-1 rounded-lg border px-2 py-2 shadow-md sm:min-w-28 sm:flex-none sm:px-3 sm:py-3 ${
         active
           ? "border-accent bg-sidebar shadow-accent/20"
           : "border-sidebar-border bg-sidebar"
       }`}
     >
-      <p className="font-mono text-xs font-medium text-foreground">{title}</p>
-      <p className="mt-1 font-mono text-[11px] text-muted">{meta}</p>
+      <p className="truncate font-mono text-[11px] font-medium text-foreground sm:text-xs">{title}</p>
+      <p className="mt-1 truncate font-mono text-[10px] text-muted sm:text-[11px]">{meta}</p>
     </div>
   );
 }

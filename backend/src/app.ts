@@ -42,9 +42,11 @@ export function createApp(config: AppConfig) {
   );
   app.use(express.json());
 
-  app.get("/health", (_req, res) => {
+  const sendHealth = (_req: express.Request, res: express.Response) => {
     res.json({ status: "ok" });
-  });
+  };
+  app.get("/health", sendHealth);
+  app.get("/api/health", sendHealth);
 
   app.use("/api/users", requireAuth, usersRouter);
   app.use("/api/projects", requireAuth, projectsRouter);

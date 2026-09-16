@@ -19,9 +19,9 @@ export function LandingTitlebar({ canvasLabel }: LandingTitlebarProps) {
         >
           IAE
         </Link>
-        <span className="text-muted/60">/</span>
+        <span className="hidden text-muted/60 sm:inline">/</span>
         <span
-          className="flex min-w-0 items-center gap-1 truncate font-medium text-foreground/90"
+          className="hidden min-w-0 items-center gap-1 truncate font-medium text-foreground/90 sm:flex"
           title={canvasLabel}
         >
           <Layers className="h-3 w-3 shrink-0 text-accent" />
@@ -29,7 +29,7 @@ export function LandingTitlebar({ canvasLabel }: LandingTitlebarProps) {
         </span>
       </div>
 
-      <LandingSourceLinks className="hidden shrink-0 gap-3 font-mono text-[11px] sm:flex" />
+      <LandingSourceLinks className="shrink-0 gap-2 font-mono text-[11px] sm:gap-3" />
     </header>
   );
 }

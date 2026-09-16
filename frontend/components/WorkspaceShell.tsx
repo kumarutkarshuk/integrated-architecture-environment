@@ -243,14 +243,14 @@ export function WorkspaceShell() {
   return (
     <div
       ref={containerRef}
-      className="flex h-screen flex-col bg-background text-foreground overflow-hidden select-none"
+      className="flex h-dvh flex-col overflow-hidden bg-background text-foreground select-none"
     >
       <WorkspaceTitlebar
         selectedProjectName={selectedProject?.name ?? null}
         status={shellStatus}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <ActivityBar
           isProjectsOpen={isProjectsSidebarOpen}
           onToggleProjects={toggleProjectsSidebar}
@@ -283,7 +283,7 @@ export function WorkspaceShell() {
         />
 
         <main className="flex min-w-0 flex-1 flex-col bg-panel overflow-hidden">
-          <div className="flex h-9 shrink-0 items-center justify-between border-b border-sidebar-border bg-[#181818] px-2 text-xs">
+          <div className="flex h-9 shrink-0 items-center justify-between gap-2 overflow-x-auto border-b border-sidebar-border bg-[#181818] px-2 text-xs">
             <div className="flex min-w-0 items-center h-full">
               <button
                 type="button"
@@ -602,7 +602,7 @@ function WorkspaceEmptyStart({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-left font-mono text-xs">
+      <div className="grid grid-cols-1 gap-2 text-left font-mono text-xs sm:grid-cols-2">
         <button
           type="button"
           data-stagger-item="blank"

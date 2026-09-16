@@ -11,7 +11,7 @@ export function LandingSourceLinks({ className }: { className?: string }) {
   return (
     <nav
       aria-label="Project and developer links"
-      className={cn("flex items-center gap-4", className)}
+      className={cn("flex items-center gap-3 sm:gap-4", className)}
     >
       <a
         href={GITHUB_REPO_URL}
@@ -28,9 +28,11 @@ export function LandingSourceLinks({ className }: { className?: string }) {
         target="_blank"
         rel="noopener noreferrer"
         title="Developer's portfolio"
+        aria-label="Developer's portfolio"
         className={linkClass}
       >
-        {"Developer's portfolio"}
+        <span className="sm:hidden">Portfolio</span>
+        <span className="hidden sm:inline">{"Developer's portfolio"}</span>
       </a>
     </nav>
   );

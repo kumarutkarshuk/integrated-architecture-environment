@@ -478,6 +478,48 @@ describe("WorkspaceShell", () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
+  it("disables Allow agent on a phone viewport even when the browser looks compatible", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query.includes("max-width: 767px"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("switch", {
+          name: "Allow agent to edit this canvas",
+        }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+
+    const allowSwitch = (await screen.findByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    })) as HTMLButtonElement;
+
+    await waitFor(() => {
+      expect(allowSwitch.disabled).toBe(true);
+    });
+    expect(
+      screen.getByText(
+        "Agents cannot edit the canvas on phones. Use desktop Chrome or Edge.",
+      ),
+    ).toBeTruthy();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
   it("copies Cursor setup from the AI panel", async () => {
     render(<WorkspaceShell />);
 

@@ -59,6 +59,24 @@ describe("CollapsibleSidebar", () => {
     expect(onToggleOpen).toHaveBeenCalledTimes(1);
   });
 
+  it("dismisses an open sidebar from the mobile overlay", () => {
+    const onToggleOpen = vi.fn();
+    render(
+      <CollapsibleSidebar
+        title="AI panel"
+        side="right"
+        isOpen
+        openWidthClass="w-72"
+        onToggleOpen={onToggleOpen}
+      >
+        <p>AI contents</p>
+      </CollapsibleSidebar>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss AI panel" }));
+    expect(onToggleOpen).toHaveBeenCalledTimes(1);
+  });
+
   it("collapses each sidebar on its own", () => {
     const toggleProjects = vi.fn();
     const toggleAi = vi.fn();
