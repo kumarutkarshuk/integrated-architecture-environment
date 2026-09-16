@@ -80,6 +80,14 @@ export function WorkspaceShell() {
     toggle: toggleAiSidebar,
     setOpen: setAiSidebarOpen,
   } = useSidebarOpen(AI_SIDEBAR_STORAGE_KEY);
+  const applyingPreviewRef = useRef(false);
+  const previousProjectIdRef = useRef<string | null | undefined>(undefined);
+  const pendingCloseProjectsForIdRef = useRef<string | null>(null);
+  const seenUnloadedForPendingProjectRef = useRef(false);
+  const previousSelectedPreviewIdRef = useRef<string | null | undefined>(
+    undefined,
+  );
+  const pendingCloseAiForPreviewIdRef = useRef<string | null>(null);
   const [initialPromptByProjectId, setInitialPromptByProjectId] = useState<
     Record<string, string>
   >({});
@@ -203,6 +211,116 @@ export function WorkspaceShell() {
     }
     setAiSidebarOpen(true);
   }, [isPreviewing, setAiSidebarOpen]);
+
+  useEffect(() => {
+    if (ai.isApplying) {
+      applyingPreviewRef.current = true;
+      return;
+    }
+
+    if (!applyingPreviewRef.current) {
+      return;
+    }
+
+    applyingPreviewRef.current = false;
+    if (isDesktopViewport()) {
+      return;
+    }
+    if (selectedProject?.status === "ready") {
+      setAiSidebarOpen(false);
+    }
+  }, [ai.isApplying, selectedProject?.status, setAiSidebarOpen]);
+
+  useEffect(() => {
+    if (previousProjectIdRef.current === undefined) {
+      previousProjectIdRef.current = selectedProjectId;
+      return;
+    }
+
+    if (previousProjectIdRef.current !== selectedProjectId) {
+      const hadProject = previousProjectIdRef.current != null;
+      previousProjectIdRef.current = selectedProjectId;
+      if (hadProject && selectedProjectId && !isDesktopViewport()) {
+        pendingCloseProjectsForIdRef.current = selectedProjectId;
+        seenUnloadedForPendingProjectRef.current = false;
+      } else {
+        pendingCloseProjectsForIdRef.current = null;
+      }
+    }
+
+    if (
+      pendingCloseProjectsForIdRef.current == null ||
+      pendingCloseProjectsForIdRef.current !== selectedProjectId ||
+      !selectedProject
+    ) {
+      return;
+    }
+
+    if (isDesktopViewport()) {
+      pendingCloseProjectsForIdRef.current = null;
+      return;
+    }
+
+    if (selectedProject.status !== "ready") {
+      pendingCloseProjectsForIdRef.current = null;
+      setProjectsSidebarOpen(false);
+      return;
+    }
+
+    const canvasLoaded = canvasActionsEnabled || saveStatus === "error";
+    if (!canvasLoaded) {
+      seenUnloadedForPendingProjectRef.current = true;
+      return;
+    }
+
+    if (!seenUnloadedForPendingProjectRef.current) {
+      return;
+    }
+
+    pendingCloseProjectsForIdRef.current = null;
+    setProjectsSidebarOpen(false);
+  }, [
+    canvasActionsEnabled,
+    saveStatus,
+    selectedProject,
+    selectedProjectId,
+    setProjectsSidebarOpen,
+  ]);
+
+  useEffect(() => {
+    if (previousSelectedPreviewIdRef.current === undefined) {
+      previousSelectedPreviewIdRef.current = ai.selectedPreviewId;
+      return;
+    }
+
+    if (previousSelectedPreviewIdRef.current !== ai.selectedPreviewId) {
+      previousSelectedPreviewIdRef.current = ai.selectedPreviewId;
+      if (ai.selectedPreviewId && !isDesktopViewport()) {
+        pendingCloseAiForPreviewIdRef.current = ai.selectedPreviewId;
+      } else {
+        pendingCloseAiForPreviewIdRef.current = null;
+      }
+    }
+
+    if (
+      pendingCloseAiForPreviewIdRef.current == null ||
+      pendingCloseAiForPreviewIdRef.current !== ai.selectedPreviewId
+    ) {
+      return;
+    }
+
+    if (!previewRecords) {
+      return;
+    }
+
+    if (isDesktopViewport()) {
+      pendingCloseAiForPreviewIdRef.current = null;
+      return;
+    }
+
+    pendingCloseAiForPreviewIdRef.current = null;
+    setAiSidebarOpen(false);
+  }, [ai.selectedPreviewId, previewRecords, setAiSidebarOpen]);
 
   const lockAiOpen = isPreviewing && !isMobile;
 
