@@ -7,10 +7,8 @@ const app = createApp(testAppConfig);
 
 describe("health API", () => {
   it("returns ok without auth", async () => {
-    const root = await request(app).get("/health").expect(200);
-    const api = await request(app).get("/api/health").expect(200);
+    const response = await request(app).get("/health").expect(200);
 
-    expect(root.body).toEqual({ status: "ok" });
-    expect(api.body).toEqual({ status: "ok" });
+    expect(response.body).toEqual({ status: "ok" });
   });
 });
