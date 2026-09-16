@@ -22,7 +22,7 @@ describe("CollapsibleSidebar", () => {
     ).toBeTruthy();
   });
 
-  it("renders nothing when collapsed", () => {
+  it("hides from the accessibility tree when collapsed", () => {
     render(
       <CollapsibleSidebar
         title="AI panel"
@@ -35,10 +35,13 @@ describe("CollapsibleSidebar", () => {
       </CollapsibleSidebar>,
     );
 
-    expect(screen.queryByText("AI contents")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Open AI panel" }),
+      screen.queryByRole("button", { name: "Collapse AI panel" }),
     ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss AI panel" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open AI panel" })).toBeNull();
   });
 
   it("collapses from its own header control", () => {

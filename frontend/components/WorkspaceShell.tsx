@@ -20,7 +20,9 @@ import {
 } from "../hooks/useSidebarOpen";
 import { useYjsTldrawStore } from "../hooks/useYjsTldrawStore";
 import { useStaggerReveal } from "../hooks/useStaggerReveal";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { isLiveCanvasOnline } from "../lib/canvas";
+import { isDesktopViewport } from "../lib/viewport";
 import { deriveWorkspaceShellStatus } from "../lib/shellStatus";
 import { ActivityBar } from "./ActivityBar";
 import { AiCue } from "./AiCue";
@@ -81,6 +83,7 @@ export function WorkspaceShell() {
   const [createMode, setCreateMode] = useState<CreateProjectMode | null>(null);
   const [editorTab, setEditorTab] = useState<"canvas" | "spec">("canvas");
   const [canvasEditor, setCanvasEditor] = useState<Editor | null>(null);
+  const isMobile = useIsMobile();
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -189,10 +192,16 @@ export function WorkspaceShell() {
   }, [editorTab]);
 
   useEffect(() => {
-    if (isPreviewing) {
-      setAiSidebarOpen(true);
+    if (!isPreviewing) {
+      return;
     }
+    if (!isDesktopViewport()) {
+      return;
+    }
+    setAiSidebarOpen(true);
   }, [isPreviewing, setAiSidebarOpen]);
+
+  const lockAiOpen = isPreviewing && !isMobile;
 
   useGSAP(
     () => {
@@ -283,55 +292,59 @@ export function WorkspaceShell() {
         />
 
         <main className="flex min-w-0 flex-1 flex-col bg-panel overflow-hidden">
-          <div className="flex h-9 shrink-0 items-center justify-between gap-2 overflow-x-auto border-b border-sidebar-border bg-[#181818] px-2 text-xs">
-            <div className="flex min-w-0 items-center h-full">
-              <button
-                type="button"
-                onClick={() => setEditorTab("canvas")}
-                title={canvasLabel}
-                className={`flex h-full max-w-45 cursor-pointer items-center gap-2 border-r border-sidebar-border px-3 font-mono text-xs select-none ${
-                  editorTab === "canvas"
-                    ? "border-t-2 border-t-accent bg-panel text-foreground"
-                    : "bg-[#181818] text-muted hover:bg-hover hover:text-foreground"
-                }`}
-              >
-                <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
-                <span className="truncate">{canvasLabel}</span>
-              </button>
-
-              {specTabVisible && (
-                <div
-                  className={`flex h-full max-w-45 items-center border-r border-sidebar-border ${
-                    editorTab === "spec"
+          <div
+            aria-label="Canvas toolbar"
+            className="h-9 shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-sidebar-border bg-[#181818] text-xs"
+          >
+            <div className="flex h-full min-w-max items-center gap-2 px-2">
+              <div className="flex h-full shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={() => setEditorTab("canvas")}
+                  title={canvasLabel}
+                  className={`flex h-full shrink-0 cursor-pointer items-center gap-2 border-r border-sidebar-border px-3 font-mono text-xs select-none ${
+                    editorTab === "canvas"
                       ? "border-t-2 border-t-accent bg-panel text-foreground"
-                      : "bg-[#181818] text-muted"
+                      : "bg-[#181818] text-muted hover:bg-hover hover:text-foreground"
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setEditorTab("spec")}
-                    title={specTabLabel}
-                    className="flex h-full min-w-0 cursor-pointer items-center gap-2 px-3 font-mono text-xs hover:text-foreground"
+                  <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
+                  <span className="whitespace-nowrap">{canvasLabel}</span>
+                </button>
+
+                {specTabVisible && (
+                  <div
+                    className={`flex h-full shrink-0 items-center border-r border-sidebar-border ${
+                      editorTab === "spec"
+                        ? "border-t-2 border-t-accent bg-panel text-foreground"
+                        : "bg-[#181818] text-muted"
+                    }`}
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                    <span className="truncate">{specTabLabel}</span>
-                  </button>
-                  {exportSpec.spec && (
                     <button
                       type="button"
-                      aria-label="Close exported spec"
-                      title="Close exported spec"
-                      className="mr-1 cursor-pointer rounded p-0.5 text-muted hover:bg-hover hover:text-foreground"
-                      onClick={() => specCloseRef.current?.()}
+                      onClick={() => setEditorTab("spec")}
+                      title={specTabLabel}
+                      className="flex h-full shrink-0 cursor-pointer items-center gap-2 px-3 font-mono text-xs hover:text-foreground"
                     >
-                      <X className="h-3 w-3" />
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                      <span className="whitespace-nowrap">{specTabLabel}</span>
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
+                    {exportSpec.spec && (
+                      <button
+                        type="button"
+                        aria-label="Close exported spec"
+                        title="Close exported spec"
+                        className="mr-1 cursor-pointer rounded p-0.5 text-muted hover:bg-hover hover:text-foreground"
+                        onClick={() => specCloseRef.current?.()}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
-            <div className="flex h-full items-center gap-1.5">
+              <div className="ml-auto flex h-full shrink-0 items-center gap-1.5">
               {selectedProject && editorTab === "canvas" && (
                 <span className="hidden h-6 items-center rounded-md border border-sidebar-border bg-sidebar px-2 font-mono text-[11px] text-muted md:inline-flex">
                   {selectedProject.status === "ready" ? "Canvas" : "Preview"}
@@ -380,6 +393,7 @@ export function WorkspaceShell() {
                 <CanvasSaveStatusLabel status={saveStatus} />
               )}
             </div>
+          </div>
           </div>
 
           <div
@@ -501,7 +515,7 @@ export function WorkspaceShell() {
           side="right"
           isOpen={isAiSidebarOpen}
           openWidthClass="w-72"
-          lockOpen={isPreviewing}
+          lockOpen={lockAiOpen}
           onToggleOpen={toggleAiSidebar}
         >
           <AiSidebar
@@ -515,7 +529,7 @@ export function WorkspaceShell() {
 
         <RightActivityBar
           isAiOpen={isAiSidebarOpen}
-          lockOpen={isPreviewing}
+          lockOpen={lockAiOpen}
           onToggleAi={toggleAiSidebar}
         />
       </div>

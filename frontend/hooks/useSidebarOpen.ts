@@ -7,6 +7,10 @@ export const PROJECTS_SIDEBAR_STORAGE_KEY = "iae.sidebar.projects.open";
 export const AI_SIDEBAR_STORAGE_KEY = "iae.sidebar.ai.open";
 
 function readStoredOpen(storageKey: string): boolean {
+  if (!isDesktopViewport()) {
+    return false;
+  }
+
   const stored = window.localStorage.getItem(storageKey);
   if (stored === "false") {
     return false;
@@ -15,7 +19,7 @@ function readStoredOpen(storageKey: string): boolean {
     return true;
   }
 
-  return isDesktopViewport();
+  return true;
 }
 
 export function useSidebarOpen(storageKey: string) {

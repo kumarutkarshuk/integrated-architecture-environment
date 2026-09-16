@@ -36,7 +36,8 @@ describe("useSidebarOpen", () => {
     expect(result.current.isOpen).toBe(true);
   });
 
-  it("starts closed on a phone viewport when nothing is saved", async () => {
+  it("starts closed on a phone viewport even when this browser saved open", async () => {
+    window.localStorage.setItem("iae.sidebar.projects.open", "true");
     vi.stubGlobal(
       "matchMedia",
       vi.fn((query: string) => ({

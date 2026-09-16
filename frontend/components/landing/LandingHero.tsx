@@ -4,6 +4,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import Link from "next/link";
 import { useRef } from "react";
+import { MobileDesktopHint } from "../MobileDesktopHint";
 import { Button } from "../ui/button";
 import { GridPattern } from "../ui/grid-pattern";
 import { LandingStudioPreview } from "./LandingStudioPreview";
@@ -61,9 +62,10 @@ export function LandingHero() {
           <Button asChild size="sm" className="mt-5">
             <Link href="/workspace">Open Workspace</Link>
           </Button>
+          <MobileDesktopHint className="mt-3 max-w-sm leading-relaxed" />
         </div>
 
-        <div className="min-h-56 w-full min-w-0 flex-1 sm:min-h-72">
+        <div className="min-h-36 w-full min-w-0 flex-1 sm:min-h-56 md:min-h-72">
           <LandingStudioPreview />
         </div>
       </div>

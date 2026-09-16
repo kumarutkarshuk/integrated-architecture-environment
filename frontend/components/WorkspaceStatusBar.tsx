@@ -1,6 +1,7 @@
 "use client";
 
 import { Users } from "lucide-react";
+import { MobileDesktopHint } from "./MobileDesktopHint";
 
 interface WorkspaceStatusBarProps {
   projectName?: string | null;
@@ -16,10 +17,11 @@ export function WorkspaceStatusBar({ projectName }: WorkspaceStatusBarProps) {
     >
       <div className="flex min-w-0 items-center gap-2">
         {canvasLabel && (
-          <span className="max-w-xs truncate" title={canvasLabel}>
+          <span className="hidden max-w-xs truncate sm:inline" title={canvasLabel}>
             {canvasLabel}
           </span>
         )}
+        <MobileDesktopHint className="min-w-0 truncate" />
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">

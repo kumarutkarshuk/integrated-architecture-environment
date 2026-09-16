@@ -86,7 +86,7 @@ describe("HomePage", () => {
     expect(screen.getByText("AI panel")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse AI panel" }));
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
     expect(screen.getByText("AI panel")).toBeDefined();
@@ -104,7 +104,10 @@ describe("HomePage", () => {
       }),
     ).toBeDefined();
     expect(screen.getByRole("link", { name: /Open Workspace/i })).toBeDefined();
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
+    expect(
+      screen.getByText("For a better experience, use a desktop browser."),
+    ).toBeDefined();
     expect(screen.queryByText("Only supported on desktop browsers.")).toBeNull();
   });
 });

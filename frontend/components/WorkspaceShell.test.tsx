@@ -249,6 +249,22 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
 
 const clipboardWriteText = vi.fn(async (_text: string) => undefined);
 
+function stubPhoneViewport() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 describe("WorkspaceShell", () => {
   beforeEach(() => {
     workspaceState.isUserLoading = false;
@@ -324,10 +340,12 @@ describe("WorkspaceShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
 
-    expect(screen.queryByText("Projects")).toBeNull();
-    expect(screen.queryByText("Owned Canvas")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse Projects" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "New blank project" }),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
-    expect(screen.getByText("AI panel")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Collapse AI panel" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
 
@@ -335,7 +353,7 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "Collapse AI panel" }),
     );
 
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
     expect(
       screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
@@ -350,9 +368,9 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     await waitFor(() => {
-      expect(screen.queryByText("Projects")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Collapse Projects" })).toBeNull();
     });
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "AI panel View" }),
@@ -479,19 +497,7 @@ describe("WorkspaceShell", () => {
   });
 
   it("disables Allow agent on a phone viewport even when the browser looks compatible", async () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn((query: string) => ({
-        matches: query.includes("max-width: 767px"),
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
-    );
+    stubPhoneViewport();
 
     render(<WorkspaceShell />);
 
@@ -518,6 +524,55 @@ describe("WorkspaceShell", () => {
       ),
     ).toBeTruthy();
     expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("starts with both sidebars closed on a phone viewport", async () => {
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Collapse AI panel" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("For a better experience, use a desktop browser."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Canvas toolbar")).toBeTruthy();
+  });
+
+  it("lets phones close the AI panel during preview", async () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+
+    const collapse = await screen.findByRole("button", {
+      name: "Collapse AI panel",
+    });
+    expect(collapse).toHaveProperty("disabled", false);
+
+    fireEvent.click(collapse);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
   });
 
   it("copies Cursor setup from the AI panel", async () => {
