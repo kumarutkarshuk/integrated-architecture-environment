@@ -575,6 +575,33 @@ describe("WorkspaceShell", () => {
     });
   });
 
+  it("opens only one sidebar at a time on a phone viewport", async () => {
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse Projects" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+  });
+
   it("copies Cursor setup from the AI panel", async () => {
     render(<WorkspaceShell />);
 

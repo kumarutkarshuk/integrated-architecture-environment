@@ -19,6 +19,10 @@ interface CollapsibleSidebarProps {
 const SIDEBAR_MOTION =
   "motion-safe:transition-[width,transform,border-color,opacity] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]";
 
+function desktopOpenWidth(openWidthClass: string): string {
+  return openWidthClass.includes("w-64") ? "md:w-64" : "md:w-72";
+}
+
 export function CollapsibleSidebar({
   title,
   side,
@@ -64,26 +68,32 @@ export function CollapsibleSidebar({
         aria-hidden={!isOpen}
         inert={!isOpen}
         className={cn(
-          "flex h-full shrink-0 flex-col overflow-hidden bg-sidebar",
+          "flex h-full min-w-0 flex-col overflow-hidden bg-sidebar",
           SIDEBAR_MOTION,
-          isOpen
-            ? cn(borderClass, "border-sidebar-border", openWidthClass)
-            : "w-0 border-transparent",
-          "max-md:absolute max-md:inset-y-0 max-md:z-20 max-md:w-72 max-md:max-w-[calc(100%-3rem)]",
-          side === "left" ? "max-md:left-12" : "max-md:right-12",
+          "absolute inset-y-0 z-20 w-[min(18rem,calc(100%-6rem))]",
+          side === "left" ? "left-12" : "right-12",
           isMobileShown
-            ? "max-md:translate-x-0"
+            ? "translate-x-0"
             : side === "left"
-              ? "max-md:-translate-x-[calc(100%+0.75rem)]"
-              : "max-md:translate-x-[calc(100%+0.75rem)]",
+              ? "-translate-x-[calc(100%+3rem)]"
+              : "translate-x-[calc(100%+3rem)]",
+          "md:static md:left-auto md:right-auto md:z-auto md:translate-x-0",
+          isOpen
+            ? cn(
+                "md:shrink-0",
+                borderClass,
+                "border-sidebar-border",
+                desktopOpenWidth(openWidthClass),
+              )
+            : "md:w-0 md:border-transparent",
           isOpen ? "pointer-events-auto" : "pointer-events-none",
         )}
       >
         <div className="flex items-center justify-between border-b border-sidebar-border px-3 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+          <span className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted">
             {title}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {headerEnd}
             <Button
               type="button"
@@ -106,7 +116,9 @@ export function CollapsibleSidebar({
             </Button>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+          {children}
+        </div>
       </aside>
     </>
   );

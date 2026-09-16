@@ -70,8 +70,11 @@ export function WorkspaceShell() {
     projects,
     { isLoading: isProjectsLoading, error: projectsError },
   );
-  const { isOpen: isProjectsSidebarOpen, toggle: toggleProjectsSidebar } =
-    useSidebarOpen(PROJECTS_SIDEBAR_STORAGE_KEY);
+  const {
+    isOpen: isProjectsSidebarOpen,
+    toggle: toggleProjectsSidebar,
+    setOpen: setProjectsSidebarOpen,
+  } = useSidebarOpen(PROJECTS_SIDEBAR_STORAGE_KEY);
   const {
     isOpen: isAiSidebarOpen,
     toggle: toggleAiSidebar,
@@ -203,6 +206,25 @@ export function WorkspaceShell() {
 
   const lockAiOpen = isPreviewing && !isMobile;
 
+  const handleToggleProjects = useCallback(() => {
+    if (!isProjectsSidebarOpen && isMobile) {
+      setAiSidebarOpen(false);
+    }
+    toggleProjectsSidebar();
+  }, [
+    isMobile,
+    isProjectsSidebarOpen,
+    setAiSidebarOpen,
+    toggleProjectsSidebar,
+  ]);
+
+  const handleToggleAi = useCallback(() => {
+    if (!isAiSidebarOpen && isMobile) {
+      setProjectsSidebarOpen(false);
+    }
+    toggleAiSidebar();
+  }, [isAiSidebarOpen, isMobile, setProjectsSidebarOpen, toggleAiSidebar]);
+
   useGSAP(
     () => {
       if (typeof window === "undefined") return;
@@ -262,7 +284,7 @@ export function WorkspaceShell() {
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <ActivityBar
           isProjectsOpen={isProjectsSidebarOpen}
-          onToggleProjects={toggleProjectsSidebar}
+          onToggleProjects={handleToggleProjects}
         />
 
         <ProjectSidebar
@@ -272,7 +294,7 @@ export function WorkspaceShell() {
           error={userError ?? projectsError}
           currentUserId={user?.id ?? null}
           isOpen={isProjectsSidebarOpen}
-          onToggleOpen={toggleProjectsSidebar}
+          onToggleOpen={handleToggleProjects}
           onSelectProject={selectProject}
           onRequestCreateBlank={() => {
             if (isProjectsListLoading) {
@@ -516,7 +538,7 @@ export function WorkspaceShell() {
           isOpen={isAiSidebarOpen}
           openWidthClass="w-72"
           lockOpen={lockAiOpen}
-          onToggleOpen={toggleAiSidebar}
+          onToggleOpen={handleToggleAi}
         >
           <AiSidebar
             ai={ai}
@@ -530,7 +552,7 @@ export function WorkspaceShell() {
         <RightActivityBar
           isAiOpen={isAiSidebarOpen}
           lockOpen={lockAiOpen}
-          onToggleAi={toggleAiSidebar}
+          onToggleAi={handleToggleAi}
         />
       </div>
 
