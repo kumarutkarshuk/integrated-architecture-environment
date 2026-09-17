@@ -18,8 +18,10 @@ export const PRODUCT_NAME = "Integrated Architecture Environment (IAE)";
 
 const DEFAULT_SMTP_HOST = "smtp-relay.brevo.com";
 const DEFAULT_SMTP_PORT = 587;
-const SMTP_REQUIRED_ERROR =
-  "SMTP_USER and SMTP_PASS are required to send Invite emails";
+const MAIL_NOT_CONFIGURED_ERROR =
+  "Invite email is not configured (set BREVO_API_KEY or SMTP_USER and SMTP_PASS)";
+
+const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 
 export function renderInviteEmail(email: InviteEmail): {
   subject: string;
@@ -129,19 +131,91 @@ function createSmtpMailer(options: {
 function createUnconfiguredMailer(): Mailer {
   return {
     async sendInvite() {
-      throw new Error(SMTP_REQUIRED_ERROR);
+      throw new Error(MAIL_NOT_CONFIGURED_ERROR);
     },
   };
 }
 
+export function createBrevoApiMailer(options: {
+  apiKey: string;
+  fromAddress: string;
+  fetchImpl?: typeof fetch;
+}): Mailer {
+  const fetchFn = options.fetchImpl ?? fetch;
+
+  log.info("Brevo API mailer configured");
+
+  return {
+    async sendInvite(email) {
+      const rendered = renderInviteEmail(email);
+      try {
+        const response = await fetchFn(BREVO_SEND_URL, {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            "api-key": options.apiKey,
+          },
+          body: JSON.stringify({
+            sender: {
+              name: PRODUCT_NAME,
+              email: options.fromAddress,
+            },
+            to: [{ email: email.to }],
+            subject: rendered.subject,
+            htmlContent: rendered.html,
+            textContent: rendered.text,
+          }),
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(
+            `Brevo API returned ${response.status}: ${body.slice(0, 500)}`,
+          );
+        }
+
+        log.info("Invite email sent");
+      } catch (error) {
+        log.error({ err: error }, "Failed to send invite email");
+        throw error;
+      }
+    },
+  };
+}
+
+function inviteFromAddress(): string | undefined {
+  return (
+    process.env.BREVO_FROM?.trim() ||
+    process.env.SMTP_FROM?.trim() ||
+    process.env.SMTP_USER?.trim()
+  );
+}
+
 function createMailerFromEnv(): Mailer {
+  const apiKey = process.env.BREVO_API_KEY?.trim();
+  if (apiKey) {
+    const fromAddress = inviteFromAddress();
+    if (!fromAddress) {
+      if (process.env.NODE_ENV === "test") {
+        return createUnconfiguredMailer();
+      }
+      throw new Error(
+        "BREVO_FROM or SMTP_FROM is required when using BREVO_API_KEY",
+      );
+    }
+    return createBrevoApiMailer({ apiKey, fromAddress });
+  }
+
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS;
   if (!user || !pass) {
     if (process.env.NODE_ENV === "test") {
       return createUnconfiguredMailer();
     }
-    throw new Error("SMTP_USER and SMTP_PASS are required");
+    throw new Error(
+      "BREVO_API_KEY or SMTP_USER and SMTP_PASS are required to send Invite emails",
+    );
   }
 
   const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;

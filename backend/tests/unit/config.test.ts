@@ -4,8 +4,11 @@ import { loadConfig } from "../../src/config.js";
 const envKeys = [
   "NODE_ENV",
   "CLERK_SECRET_KEY",
+  "BREVO_API_KEY",
+  "BREVO_FROM",
   "SMTP_USER",
   "SMTP_PASS",
+  "SMTP_FROM",
   "GROQ_MODEL",
   "GROQ_API_KEY",
   "GROQ_API_KEY_2",
@@ -38,17 +41,32 @@ describe("loadConfig", () => {
     }
   }
 
-  it("throws before boot when SMTP user or pass is missing", () => {
+  it("throws before boot when invite email env is missing", () => {
     setEnv("NODE_ENV", "production");
     setEnv("CLERK_SECRET_KEY", "sk_test");
+    setEnv("BREVO_API_KEY", undefined);
+    setEnv("BREVO_FROM", undefined);
     setEnv("SMTP_USER", undefined);
     setEnv("SMTP_PASS", undefined);
 
-    expect(() => loadConfig()).toThrow("SMTP_USER and SMTP_PASS are required");
+    expect(() => loadConfig()).toThrow("Invite email requires");
   });
 
-  it("lets tests boot without SMTP", () => {
+  it("boots in production with Brevo API env", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("CLERK_SECRET_KEY", "sk_test");
+    setEnv("BREVO_API_KEY", "xkeysib-test");
+    setEnv("BREVO_FROM", "hello@example.com");
+    setEnv("SMTP_USER", undefined);
+    setEnv("SMTP_PASS", undefined);
+
+    expect(loadConfig().port).toBeGreaterThan(0);
+  });
+
+  it("lets tests boot without invite email env", () => {
     setEnv("NODE_ENV", "test");
+    setEnv("BREVO_API_KEY", undefined);
+    setEnv("BREVO_FROM", undefined);
     setEnv("SMTP_USER", undefined);
     setEnv("SMTP_PASS", undefined);
 
