@@ -108,7 +108,7 @@ export function AgentAllowPanel({
             data-stagger-item={`${revealKey}:intro`}
             className="text-[10px] leading-relaxed text-muted"
           >
-            Add this MCP config to Cursor, Claude Code, or Codex and ask the agent to use WebMCP to modify the canvas.
+            Add this MCP config to Cursor, Claude Code, or Codex and ask the agent to use WebMCP to modify the canvas. Also, make sure to allow &quot;Apps on device&quot; in the browser.
           </p>
           <SetupBlock
             itemId={`${revealKey}:cursor`}
