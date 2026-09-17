@@ -142,7 +142,7 @@ export function LandingStudioPreview() {
         className="opacity-30 mask-[radial-gradient(ellipse_70%_60%_at_50%_45%,#000_65%,transparent_100%)]"
       />
 
-      <div className="absolute top-2 right-2 z-20 hidden sm:block sm:top-3 sm:right-3">
+      <div className="absolute top-2 right-2 z-20 sm:top-3 sm:right-3">
         <BadgeGlow
           dotColor="bg-sky-400"
           pulse
@@ -167,7 +167,7 @@ export function LandingStudioPreview() {
         pathWidth={2}
       />
 
-      <div className="relative z-10 flex h-full min-h-36 items-center justify-center gap-1 px-3 py-3 sm:min-h-56 sm:gap-3 sm:px-4 sm:py-6 md:min-h-72 md:gap-6 md:px-6 md:py-8">
+      <div className="relative z-10 flex h-full min-h-36 w-full min-w-0 items-center justify-center gap-2 px-3 py-3 sm:min-h-56 sm:gap-3 sm:px-4 sm:py-6 md:min-h-72 md:gap-4 md:px-5 md:py-8">
         <CanvasNode
           nodeRef={gatewayRef}
           title="API Gateway"
@@ -217,14 +217,18 @@ function CanvasNode({
     <div
       ref={nodeRef}
       title={`${title} - ${meta}`}
-      className={`min-w-0 flex-1 rounded-md border px-1.5 py-1.5 shadow-md sm:min-w-28 sm:flex-none sm:rounded-lg sm:px-3 sm:py-3 ${
+      className={`min-w-0 flex-1 overflow-hidden rounded-md border px-2 py-1.5 shadow-md sm:rounded-lg sm:px-3 sm:py-2.5 ${
         active
           ? "border-accent bg-sidebar shadow-accent/20"
           : "border-sidebar-border bg-sidebar"
       }`}
     >
-      <p className="truncate font-mono text-[10px] font-medium text-foreground sm:text-xs">{title}</p>
-      <p className="mt-0.5 truncate font-mono text-[9px] text-muted sm:mt-1 sm:text-[11px]">{meta}</p>
+      <p className="truncate font-mono text-[10px] font-medium text-foreground sm:text-xs">
+        {title}
+      </p>
+      <p className="mt-0.5 truncate font-mono text-[9px] text-muted sm:mt-1 sm:text-[11px]">
+        {meta}
+      </p>
     </div>
   );
 }
@@ -246,7 +250,7 @@ function PresenceCursor({
     <div
       ref={cursorRef}
       aria-hidden
-      className="pointer-events-none absolute top-0 left-0 z-20 hidden opacity-0 will-change-transform sm:block"
+      className="pointer-events-none absolute top-0 left-0 z-20 opacity-0 will-change-transform"
       style={
         highlight
           ? { filter: "drop-shadow(0 0 6px rgb(125 211 252 / 0.65))" }
@@ -263,7 +267,7 @@ function PresenceCursor({
         />
       </svg>
       <span
-        className="mt-0.5 ml-3 hidden rounded-sm px-1 py-px font-mono text-[9px] text-[#e8e8e8] sm:inline-block"
+        className="mt-0.5 ml-3 inline-block rounded-sm px-1 py-px font-mono text-[8px] text-[#e8e8e8] sm:text-[9px]"
         style={{ backgroundColor: color, border: `1px solid ${edge}` }}
       >
         {name}

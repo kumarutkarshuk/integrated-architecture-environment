@@ -51,8 +51,8 @@ export function LandingHero() {
         className="opacity-30 mask-[radial-gradient(ellipse_60%_50%_at_50%_40%,#000_70%,transparent_100%)]"
       />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-start justify-center gap-6 px-4 py-5 sm:gap-8 sm:py-6 md:flex-row md:items-center md:gap-10 md:px-8">
-        <div className="landing-hero-copy w-full max-w-md shrink-0">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-start justify-center gap-6 px-4 py-5 sm:gap-8 sm:py-6 xl:flex-row xl:items-center xl:gap-10 xl:px-8">
+        <div className="landing-hero-copy w-full min-w-0 max-w-md xl:shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl">
             Integrated Architecture Environment
           </h1>

@@ -109,5 +109,11 @@ describe("HomePage", () => {
       screen.getByText("For a better experience, use a desktop browser."),
     ).toBeDefined();
     expect(screen.queryByText("Only supported on desktop browsers.")).toBeNull();
+    expect(screen.getAllByText("You").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Agent").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Teammate").length).toBeGreaterThan(0);
+    expect(screen.getByText("API Gateway")).toBeDefined();
+    expect(screen.getByText("Event Stream")).toBeDefined();
+    expect(screen.getByText("Postgres")).toBeDefined();
   });
 });
