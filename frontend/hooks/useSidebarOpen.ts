@@ -1,14 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isDesktopViewport } from "../lib/viewport";
 
 export const PROJECTS_SIDEBAR_STORAGE_KEY = "iae.sidebar.projects.open";
 export const AI_SIDEBAR_STORAGE_KEY = "iae.sidebar.ai.open";
 
 function readStoredOpen(storageKey: string): boolean {
+  if (!isDesktopViewport()) {
+    return false;
+  }
+
   const stored = window.localStorage.getItem(storageKey);
   if (stored === "false") {
     return false;
+  }
+  if (stored === "true") {
+    return true;
   }
 
   return true;

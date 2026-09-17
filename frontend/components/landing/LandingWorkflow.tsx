@@ -7,7 +7,7 @@ export function LandingWorkflow() {
     <div
       role="region"
       aria-label="WebMCP local agent preview"
-      className="pointer-events-none flex min-h-0 flex-1 flex-col font-mono text-xs"
+      className="pointer-events-none flex min-h-0 min-w-0 flex-1 flex-col font-mono text-xs"
     >
       <WebMcpLinkGraphic />
     </div>

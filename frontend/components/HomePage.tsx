@@ -3,18 +3,38 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { FileCode2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LandingActivityBar } from "./landing/LandingActivityBar";
 import { LandingHero } from "./landing/LandingHero";
 import { LandingStatusBar } from "./landing/LandingStatusBar";
 import { LandingTitlebar } from "./landing/LandingTitlebar";
 import { LandingWorkflow } from "./landing/LandingWorkflow";
+import { DESKTOP_MEDIA_QUERY, isDesktopViewport } from "../lib/viewport";
 import { CollapsibleSidebar } from "./CollapsibleSidebar";
 import { RightActivityBar } from "./RightActivityBar";
 
 export function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAiOpen, setIsAiOpen] = useState(true);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      if (!isDesktopViewport()) {
+        setIsAiOpen(false);
+      }
+      return;
+    }
+
+    const media = window.matchMedia(DESKTOP_MEDIA_QUERY);
+    const sync = () => {
+      if (!media.matches) {
+        setIsAiOpen(false);
+      }
+    };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useGSAP(
     () => {
@@ -50,7 +70,7 @@ export function HomePage() {
     >
       <LandingTitlebar canvasLabel={canvasLabel} />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <LandingActivityBar />
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-panel">

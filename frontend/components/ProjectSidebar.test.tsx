@@ -62,7 +62,8 @@ describe("ProjectSidebar", () => {
   it("hides the project list when collapsed", () => {
     renderSidebar("user-owner", { isOpen: false });
 
-    expect(screen.queryByText("Owned Canvas")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse Projects" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New blank project" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Open Projects" })).toBeNull();
   });
 

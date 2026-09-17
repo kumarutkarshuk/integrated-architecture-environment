@@ -127,7 +127,7 @@ export function LandingStudioPreview() {
   return (
     <div
       ref={canvasRef}
-      className="landing-preview relative h-full min-h-72 overflow-hidden rounded-lg border border-sidebar-border bg-panel"
+      className="landing-preview relative h-full min-h-36 overflow-hidden rounded-lg border border-sidebar-border bg-panel sm:min-h-56 md:min-h-72"
     >
       <BorderBeam
         size={64}
@@ -142,7 +142,7 @@ export function LandingStudioPreview() {
         className="opacity-30 mask-[radial-gradient(ellipse_70%_60%_at_50%_45%,#000_65%,transparent_100%)]"
       />
 
-      <div className="absolute top-3 right-3 z-20">
+      <div className="absolute top-2 right-2 z-20 sm:top-3 sm:right-3">
         <BadgeGlow
           dotColor="bg-sky-400"
           pulse
@@ -167,7 +167,7 @@ export function LandingStudioPreview() {
         pathWidth={2}
       />
 
-      <div className="relative z-10 flex h-full min-h-72 items-center justify-center gap-3 px-4 py-8 md:gap-6 md:px-6">
+      <div className="relative z-10 flex h-full min-h-36 w-full min-w-0 items-center justify-center gap-2 px-3 py-3 sm:min-h-56 sm:gap-3 sm:px-4 sm:py-6 md:min-h-72 md:gap-4 md:px-5 md:py-8">
         <CanvasNode
           nodeRef={gatewayRef}
           title="API Gateway"
@@ -217,14 +217,18 @@ function CanvasNode({
     <div
       ref={nodeRef}
       title={`${title} - ${meta}`}
-      className={`min-w-28 rounded-lg border px-3 py-3 shadow-md ${
+      className={`min-w-0 flex-1 overflow-hidden rounded-md border px-2 py-1.5 shadow-md sm:rounded-lg sm:px-3 sm:py-2.5 ${
         active
           ? "border-accent bg-sidebar shadow-accent/20"
           : "border-sidebar-border bg-sidebar"
       }`}
     >
-      <p className="font-mono text-xs font-medium text-foreground">{title}</p>
-      <p className="mt-1 font-mono text-[11px] text-muted">{meta}</p>
+      <p className="truncate font-mono text-[10px] font-medium text-foreground sm:text-xs">
+        {title}
+      </p>
+      <p className="mt-0.5 truncate font-mono text-[9px] text-muted sm:mt-1 sm:text-[11px]">
+        {meta}
+      </p>
     </div>
   );
 }
@@ -263,7 +267,7 @@ function PresenceCursor({
         />
       </svg>
       <span
-        className="mt-0.5 ml-3 inline-block rounded-sm px-1 py-px font-mono text-[9px] text-[#e8e8e8]"
+        className="mt-0.5 ml-3 inline-block rounded-sm px-1 py-px font-mono text-[8px] text-[#e8e8e8] sm:text-[9px]"
         style={{ backgroundColor: color, border: `1px solid ${edge}` }}
       >
         {name}

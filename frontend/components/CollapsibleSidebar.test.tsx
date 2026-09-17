@@ -22,7 +22,7 @@ describe("CollapsibleSidebar", () => {
     ).toBeTruthy();
   });
 
-  it("renders nothing when collapsed", () => {
+  it("hides from the accessibility tree when collapsed", () => {
     render(
       <CollapsibleSidebar
         title="AI panel"
@@ -35,10 +35,13 @@ describe("CollapsibleSidebar", () => {
       </CollapsibleSidebar>,
     );
 
-    expect(screen.queryByText("AI contents")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Open AI panel" }),
+      screen.queryByRole("button", { name: "Collapse AI panel" }),
     ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss AI panel" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open AI panel" })).toBeNull();
   });
 
   it("collapses from its own header control", () => {
@@ -56,6 +59,24 @@ describe("CollapsibleSidebar", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
+    expect(onToggleOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses an open sidebar from the mobile overlay", () => {
+    const onToggleOpen = vi.fn();
+    render(
+      <CollapsibleSidebar
+        title="AI panel"
+        side="right"
+        isOpen
+        openWidthClass="w-72"
+        onToggleOpen={onToggleOpen}
+      >
+        <p>AI contents</p>
+      </CollapsibleSidebar>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss AI panel" }));
     expect(onToggleOpen).toHaveBeenCalledTimes(1);
   });
 

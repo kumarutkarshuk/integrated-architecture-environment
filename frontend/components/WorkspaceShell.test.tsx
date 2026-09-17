@@ -12,6 +12,9 @@ const workspaceState = vi.hoisted(() => ({
   projectMode: "blank" as "blank" | "prompt",
   projectStatus: "ready" as "ready" | "generating" | "preview" | "failed",
   hasPreview: false,
+  selectedPreviewId: null as string | null,
+  isApplying: false,
+  hasSecondProject: false,
   spec: null as { markdown: string; gaps_summary: string } | null,
   exportSpec: async () => undefined as void,
   canvasStore: "live" as "live" | "loading" | "missing",
@@ -136,6 +139,18 @@ vi.mock("../hooks/useProjects", () => ({
         createdAt: "2026-09-06T00:00:00.000Z",
         ownerId: "user-1",
       },
+      ...(workspaceState.hasSecondProject
+        ? [
+            {
+              id: "project-2",
+              name: "Second Canvas",
+              mode: "blank" as const,
+              status: "ready" as const,
+              createdAt: "2026-09-06T00:00:00.000Z",
+              ownerId: "user-1",
+            },
+          ]
+        : []),
     ],
     isLoading: workspaceState.isProjectsLoading,
     error: null,
@@ -150,16 +165,18 @@ vi.mock("../hooks/useProjects", () => ({
 vi.mock("../hooks/useOpenProject", () => ({
   useOpenProject: () => ({
     selectedProjectId: workspaceState.selectedProjectId,
-    selectProject: () => undefined,
-    clearOpenProject: () => undefined,
+    selectProject: (projectId: string) => {
+      workspaceState.selectedProjectId = projectId;
+    },
+    clearOpenProject: () => {
+      workspaceState.selectedProjectId = null;
+    },
   }),
 }));
 
 vi.mock("../hooks/useAiGeneration", () => ({
-  useAiGeneration: () => ({
-    prompt: "",
-    setPrompt: () => undefined,
-    previews: workspaceState.hasPreview
+  useAiGeneration: () => {
+    const previews = workspaceState.hasPreview
       ? [
           {
             id: "preview-1",
@@ -170,34 +187,43 @@ vi.mock("../hooks/useAiGeneration", () => ({
             createdAt: "2026-09-14T00:00:01.000Z",
             rating: null,
           },
+          {
+            id: "preview-2",
+            prompt: "Design a payments API",
+            status: "completed",
+            result: { records: { shape: { id: "shape:1" } } },
+            appliedAt: null,
+            createdAt: "2026-09-14T00:00:02.000Z",
+            rating: null,
+          },
         ]
-      : [],
-    selectedPreview: workspaceState.hasPreview
-      ? {
-          id: "preview-1",
-          prompt: "Design a todo API",
-          status: "completed",
-          result: { records: {} },
-          appliedAt: null,
-          createdAt: "2026-09-14T00:00:01.000Z",
-          rating: null,
-        }
-      : null,
-    selectedPreviewId: workspaceState.hasPreview ? "preview-1" : null,
-    setSelectedPreviewId: () => undefined,
-    isBusy: false,
-    isApplying: false,
-    isGenerating: workspaceState.projectStatus === "generating",
-    generationFailed: false,
-    generationError: null,
-    previewWaitTimedOut: false,
-    appliedJob: null,
-    isAppliedJobLoading: false,
-    rateJob: async () => undefined,
-    regenerate: async () => undefined,
-    applySelectedPreview: async () => undefined,
-    loadPreviews: async () => undefined,
-  }),
+      : [];
+    const selectedPreviewId =
+      workspaceState.selectedPreviewId ??
+      (workspaceState.hasPreview ? "preview-1" : null);
+
+    return {
+      prompt: "",
+      setPrompt: () => undefined,
+      previews,
+      selectedPreview:
+        previews.find((preview) => preview.id === selectedPreviewId) ?? null,
+      selectedPreviewId,
+      setSelectedPreviewId: () => undefined,
+      isBusy: false,
+      isApplying: workspaceState.isApplying,
+      isGenerating: workspaceState.projectStatus === "generating",
+      generationFailed: false,
+      generationError: null,
+      previewWaitTimedOut: false,
+      appliedJob: null,
+      isAppliedJobLoading: false,
+      rateJob: async () => undefined,
+      regenerate: async () => undefined,
+      applySelectedPreview: async () => undefined,
+      loadPreviews: async () => undefined,
+    };
+  },
 }));
 
 vi.mock("../hooks/useExportSpec", () => ({
@@ -249,6 +275,22 @@ vi.mock("../hooks/useYjsTldrawStore", () => ({
 
 const clipboardWriteText = vi.fn(async (_text: string) => undefined);
 
+function stubPhoneViewport() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
 describe("WorkspaceShell", () => {
   beforeEach(() => {
     workspaceState.isUserLoading = false;
@@ -257,6 +299,9 @@ describe("WorkspaceShell", () => {
     workspaceState.projectMode = "blank";
     workspaceState.projectStatus = "ready";
     workspaceState.hasPreview = false;
+    workspaceState.selectedPreviewId = null;
+    workspaceState.isApplying = false;
+    workspaceState.hasSecondProject = false;
     workspaceState.spec = null;
     workspaceState.exportSpec = async () => undefined;
     workspaceState.canvasStore = "live";
@@ -324,10 +369,12 @@ describe("WorkspaceShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse Projects" }));
 
-    expect(screen.queryByText("Projects")).toBeNull();
-    expect(screen.queryByText("Owned Canvas")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse Projects" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "New blank project" }),
+    ).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
-    expect(screen.getByText("AI panel")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Collapse AI panel" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invite" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export Spec" })).toBeTruthy();
 
@@ -335,7 +382,7 @@ describe("WorkspaceShell", () => {
       screen.getByRole("button", { name: "Collapse AI panel" }),
     );
 
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
     expect(
       screen.getByRole("button", { name: "AI panel View" }),
     ).toBeTruthy();
@@ -350,9 +397,9 @@ describe("WorkspaceShell", () => {
     render(<WorkspaceShell />);
 
     await waitFor(() => {
-      expect(screen.queryByText("Projects")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Collapse Projects" })).toBeNull();
     });
-    expect(screen.queryByText("AI panel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse AI panel" })).toBeNull();
     expect(screen.getByRole("button", { name: "Explorer View" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "AI panel View" }),
@@ -476,6 +523,282 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
     expect(screen.queryByText(/Reload turns it off/i)).toBeNull();
     expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("disables Allow agent on a phone viewport even when the browser looks compatible", async () => {
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("switch", {
+          name: "Allow agent to edit this canvas",
+        }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+
+    const allowSwitch = (await screen.findByRole("switch", {
+      name: "Allow agent to edit this canvas",
+    })) as HTMLButtonElement;
+
+    await waitFor(() => {
+      expect(allowSwitch.disabled).toBe(true);
+    });
+    expect(
+      screen.getByText(
+        "Agents cannot edit the canvas on phones. Use desktop Chrome or Edge.",
+      ),
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Copy Cursor setup" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Copy Claude Code setup",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Copy Codex setup" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("starts with both sidebars closed on a phone viewport", async () => {
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Collapse AI panel" }),
+    ).toBeNull();
+    expect(screen.getByLabelText("Canvas toolbar")).toBeTruthy();
+  });
+
+  it("keeps the AI panel open after a preview is applied on desktop", async () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
+
+    const { rerender } = render(<WorkspaceShell />);
+
+    expect(
+      await screen.findByRole("button", { name: "Apply preview" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply preview" }));
+
+    workspaceState.isApplying = true;
+    rerender(<WorkspaceShell />);
+    workspaceState.projectStatus = "ready";
+    workspaceState.hasPreview = false;
+    workspaceState.isApplying = false;
+    rerender(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+  });
+
+  it("closes the AI panel on a phone after a preview is applied", async () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
+    stubPhoneViewport();
+
+    const { rerender } = render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Apply preview" }),
+    ).toBeTruthy();
+
+    workspaceState.isApplying = true;
+    rerender(<WorkspaceShell />);
+    workspaceState.projectStatus = "ready";
+    workspaceState.hasPreview = false;
+    workspaceState.isApplying = false;
+    rerender(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+  });
+
+  it("keeps the projects sidebar open after a project switch on desktop", async () => {
+    workspaceState.hasSecondProject = true;
+
+    const { rerender } = render(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("button", { name: "Collapse Projects" }),
+    ).toBeTruthy();
+
+    workspaceState.selectedProjectId = "project-2";
+    workspaceState.canvasStore = "missing";
+    rerender(<WorkspaceShell />);
+    workspaceState.canvasStore = "live";
+    rerender(<WorkspaceShell />);
+
+    expect(
+      screen.getByRole("button", { name: "Collapse Projects" }),
+    ).toBeTruthy();
+  });
+
+  it("closes the AI panel on a phone as soon as a project is selected", async () => {
+    workspaceState.hasSecondProject = true;
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
+    fireEvent.click(screen.getByTitle("Second Canvas"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+  });
+
+  it("closes the projects sidebar on a phone as soon as a project is selected", async () => {
+    workspaceState.hasSecondProject = true;
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse Projects" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle("Second Canvas"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+  });
+
+  it("closes the AI panel on a phone after a preview is selected and loaded", async () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
+    workspaceState.selectedPreviewId = "preview-1";
+    stubPhoneViewport();
+
+    const { rerender } = render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+
+    workspaceState.selectedPreviewId = "preview-2";
+    rerender(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+  });
+
+  it("lets phones close the AI panel during preview", async () => {
+    workspaceState.projectMode = "prompt";
+    workspaceState.projectStatus = "preview";
+    workspaceState.hasPreview = true;
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+
+    const collapse = await screen.findByRole("button", {
+      name: "Collapse AI panel",
+    });
+    expect(collapse).toHaveProperty("disabled", false);
+
+    fireEvent.click(collapse);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+  });
+
+  it("opens only one sidebar at a time on a phone viewport", async () => {
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse Projects" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse Projects" }),
+      ).toBeNull();
+    });
   });
 
   it("copies Cursor setup from the AI panel", async () => {

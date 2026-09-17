@@ -36,6 +36,24 @@ describe("useSidebarOpen", () => {
     expect(result.current.isOpen).toBe(true);
   });
 
+  it("starts closed on a phone viewport even when this browser saved open", async () => {
+    window.localStorage.setItem("iae.sidebar.projects.open", "true");
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query.includes("min-width: 768px") ? false : true,
+      })),
+    );
+
+    const { result } = renderHook(() =>
+      useSidebarOpen("iae.sidebar.projects.open"),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isOpen).toBe(false);
+    });
+  });
+
   it("restores open and closed from the given key", async () => {
     window.localStorage.setItem("iae.sidebar.projects.open", "false");
     window.localStorage.setItem("iae.sidebar.ai.open", "true");

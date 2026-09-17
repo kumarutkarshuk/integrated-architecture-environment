@@ -16,6 +16,7 @@ import {
   cursorRelayConfig,
   getWidgetOrigin,
 } from "../lib/canvas-agent/relay-copy";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { isWebMcpCompatibleBrowser } from "../lib/canvas-agent/webmcp-support";
 
 const MCP_CLIENT_BY_TITLE = {
@@ -40,6 +41,8 @@ export function AgentAllowPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const origin = getWidgetOrigin();
   const webMcpCompatible = isWebMcpCompatibleBrowser();
+  const isMobile = useIsMobile();
+  const canAllowAgent = webMcpCompatible && !isMobile;
 
   useStaggerReveal(listRef, {
     itemsKey: revealKey,
@@ -49,7 +52,7 @@ export function AgentAllowPanel({
   });
 
   return (
-    <div ref={listRef} className="flex min-h-0 flex-1 flex-col">
+    <div ref={listRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
       {header ? (
         <div
           data-stagger-item={`${revealKey}:rating`}
@@ -77,11 +80,13 @@ export function AgentAllowPanel({
                 id="allow-agent-reason"
                 className="text-[10px] leading-relaxed text-muted"
               >
-                {webMcpCompatible
-                  ? "Note: Reload turns it off."
-                  : "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge."}
+                {isMobile
+                  ? "Agents cannot edit the canvas on phones. Use desktop Chrome or Edge."
+                  : webMcpCompatible
+                    ? "Note: Reload turns it off."
+                    : "This browser cannot let an agent draw on the canvas. Use desktop Chrome or Edge."}
               </p>
-              {allowed && webMcpCompatible ? (
+              {allowed && canAllowAgent ? (
                 <p className="text-[10px] text-accent">
                   The agent can read this canvas.
                 </p>
@@ -89,8 +94,8 @@ export function AgentAllowPanel({
             </div>
             <Switch
               id="allow-agent"
-              checked={allowed && webMcpCompatible}
-              disabled={!webMcpCompatible}
+              checked={allowed && canAllowAgent}
+              disabled={!canAllowAgent}
               onCheckedChange={onAllowedChange}
               aria-label="Allow agent to edit this canvas"
               aria-describedby="allow-agent-reason"
@@ -109,16 +114,19 @@ export function AgentAllowPanel({
             itemId={`${revealKey}:cursor`}
             title="Cursor"
             code={cursorRelayConfig(origin)}
+            copyDisabled={isMobile}
           />
           <SetupBlock
             itemId={`${revealKey}:claude`}
             title="Claude Code"
             code={claudeCodeRelayCommand(origin)}
+            copyDisabled={isMobile}
           />
           <SetupBlock
             itemId={`${revealKey}:codex`}
             title="Codex"
             code={codexRelayConfig(origin)}
+            copyDisabled={isMobile}
           />
         </div>
       </div>
@@ -130,10 +138,12 @@ function SetupBlock({
   itemId,
   title,
   code,
+  copyDisabled = false,
 }: {
   itemId: string;
   title: string;
   code: string;
+  copyDisabled?: boolean;
 }) {
   return (
     <div className="space-y-1" data-stagger-item={itemId}>
@@ -147,6 +157,7 @@ function SetupBlock({
           size="sm"
           className="h-6 gap-1 px-1.5 text-[10px] text-muted hover:text-foreground"
           aria-label={`Copy ${title} setup`}
+          disabled={copyDisabled}
           onClick={() => {
             void copySetup(title, code);
           }}
