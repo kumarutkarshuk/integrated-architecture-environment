@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "../components/ui/sonner";
 import { clerkAppearance } from "../lib/clerkAppearance";
 import "./globals.css";
+import { Analytics } from '@vercel/analytics/next';
 
 const siteUrl = "https://integrated-architecture-environment.vercel.app";
 
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <body className="min-h-full">
           {children}
           <Toaster />
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
