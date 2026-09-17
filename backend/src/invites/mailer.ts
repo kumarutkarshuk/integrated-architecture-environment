@@ -13,10 +13,10 @@ export interface Mailer {
 
 export const PRODUCT_NAME = "Integrated Architecture Environment (IAE)";
 
-const SMTP_HOST = "smtp.gmail.com";
-const SMTP_PORT = 465;
+const SMTP_HOST = "smtp-relay.brevo.com";
+const SMTP_PORT = 587;
 const SMTP_REQUIRED_ERROR =
-  "SMTP_USER and SMTP_PASS are required to send Invite emails";
+  "BREVO_SMTP_LOGIN, BREVO_SMTP_KEY, and BREVO_FROM are required to send Invite emails";
 
 export function renderInviteEmail(email: InviteEmail): {
   subject: string;
@@ -72,7 +72,8 @@ function createSmtpMailer(options: {
   const transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
-    secure: true,
+    secure: false,
+    requireTLS: true,
     auth: {
       user: options.user,
       pass: options.pass,
@@ -105,19 +106,20 @@ function createUnconfiguredMailer(): Mailer {
 }
 
 function createMailerFromEnv(): Mailer {
-  const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS;
-  if (!user || !pass) {
+  const user = process.env.BREVO_SMTP_LOGIN?.trim();
+  const pass = process.env.BREVO_SMTP_KEY;
+  const fromAddress = process.env.BREVO_FROM?.trim();
+  if (!user || !pass || !fromAddress) {
     if (process.env.NODE_ENV === "test") {
       return createUnconfiguredMailer();
     }
-    throw new Error("SMTP_USER and SMTP_PASS are required");
+    throw new Error(SMTP_REQUIRED_ERROR);
   }
 
   return createSmtpMailer({
     user,
     pass,
-    fromAddress: process.env.SMTP_FROM?.trim() || user,
+    fromAddress,
   });
 }
 

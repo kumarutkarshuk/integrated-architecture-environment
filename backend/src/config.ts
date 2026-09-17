@@ -20,10 +20,14 @@ export function loadConfig(): AppConfig {
   }
 
   if (
-    (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS) &&
+    (!process.env.BREVO_SMTP_LOGIN?.trim() ||
+      !process.env.BREVO_SMTP_KEY ||
+      !process.env.BREVO_FROM?.trim()) &&
     process.env.NODE_ENV !== "test"
   ) {
-    throw new Error("SMTP_USER and SMTP_PASS are required");
+    throw new Error(
+      "BREVO_SMTP_LOGIN, BREVO_SMTP_KEY, and BREVO_FROM are required",
+    );
   }
 
   const isProduction = process.env.NODE_ENV === "production";

@@ -22,8 +22,12 @@ import { testAppConfig } from "../test-config.js";
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
 const testJobRunner = createTestJobRunner();
-const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const;
-const previousSmtpEnv = new Map<string, string | undefined>();
+const brevoEnvKeys = [
+  "BREVO_SMTP_LOGIN",
+  "BREVO_SMTP_KEY",
+  "BREVO_FROM",
+] as const;
+const previousBrevoEnv = new Map<string, string | undefined>();
 
 function authHeader(clerkId: string, email: string, displayName?: string) {
   return createTestAuthHeader({ clerkId, email, displayName });
@@ -65,25 +69,25 @@ async function allowResend(inviteId: string) {
   });
 }
 
-function useUnconfiguredSmtpMailer() {
-  for (const key of smtpEnvKeys) {
-    if (!previousSmtpEnv.has(key)) {
-      previousSmtpEnv.set(key, process.env[key]);
+function useUnconfiguredBrevoMailer() {
+  for (const key of brevoEnvKeys) {
+    if (!previousBrevoEnv.has(key)) {
+      previousBrevoEnv.set(key, process.env[key]);
     }
     delete process.env[key];
   }
   resetMailer();
 }
 
-function restoreSmtpEnv() {
-  for (const [key, value] of previousSmtpEnv) {
+function restoreBrevoEnv() {
+  for (const [key, value] of previousBrevoEnv) {
     if (value === undefined) {
       delete process.env[key];
     } else {
       process.env[key] = value;
     }
   }
-  previousSmtpEnv.clear();
+  previousBrevoEnv.clear();
 }
 
 describe("Product analytics", () => {
@@ -95,7 +99,7 @@ describe("Product analytics", () => {
   });
 
   afterEach(() => {
-    restoreSmtpEnv();
+    restoreBrevoEnv();
     resetMailer();
     resetJobRunner();
   });
@@ -434,7 +438,7 @@ describe("Product analytics", () => {
       .send({ name: "Shared Canvas", mode: "blank" })
       .expect(201);
 
-    useUnconfiguredSmtpMailer();
+    useUnconfiguredBrevoMailer();
 
     await request(app)
       .post(`/api/projects/${created.body.id}/invites`)

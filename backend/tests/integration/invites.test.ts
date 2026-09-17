@@ -18,28 +18,32 @@ import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
-const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const;
-const previousSmtpEnv = new Map<string, string | undefined>();
+const brevoEnvKeys = [
+  "BREVO_SMTP_LOGIN",
+  "BREVO_SMTP_KEY",
+  "BREVO_FROM",
+] as const;
+const previousBrevoEnv = new Map<string, string | undefined>();
 
-function useUnconfiguredSmtpMailer() {
-  for (const key of smtpEnvKeys) {
-    if (!previousSmtpEnv.has(key)) {
-      previousSmtpEnv.set(key, process.env[key]);
+function useUnconfiguredBrevoMailer() {
+  for (const key of brevoEnvKeys) {
+    if (!previousBrevoEnv.has(key)) {
+      previousBrevoEnv.set(key, process.env[key]);
     }
     delete process.env[key];
   }
   resetMailer();
 }
 
-function restoreSmtpEnv() {
-  for (const [key, value] of previousSmtpEnv) {
+function restoreBrevoEnv() {
+  for (const [key, value] of previousBrevoEnv) {
     if (value === undefined) {
       delete process.env[key];
     } else {
       process.env[key] = value;
     }
   }
-  previousSmtpEnv.clear();
+  previousBrevoEnv.clear();
 }
 
 async function allowResend(inviteId: string) {
@@ -138,7 +142,7 @@ describe("Invite create and redeem", () => {
   });
 
   afterEach(() => {
-    restoreSmtpEnv();
+    restoreBrevoEnv();
     resetMailer();
     clearCanvasPersistenceTimers();
     clearCanvasDocs();
@@ -715,7 +719,7 @@ describe("Invite create and redeem", () => {
       .send({ name: "Shared Canvas", mode: "blank" })
       .expect(201);
 
-    useUnconfiguredSmtpMailer();
+    useUnconfiguredBrevoMailer();
 
     const response = await request(app)
       .post(`/api/projects/${created.body.id}/invites`)
@@ -724,7 +728,7 @@ describe("Invite create and redeem", () => {
       .expect(502);
 
     expect(response.body.error).toBe(
-      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+      "BREVO_SMTP_LOGIN, BREVO_SMTP_KEY, and BREVO_FROM are required to send Invite emails",
     );
     expect(testMailer.getSent()).toHaveLength(0);
 
@@ -740,7 +744,7 @@ describe("Invite create and redeem", () => {
     expect(stored[0]?.deletedAt).not.toBeNull();
   });
 
-  it("returns 502 and rolls back Invite resend when SMTP user and pass are missing", async () => {
+  it("returns 502 and rolls back Invite resend when Brevo mail settings are missing", async () => {
     const header = authHeader("clerk_smtp_resend_owner", "smtpresend@example.com");
     const created = await request(app)
       .post("/api/projects")
@@ -759,7 +763,7 @@ describe("Invite create and redeem", () => {
     });
 
     await allowResend(invited.body.id);
-    useUnconfiguredSmtpMailer();
+    useUnconfiguredBrevoMailer();
 
     const response = await request(app)
       .post(
@@ -769,7 +773,7 @@ describe("Invite create and redeem", () => {
       .expect(502);
 
     expect(response.body.error).toBe(
-      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+      "BREVO_SMTP_LOGIN, BREVO_SMTP_KEY, and BREVO_FROM are required to send Invite emails",
     );
     expect(testMailer.getSent()).toHaveLength(1);
 
