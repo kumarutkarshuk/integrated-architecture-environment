@@ -1,9 +1,14 @@
 import { createApp } from "./app.js";
-import { configureAnalyticsFromEnv, captureException, shutdownAnalytics } from "./analytics.js";
+import {
+  configureAnalyticsFromEnv,
+  captureException,
+  shutdownAnalytics,
+} from "./analytics.js";
 import { configureAiRateLimiterFromEnv } from "./ai/rate-limit.js";
 import { configureExportSpecService } from "./ai/export-spec-service.js";
 import { configureGenerateService } from "./ai/generate-service.js";
 import { loadConfig } from "./config.js";
+import { logger } from "./logger.js";
 import { configureMailerFromEnv } from "./invites/mailer.js";
 import { configureProjectCreateRateLimiterFromEnv } from "./projects/create-quota.js";
 import { createHttpServer } from "./server.js";
@@ -20,7 +25,7 @@ const server = createHttpServer(app, config);
 
 function captureProcessError(error: unknown) {
   captureException(error, "server");
-  console.error(error);
+  logger.error("Unhandled backend process error", { error });
 }
 
 process.on("uncaughtException", (error) => {
@@ -35,5 +40,8 @@ process.on("unhandledRejection", (reason) => {
 });
 
 server.listen(config.port, config.host, () => {
-  console.log(`Backend listening on ${config.host}:${config.port}`);
+  logger.info("Backend listening", {
+    host: config.host,
+    port: config.port,
+  });
 });

@@ -15,8 +15,12 @@ import {
   upsertAuthorRating,
 } from "../ai/rating-service.js";
 import { startExportSpecJob } from "../ai/start-export-spec-job.js";
-import { GenerateInProgressError, startGenerateJob } from "../ai/start-generate-job.js";
+import {
+  GenerateInProgressError,
+  startGenerateJob,
+} from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
+import { logger } from "../logger.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
 function sendAiRouteError(
@@ -82,7 +86,9 @@ aiRouter.post("/generate", async (req, res) => {
   const project = await findAccessibleProject(projectId, user.id);
 
   if (!project || project.mode !== "prompt") {
-    res.status(400).json({ error: "Regenerate is only supported for prompt-mode projects" });
+    res
+      .status(400)
+      .json({ error: "Regenerate is only supported for prompt-mode projects" });
     return;
   }
 
@@ -95,9 +101,13 @@ aiRouter.post("/generate", async (req, res) => {
 
     captureEvent(user.clerkId, "ai_generation_started", { projectId });
 
-    res.status(201).json(
-      createdJob ? await presentJobForViewer(createdJob, user.id) : createdJob,
-    );
+    res
+      .status(201)
+      .json(
+        createdJob
+          ? await presentJobForViewer(createdJob, user.id)
+          : createdJob,
+      );
   } catch (error) {
     if (sendAiRouteError(res, error)) {
       return;
@@ -161,7 +171,9 @@ aiRouter.post("/export-spec", async (req, res) => {
   }
 
   if (project.status !== "ready") {
-    res.status(400).json({ error: "Export Spec is only available on a ready Project" });
+    res
+      .status(400)
+      .json({ error: "Export Spec is only available on a ready Project" });
     return;
   }
 
@@ -175,14 +187,22 @@ aiRouter.post("/export-spec", async (req, res) => {
 
     captureEvent(user.clerkId, "spec_exported", { projectId });
 
-    res.status(201).json(
-      createdJob ? await presentJobForViewer(createdJob, user.id) : createdJob,
-    );
+    res
+      .status(201)
+      .json(
+        createdJob
+          ? await presentJobForViewer(createdJob, user.id)
+          : createdJob,
+      );
   } catch (error) {
     if (sendAiRouteError(res, error)) {
       return;
     }
-    console.error("Failed to start Export Spec", error);
+    logger.error("Failed to start Export Spec", {
+      clerkId: user.clerkId,
+      projectId,
+      error,
+    });
     captureException(error, user.clerkId, { source: "api", status: 500 });
     res.status(500).json({ error: "Failed to start Export Spec" });
   }

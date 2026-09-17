@@ -1,10 +1,14 @@
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import { captureException } from "./analytics.js";
-import { createAuthMiddleware, type AuthenticatedRequest } from "./auth/middleware.js";
+import {
+  createAuthMiddleware,
+  type AuthenticatedRequest,
+} from "./auth/middleware.js";
 import { createClerkTokenVerifier } from "./auth/clerk-token-verifier.js";
 import { createTestTokenVerifier } from "./auth/test-token-verifier.js";
 import type { AppConfig } from "./config.js";
+import { logger } from "./logger.js";
 import { aiRouter } from "./routes/ai.js";
 import { invitesRouter } from "./routes/invites.js";
 import { projectsRouter } from "./routes/projects.js";
@@ -23,7 +27,12 @@ const handleUncaughtRouteError: ErrorRequestHandler = (
 
   const user = (req as AuthenticatedRequest).user;
   captureException(error, user?.clerkId, { source: "uncaught", status: 500 });
-  console.error("Unhandled route error", error);
+  logger.error("Unhandled route error", {
+    path: req.originalUrl,
+    method: req.method,
+    clerkId: user?.clerkId,
+    error,
+  });
   res.status(500).json({ error: "Internal server error" });
 };
 

@@ -1,12 +1,10 @@
-import {
-  setPersistence,
-  type WSSharedDoc,
-} from "./yjs-ws-utils.js";
+import { setPersistence, type WSSharedDoc } from "./yjs-ws-utils.js";
 import {
   applyRecordsToDoc,
   saveCanvasSnapshotFromDoc,
   loadCanvasSnapshot,
 } from "./snapshot.js";
+import { logger } from "../logger.js";
 
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const DEBOUNCE_MS = 2000;
@@ -47,12 +45,12 @@ async function persistCanvasSnapshotWithRetry(
       return;
     } catch (error) {
       lastError = error;
-      console.error(
-        "Failed to persist canvas snapshot",
+      logger.error("Failed to persist canvas snapshot", {
         projectId,
-        `attempt ${attempt}/${WRITE_STATE_ATTEMPTS}`,
+        attempt,
+        maxAttempts: WRITE_STATE_ATTEMPTS,
         error,
-      );
+      });
     }
   }
 
@@ -72,7 +70,10 @@ function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
     setTimeout(() => {
       debounceTimers.delete(projectId);
       void persistCanvasSnapshot(projectId, doc).catch((error) => {
-        console.error("Failed to persist canvas snapshot", projectId, error);
+        logger.error("Failed to persist canvas snapshot", {
+          projectId,
+          error,
+        });
       });
     }, DEBOUNCE_MS),
   );

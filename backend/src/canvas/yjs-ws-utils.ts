@@ -6,6 +6,7 @@ import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import * as map from "lib0/map";
 import * as Y from "yjs";
+import { logger } from "../logger.js";
 
 const gcEnabled = process.env.GC !== "false" && process.env.GC !== "0";
 
@@ -22,7 +23,9 @@ export interface CanvasPersistence {
 
 let persistence: CanvasPersistence | null = null;
 
-export function setPersistence(nextPersistence: CanvasPersistence | null): void {
+export function setPersistence(
+  nextPersistence: CanvasPersistence | null,
+): void {
   persistence = nextPersistence;
 }
 
@@ -78,12 +81,9 @@ export class WSSharedDoc extends Y.Doc {
     };
 
     this.awareness.on("update", awarenessChangeHandler);
-    this.on(
-      "update",
-      (update: Uint8Array, origin: unknown, _doc: Y.Doc) => {
-        updateHandler(update, origin, this);
-      },
-    );
+    this.on("update", (update: Uint8Array, origin: unknown, _doc: Y.Doc) => {
+      updateHandler(update, origin, this);
+    });
   }
 }
 
@@ -147,7 +147,7 @@ function messageListener(
       }
     }
   } catch (error) {
-    console.error("Caught error while handling a Yjs update", error);
+    logger.error("Caught error while handling a Yjs update", { error });
   }
 }
 
@@ -171,10 +171,12 @@ function closeConn(doc: WSSharedDoc, conn: WebSocket): void {
           }
         })
         .catch((error) => {
-          console.error(
+          logger.error(
             "Failed to persist canvas snapshot before room teardown",
-            doc.name,
-            error,
+            {
+              projectId: doc.name,
+              error,
+            },
           );
         });
     }
@@ -291,7 +293,10 @@ export function setupWSConnection(
       }
     })
     .catch((error) => {
-      console.error("Failed to bind canvas snapshot", doc.name, error);
+      logger.error("Failed to bind canvas snapshot", {
+        projectId: doc.name,
+        error,
+      });
       closeConn(doc, conn);
       clearInterval(pingInterval);
     });

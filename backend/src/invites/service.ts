@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma, type User } from "@prisma/client";
 import { captureException } from "../analytics.js";
 import { lockLiveProject, notDeleted, prisma } from "../db.js";
+import { logger } from "../logger.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 import { getMailer } from "./mailer.js";
 
@@ -65,7 +66,10 @@ function resendAvailableAt(lastSentAt: Date): Date {
   return new Date(lastSentAt.getTime() + RESEND_COOLDOWN_MS);
 }
 
-function resendGate(invite: { sendCount: number; lastSentAt: Date }): InviteResult<void> {
+function resendGate(invite: {
+  sendCount: number;
+  lastSentAt: Date;
+}): InviteResult<void> {
   if (invite.sendCount >= MAX_INVITE_SENDS) {
     return {
       ok: false,
@@ -90,10 +94,29 @@ function inviterNameFor(user: User): string {
   return displayName || user.email;
 }
 
-function logInviteMailFailure(user: User): void {
-  captureException(new Error("Failed to send Invite email"), user.clerkId, {
+function logInviteMailFailure(
+  user: User,
+  context: { email: string; projectName: string; error: string } = {
+    email: "unknown",
+    projectName: "unknown",
+    error: "Unknown invite email failure",
+  },
+): void {
+  const error = new Error("Failed to send Invite email");
+  logger.error("Invite email delivery failed", {
+    clerkId: user.clerkId,
+    recipient: context.email,
+    projectName: context.projectName,
+    error: context.error,
     source: "invite_mail",
     status: 502,
+  });
+  captureException(error, user.clerkId, {
+    source: "invite_mail",
+    status: 502,
+    recipient: context.email,
+    projectName: context.projectName,
+    error: context.error,
   });
 }
 
@@ -223,7 +246,9 @@ export async function createProjectInvite(
   projectId: string,
   user: User,
   rawEmail: unknown,
-): Promise<InviteResult<{ id: string; email: string; role: string; expiresAt: Date }>> {
+): Promise<
+  InviteResult<{ id: string; email: string; role: string; expiresAt: Date }>
+> {
   const access = await requireOwner(projectId, user);
   if (!access.ok) {
     return { ok: false, status: access.status, error: "Project not found" };
@@ -273,10 +298,15 @@ export async function createProjectInvite(
       });
 
       if (pendingInvite) {
-        throw new InviteFlowError(409, "An Invite was already sent to this email");
+        throw new InviteFlowError(
+          409,
+          "An Invite was already sent to this email",
+        );
       }
 
-      if ((await projectCollaboratorCount(projectId, tx)) >= MAX_COLLABORATORS) {
+      if (
+        (await projectCollaboratorCount(projectId, tx)) >= MAX_COLLABORATORS
+      ) {
         throw new InviteFlowError(
           409,
           `Collaborator limit reached (${MAX_COLLABORATORS} per Project)`,
@@ -313,13 +343,17 @@ export async function createProjectInvite(
   try {
     await sendInviteEmail(email, project.name, invite.token, user);
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to send Invite email";
     await prisma.projectInvite.update({
       where: { id: invite.id },
       data: { deletedAt: new Date() },
     });
-    logInviteMailFailure(user);
-    const message =
-      error instanceof Error ? error.message : "Failed to send Invite email";
+    logInviteMailFailure(user, {
+      email,
+      projectName: project.name,
+      error: message,
+    });
     return { ok: false, status: 502, error: message };
   }
 
@@ -338,7 +372,9 @@ export async function resendProjectInvite(
   projectId: string,
   inviteId: string,
   user: User,
-): Promise<InviteResult<{ id: string; email: string; role: string; expiresAt: Date }>> {
+): Promise<
+  InviteResult<{ id: string; email: string; role: string; expiresAt: Date }>
+> {
   const access = await requireOwner(projectId, user);
   if (!access.ok) {
     return { ok: false, status: access.status, error: "Project not found" };
@@ -362,7 +398,11 @@ export async function resendProjectInvite(
   }
 
   if (invite.redeemedAt) {
-    return { ok: false, status: 409, error: "Invite has already been redeemed" };
+    return {
+      ok: false,
+      status: 409,
+      error: "Invite has already been redeemed",
+    };
   }
 
   const gate = resendGate(invite);
@@ -416,6 +456,8 @@ export async function resendProjectInvite(
   try {
     await sendInviteEmail(invite.email, project.name, token, user);
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to send Invite email";
     await prisma.projectInvite.update({
       where: { id: invite.id },
       data: {
@@ -425,9 +467,11 @@ export async function resendProjectInvite(
         sendCount: invite.sendCount,
       },
     });
-    logInviteMailFailure(user);
-    const message =
-      error instanceof Error ? error.message : "Failed to send Invite email";
+    logInviteMailFailure(user, {
+      email: invite.email,
+      projectName: project.name,
+      error: message,
+    });
     return { ok: false, status: 502, error: message };
   }
 
@@ -469,7 +513,11 @@ export async function redeemProjectInvite(
   }
 
   if (normalizeEmail(user.email) !== normalizeEmail(invite.email)) {
-    return { ok: false, status: 403, error: "Email does not match this Invite" };
+    return {
+      ok: false,
+      status: 403,
+      error: "Email does not match this Invite",
+    };
   }
 
   if (invite.redeemedAt) {
@@ -481,7 +529,11 @@ export async function redeemProjectInvite(
       return { ok: true, value: { projectId: invite.projectId } };
     }
 
-    return { ok: false, status: 409, error: "Invite has already been redeemed" };
+    return {
+      ok: false,
+      status: 409,
+      error: "Invite has already been redeemed",
+    };
   }
 
   try {

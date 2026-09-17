@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import type { User } from "@prisma/client";
+import { logger } from "../logger.js";
 import type { TokenVerifier } from "./token-verifier.js";
 import { getBearerToken, upsertUserFromClaims } from "./user.js";
 
@@ -25,7 +26,11 @@ export function createAuthMiddleware(tokenVerifier: TokenVerifier) {
       req.user = await upsertUserFromClaims(claims);
       next();
     } catch (error) {
-      console.error("Auth failed", error);
+      logger.error("Auth failed", {
+        error,
+        path: req.originalUrl,
+        method: req.method,
+      });
       res.status(401).json({
         error:
           error instanceof Error && error.message.trim()
