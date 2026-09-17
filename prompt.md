@@ -44,19 +44,16 @@
 
 # Todos
 
-- readme and oss license
-- separate dev and prod environments
-- test utc reset
-- docker push
-- supabase issue
-- unauthorized issue
-- Automated tests
+- test cases
 - in app accepting invitations
 - project rename feature
 - handle two different windows with allow agent on (currently no guard)
 - project list is polled currently to handle case when a project is deleted and collaborator is still present (inefficiency)
 - AI layer: LLM as a judge if needed
 - if db write fails, project creation quota is still consumed
+- Is there a genuine issue with:
+    - supabase integration
+    - occasional unauthorized notification
 
 # Design
 
@@ -101,3 +98,4 @@
 - Soft delete data always
 - Add backend monitoring and logging
 
+Open Graph screenshot
