@@ -1,4 +1,7 @@
 import type { IncomingMessage } from "node:http";
+import { childLogger } from "../logger.js";
+
+const log = childLogger({ module: "yjs-ws" });
 import type { WebSocket } from "ws";
 import * as awarenessProtocol from "y-protocols/awareness";
 import * as syncProtocol from "y-protocols/sync";
@@ -147,7 +150,7 @@ function messageListener(
       }
     }
   } catch (error) {
-    console.error("Caught error while handling a Yjs update", error);
+    log.error({ err: error, docName: doc.name }, "Caught error while handling a Yjs update");
   }
 }
 
@@ -171,10 +174,9 @@ function closeConn(doc: WSSharedDoc, conn: WebSocket): void {
           }
         })
         .catch((error) => {
-          console.error(
+          log.error(
+            { err: error, docName: doc.name },
             "Failed to persist canvas snapshot before room teardown",
-            doc.name,
-            error,
           );
         });
     }
@@ -291,7 +293,7 @@ export function setupWSConnection(
       }
     })
     .catch((error) => {
-      console.error("Failed to bind canvas snapshot", doc.name, error);
+      log.error({ err: error, docName: doc.name }, "Failed to bind canvas snapshot");
       closeConn(doc, conn);
       clearInterval(pingInterval);
     });

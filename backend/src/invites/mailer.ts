@@ -1,4 +1,7 @@
 import nodemailer from "nodemailer";
+import { childLogger } from "../logger.js";
+
+const log = childLogger({ module: "mailer" });
 
 export interface InviteEmail {
   to: string;
@@ -13,8 +16,8 @@ export interface Mailer {
 
 export const PRODUCT_NAME = "Integrated Architecture Environment (IAE)";
 
-const SMTP_HOST = "smtp.gmail.com";
-const SMTP_PORT = 465;
+const DEFAULT_SMTP_HOST = "smtp-relay.brevo.com";
+const DEFAULT_SMTP_PORT = 587;
 const SMTP_REQUIRED_ERROR =
   "SMTP_USER and SMTP_PASS are required to send Invite emails";
 
@@ -64,34 +67,61 @@ export function createTestMailer(): {
   };
 }
 
+function readSmtpPort(): number {
+  const raw = process.env.SMTP_PORT?.trim();
+  if (!raw) {
+    return DEFAULT_SMTP_PORT;
+  }
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error("SMTP_PORT must be a positive integer");
+  }
+  return port;
+}
+
 function createSmtpMailer(options: {
   user: string;
   pass: string;
   fromAddress: string;
+  host: string;
+  port: number;
 }): Mailer {
+  const secure = options.port === 465;
   const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: true,
+    host: options.host,
+    port: options.port,
+    secure,
+    requireTLS: !secure,
     auth: {
       user: options.user,
       pass: options.pass,
     },
   });
 
+  log.info(
+    { host: options.host, port: options.port, secure },
+    "SMTP transporter configured",
+  );
+
   return {
     async sendInvite(email) {
       const rendered = renderInviteEmail(email);
-      await transporter.sendMail({
-        from: {
-          name: PRODUCT_NAME,
-          address: options.fromAddress,
-        },
-        to: email.to,
-        subject: rendered.subject,
-        text: rendered.text,
-        html: rendered.html,
-      });
+      try {
+        await transporter.sendMail({
+          from: {
+            name: PRODUCT_NAME,
+            address: options.fromAddress,
+          },
+          to: email.to,
+          subject: rendered.subject,
+          text: rendered.text,
+          html: rendered.html,
+        });
+        log.info("Invite email sent");
+      } catch (error) {
+        log.error({ err: error }, "Failed to send invite email");
+        throw error;
+      }
     },
   };
 }
@@ -114,10 +144,15 @@ function createMailerFromEnv(): Mailer {
     throw new Error("SMTP_USER and SMTP_PASS are required");
   }
 
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;
+  const port = readSmtpPort();
+
   return createSmtpMailer({
     user,
     pass,
     fromAddress: process.env.SMTP_FROM?.trim() || user,
+    host,
+    port,
   });
 }
 

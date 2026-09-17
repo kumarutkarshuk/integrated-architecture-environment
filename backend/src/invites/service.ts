@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Prisma, type User } from "@prisma/client";
 import { captureException } from "../analytics.js";
+import { childLogger } from "../logger.js";
+
+const log = childLogger({ module: "invites" });
 import { lockLiveProject, notDeleted, prisma } from "../db.js";
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 import { getMailer } from "./mailer.js";
@@ -90,7 +93,8 @@ function inviterNameFor(user: User): string {
   return displayName || user.email;
 }
 
-function logInviteMailFailure(user: User): void {
+function logInviteMailFailure(user: User, error: unknown): void {
+  log.error({ err: error, clerkId: user.clerkId }, "Invite email send failed");
   captureException(new Error("Failed to send Invite email"), user.clerkId, {
     source: "invite_mail",
     status: 502,
@@ -317,7 +321,7 @@ export async function createProjectInvite(
       where: { id: invite.id },
       data: { deletedAt: new Date() },
     });
-    logInviteMailFailure(user);
+    logInviteMailFailure(user, error);
     const message =
       error instanceof Error ? error.message : "Failed to send Invite email";
     return { ok: false, status: 502, error: message };
@@ -425,7 +429,7 @@ export async function resendProjectInvite(
         sendCount: invite.sendCount,
       },
     });
-    logInviteMailFailure(user);
+    logInviteMailFailure(user, error);
     const message =
       error instanceof Error ? error.message : "Failed to send Invite email";
     return { ok: false, status: 502, error: message };

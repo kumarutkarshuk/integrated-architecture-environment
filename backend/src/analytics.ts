@@ -1,3 +1,7 @@
+import { childLogger } from "./logger.js";
+
+const log = childLogger({ module: "analytics" });
+
 export type ProductEventName =
   | "project_created"
   | "project_deleted"
@@ -124,7 +128,7 @@ function createPosthogAnalytics(apiKey: string, host: string): Analytics {
           });
         })
         .catch((error) => {
-          console.error("Analytics capture failed", error);
+          log.error({ err: error }, "Analytics capture failed");
         });
     },
     identify(distinctId, properties) {
@@ -133,7 +137,7 @@ function createPosthogAnalytics(apiKey: string, host: string): Analytics {
           client.identify({ distinctId, properties });
         })
         .catch((error) => {
-          console.error("Analytics identify failed", error);
+          log.error({ err: error }, "Analytics identify failed");
         });
     },
     captureException(error, distinctId, properties) {
@@ -142,7 +146,7 @@ function createPosthogAnalytics(apiKey: string, host: string): Analytics {
           client.captureException(error, distinctId ?? "server", properties);
         })
         .catch((err) => {
-          console.error("Analytics exception failed", err);
+          log.error({ err }, "Analytics exception failed");
         });
     },
   };
@@ -192,7 +196,7 @@ export function captureEvent(
   try {
     getAnalytics().capture({ distinctId, event, properties });
   } catch (error) {
-    console.error("Analytics capture failed", error);
+    log.error({ err: error }, "Analytics capture failed");
   }
 }
 
@@ -204,6 +208,6 @@ export function captureException(
   try {
     getAnalytics().captureException(error, distinctId, properties);
   } catch (err) {
-    console.error("Analytics exception failed", err);
+    log.error({ err }, "Analytics exception failed");
   }
 }
