@@ -165,8 +165,12 @@ vi.mock("../hooks/useProjects", () => ({
 vi.mock("../hooks/useOpenProject", () => ({
   useOpenProject: () => ({
     selectedProjectId: workspaceState.selectedProjectId,
-    selectProject: () => undefined,
-    clearOpenProject: () => undefined,
+    selectProject: (projectId: string) => {
+      workspaceState.selectedProjectId = projectId;
+    },
+    clearOpenProject: () => {
+      workspaceState.selectedProjectId = null;
+    },
   }),
 }));
 
@@ -548,6 +552,21 @@ describe("WorkspaceShell", () => {
         "Agents cannot edit the canvas on phones. Use desktop Chrome or Edge.",
       ),
     ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Copy Cursor setup" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Copy Claude Code setup",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Copy Codex setup" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     expect(toast).not.toHaveBeenCalled();
   });
 
@@ -564,9 +583,6 @@ describe("WorkspaceShell", () => {
     expect(
       screen.queryByRole("button", { name: "Collapse AI panel" }),
     ).toBeNull();
-    expect(
-      screen.getByText("For a better experience, use a desktop browser."),
-    ).toBeTruthy();
     expect(screen.getByLabelText("Canvas toolbar")).toBeTruthy();
   });
 
@@ -651,11 +667,32 @@ describe("WorkspaceShell", () => {
     ).toBeTruthy();
   });
 
-  it("closes the projects sidebar on a phone after a switched project canvas loads", async () => {
+  it("closes the AI panel on a phone as soon as a project is selected", async () => {
     workspaceState.hasSecondProject = true;
     stubPhoneViewport();
 
-    const { rerender } = render(<WorkspaceShell />);
+    render(<WorkspaceShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "AI panel View" }));
+    expect(
+      await screen.findByRole("button", { name: "Collapse AI panel" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Explorer View" }));
+    fireEvent.click(screen.getByTitle("Second Canvas"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Collapse AI panel" }),
+      ).toBeNull();
+    });
+  });
+
+  it("closes the projects sidebar on a phone as soon as a project is selected", async () => {
+    workspaceState.hasSecondProject = true;
+    stubPhoneViewport();
+
+    render(<WorkspaceShell />);
 
     await waitFor(() => {
       expect(
@@ -668,17 +705,7 @@ describe("WorkspaceShell", () => {
       await screen.findByRole("button", { name: "Collapse Projects" }),
     ).toBeTruthy();
 
-    workspaceState.selectedProjectId = "project-2";
-    workspaceState.canvasStore = "missing";
-    rerender(<WorkspaceShell />);
-
-    expect(
-      screen.getByRole("button", { name: "Collapse Projects" }),
-    ).toBeTruthy();
-    expect(screen.getByText("Loading canvas for Second Canvas...")).toBeTruthy();
-
-    workspaceState.canvasStore = "live";
-    rerender(<WorkspaceShell />);
+    fireEvent.click(screen.getByTitle("Second Canvas"));
 
     await waitFor(() => {
       expect(

@@ -114,16 +114,19 @@ export function AgentAllowPanel({
             itemId={`${revealKey}:cursor`}
             title="Cursor"
             code={cursorRelayConfig(origin)}
+            copyDisabled={isMobile}
           />
           <SetupBlock
             itemId={`${revealKey}:claude`}
             title="Claude Code"
             code={claudeCodeRelayCommand(origin)}
+            copyDisabled={isMobile}
           />
           <SetupBlock
             itemId={`${revealKey}:codex`}
             title="Codex"
             code={codexRelayConfig(origin)}
+            copyDisabled={isMobile}
           />
         </div>
       </div>
@@ -135,10 +138,12 @@ function SetupBlock({
   itemId,
   title,
   code,
+  copyDisabled = false,
 }: {
   itemId: string;
   title: string;
   code: string;
+  copyDisabled?: boolean;
 }) {
   return (
     <div className="space-y-1" data-stagger-item={itemId}>
@@ -152,6 +157,7 @@ function SetupBlock({
           size="sm"
           className="h-6 gap-1 px-1.5 text-[10px] text-muted hover:text-foreground"
           aria-label={`Copy ${title} setup`}
+          disabled={copyDisabled}
           onClick={() => {
             void copySetup(title, code);
           }}

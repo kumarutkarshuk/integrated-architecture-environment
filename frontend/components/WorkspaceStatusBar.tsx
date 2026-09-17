@@ -21,7 +21,7 @@ export function WorkspaceStatusBar({ projectName }: WorkspaceStatusBarProps) {
             {canvasLabel}
           </span>
         )}
-        <MobileDesktopHint className="min-w-0 truncate" />
+        {/* <MobileDesktopHint className="min-w-0 truncate" /> */}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">

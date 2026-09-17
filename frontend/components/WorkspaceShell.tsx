@@ -81,9 +81,6 @@ export function WorkspaceShell() {
     setOpen: setAiSidebarOpen,
   } = useSidebarOpen(AI_SIDEBAR_STORAGE_KEY);
   const applyingPreviewRef = useRef(false);
-  const previousProjectIdRef = useRef<string | null | undefined>(undefined);
-  const pendingCloseProjectsForIdRef = useRef<string | null>(null);
-  const seenUnloadedForPendingProjectRef = useRef(false);
   const previousSelectedPreviewIdRef = useRef<string | null | undefined>(
     undefined,
   );
@@ -231,61 +228,23 @@ export function WorkspaceShell() {
     }
   }, [ai.isApplying, selectedProject?.status, setAiSidebarOpen]);
 
-  useEffect(() => {
-    if (previousProjectIdRef.current === undefined) {
-      previousProjectIdRef.current = selectedProjectId;
-      return;
-    }
-
-    if (previousProjectIdRef.current !== selectedProjectId) {
-      const hadProject = previousProjectIdRef.current != null;
-      previousProjectIdRef.current = selectedProjectId;
-      if (hadProject && selectedProjectId && !isDesktopViewport()) {
-        pendingCloseProjectsForIdRef.current = selectedProjectId;
-        seenUnloadedForPendingProjectRef.current = false;
-      } else {
-        pendingCloseProjectsForIdRef.current = null;
+  const handleSelectProject = useCallback(
+    (projectId: string) => {
+      if (!isDesktopViewport()) {
+        setProjectsSidebarOpen(false);
+        if (projectId !== selectedProjectId) {
+          setAiSidebarOpen(false);
+        }
       }
-    }
-
-    if (
-      pendingCloseProjectsForIdRef.current == null ||
-      pendingCloseProjectsForIdRef.current !== selectedProjectId ||
-      !selectedProject
-    ) {
-      return;
-    }
-
-    if (isDesktopViewport()) {
-      pendingCloseProjectsForIdRef.current = null;
-      return;
-    }
-
-    if (selectedProject.status !== "ready") {
-      pendingCloseProjectsForIdRef.current = null;
-      setProjectsSidebarOpen(false);
-      return;
-    }
-
-    const canvasLoaded = canvasActionsEnabled || saveStatus === "error";
-    if (!canvasLoaded) {
-      seenUnloadedForPendingProjectRef.current = true;
-      return;
-    }
-
-    if (!seenUnloadedForPendingProjectRef.current) {
-      return;
-    }
-
-    pendingCloseProjectsForIdRef.current = null;
-    setProjectsSidebarOpen(false);
-  }, [
-    canvasActionsEnabled,
-    saveStatus,
-    selectedProject,
-    selectedProjectId,
-    setProjectsSidebarOpen,
-  ]);
+      selectProject(projectId);
+    },
+    [
+      selectProject,
+      selectedProjectId,
+      setAiSidebarOpen,
+      setProjectsSidebarOpen,
+    ],
+  );
 
   useEffect(() => {
     if (previousSelectedPreviewIdRef.current === undefined) {
@@ -365,7 +324,7 @@ export function WorkspaceShell() {
 
   async function handleCreateBlankProject(name: string) {
     const project = await createBlankProject(name);
-    selectProject(project.id);
+    handleSelectProject(project.id);
   }
 
   async function handleCreatePromptProject(name: string, prompt: string) {
@@ -374,7 +333,7 @@ export function WorkspaceShell() {
       ...current,
       [project.id]: prompt,
     }));
-    selectProject(project.id);
+    handleSelectProject(project.id);
   }
 
   async function handleDeleteProject(projectId: string) {
@@ -413,7 +372,7 @@ export function WorkspaceShell() {
           currentUserId={user?.id ?? null}
           isOpen={isProjectsSidebarOpen}
           onToggleOpen={handleToggleProjects}
-          onSelectProject={selectProject}
+          onSelectProject={handleSelectProject}
           onRequestCreateBlank={() => {
             if (isProjectsListLoading) {
               return;
@@ -575,14 +534,16 @@ export function WorkspaceShell() {
               !previewRecords && (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-xs font-mono">
                   {ai.generationFailed && !ai.isGenerating ? (
-                    <>
-                      <p className="font-semibold text-red-400">
-                        Preview generation failed.
-                      </p>
-                      <p className="text-muted">
-                        {ai.generationError ?? "Loading reason..."}
-                      </p>
-                    </>
+                    ai.generationError ? (
+                      <>
+                        <p className="font-semibold text-red-400">
+                          Preview generation failed.
+                        </p>
+                        <p className="text-muted">{ai.generationError}</p>
+                      </>
+                    ) : (
+                      <CanvasLoadingPing label="Loading reason..." />
+                    )
                   ) : ai.previewWaitTimedOut ? (
                     <>
                       <p className="font-semibold text-red-400">
