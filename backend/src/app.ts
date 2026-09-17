@@ -5,6 +5,9 @@ import { createAuthMiddleware, type AuthenticatedRequest } from "./auth/middlewa
 import { createClerkTokenVerifier } from "./auth/clerk-token-verifier.js";
 import { createTestTokenVerifier } from "./auth/test-token-verifier.js";
 import type { AppConfig } from "./config.js";
+import { childLogger } from "./logger.js";
+
+const log = childLogger({ module: "http" });
 import { aiRouter } from "./routes/ai.js";
 import { invitesRouter } from "./routes/invites.js";
 import { projectsRouter } from "./routes/projects.js";
@@ -23,7 +26,7 @@ const handleUncaughtRouteError: ErrorRequestHandler = (
 
   const user = (req as AuthenticatedRequest).user;
   captureException(error, user?.clerkId, { source: "uncaught", status: 500 });
-  console.error("Unhandled route error", error);
+  log.error({ err: error, status: 500 }, "Unhandled route error");
   res.status(500).json({ error: "Internal server error" });
 };
 

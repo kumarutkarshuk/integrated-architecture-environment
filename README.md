@@ -34,7 +34,7 @@ Frontend deploys to Vercel; the backend ships as a Docker image (see `.github/wo
 - [Clerk](https://clerk.com) application (Google + Email with OTP; disable magic link)
 - [Groq](https://groq.com) API key(s) for AI features
 - [Trigger.dev](https://trigger.dev) project for background generate / export jobs
-- Gmail app password (or SMTP) if you need invite emails locally
+- Brevo SMTP credentials if you need invite emails locally
 
 Optional: Upstash Redis (required in production for rate limits), PostHog keys.
 

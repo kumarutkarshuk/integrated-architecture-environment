@@ -17,6 +17,9 @@ import {
 import { startExportSpecJob } from "../ai/start-export-spec-job.js";
 import { GenerateInProgressError, startGenerateJob } from "../ai/start-generate-job.js";
 import { notDeleted, prisma } from "../db.js";
+import { childLogger } from "../logger.js";
+
+const log = childLogger({ module: "ai-routes" });
 import { findAccessibleProject, requireOwner } from "../projects/access.js";
 
 function sendAiRouteError(
@@ -182,7 +185,7 @@ aiRouter.post("/export-spec", async (req, res) => {
     if (sendAiRouteError(res, error)) {
       return;
     }
-    console.error("Failed to start Export Spec", error);
+    log.error({ err: error, projectId }, "Failed to start Export Spec");
     captureException(error, user.clerkId, { source: "api", status: 500 });
     res.status(500).json({ error: "Failed to start Export Spec" });
   }

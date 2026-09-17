@@ -1,7 +1,10 @@
+import { childLogger } from "../logger.js";
 import {
   setPersistence,
   type WSSharedDoc,
 } from "./yjs-ws-utils.js";
+
+const log = childLogger({ module: "canvas-persistence" });
 import {
   applyRecordsToDoc,
   saveCanvasSnapshotFromDoc,
@@ -47,11 +50,14 @@ async function persistCanvasSnapshotWithRetry(
       return;
     } catch (error) {
       lastError = error;
-      console.error(
+      log.error(
+        {
+          err: error,
+          projectId,
+          attempt,
+          maxAttempts: WRITE_STATE_ATTEMPTS,
+        },
         "Failed to persist canvas snapshot",
-        projectId,
-        `attempt ${attempt}/${WRITE_STATE_ATTEMPTS}`,
-        error,
       );
     }
   }
@@ -72,7 +78,7 @@ function scheduleSnapshotSave(projectId: string, doc: WSSharedDoc): void {
     setTimeout(() => {
       debounceTimers.delete(projectId);
       void persistCanvasSnapshot(projectId, doc).catch((error) => {
-        console.error("Failed to persist canvas snapshot", projectId, error);
+        log.error({ err: error, projectId }, "Failed to persist canvas snapshot");
       });
     }, DEBOUNCE_MS),
   );
