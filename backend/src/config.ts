@@ -1,6 +1,16 @@
 import { DEFAULT_GROQ_MODEL, DEFAULT_PROMPT_GUARD_MODEL } from "./ai/inference-defaults.js";
 import { parseGroqApiKeys } from "./ai/groq-keys.js";
 
+export function hasInviteEmailConfig(): boolean {
+  const apiKey = process.env.BREVO_API_KEY?.trim();
+  if (apiKey) {
+    const from =
+      process.env.BREVO_FROM?.trim() || process.env.SMTP_FROM?.trim();
+    return Boolean(from);
+  }
+  return Boolean(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS);
+}
+
 export interface AppConfig {
   host: string;
   port: number;
@@ -19,11 +29,10 @@ export function loadConfig(): AppConfig {
     throw new Error("CLERK_SECRET_KEY is required");
   }
 
-  if (
-    (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS) &&
-    process.env.NODE_ENV !== "test"
-  ) {
-    throw new Error("SMTP_USER and SMTP_PASS are required");
+  if (process.env.NODE_ENV !== "test" && !hasInviteEmailConfig()) {
+    throw new Error(
+      "Invite email requires BREVO_API_KEY and BREVO_FROM (or SMTP_FROM), or SMTP_USER and SMTP_PASS",
+    );
   }
 
   const isProduction = process.env.NODE_ENV === "production";

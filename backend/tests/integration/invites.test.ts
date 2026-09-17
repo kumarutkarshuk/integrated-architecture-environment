@@ -18,11 +18,17 @@ import { testAppConfig } from "../test-config.js";
 
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
-const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const;
+const mailEnvKeys = [
+  "BREVO_API_KEY",
+  "BREVO_FROM",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "SMTP_FROM",
+] as const;
 const previousSmtpEnv = new Map<string, string | undefined>();
 
 function useUnconfiguredSmtpMailer() {
-  for (const key of smtpEnvKeys) {
+  for (const key of mailEnvKeys) {
     if (!previousSmtpEnv.has(key)) {
       previousSmtpEnv.set(key, process.env[key]);
     }
@@ -724,7 +730,7 @@ describe("Invite create and redeem", () => {
       .expect(502);
 
     expect(response.body.error).toBe(
-      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+      "Invite email is not configured (set BREVO_API_KEY or SMTP_USER and SMTP_PASS)",
     );
     expect(testMailer.getSent()).toHaveLength(0);
 
@@ -769,7 +775,7 @@ describe("Invite create and redeem", () => {
       .expect(502);
 
     expect(response.body.error).toBe(
-      "SMTP_USER and SMTP_PASS are required to send Invite emails",
+      "Invite email is not configured (set BREVO_API_KEY or SMTP_USER and SMTP_PASS)",
     );
     expect(testMailer.getSent()).toHaveLength(1);
 

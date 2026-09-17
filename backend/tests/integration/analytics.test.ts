@@ -22,7 +22,13 @@ import { testAppConfig } from "../test-config.js";
 const app = createApp(testAppConfig);
 const testMailer = createTestMailer();
 const testJobRunner = createTestJobRunner();
-const smtpEnvKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_FROM"] as const;
+const mailEnvKeys = [
+  "BREVO_API_KEY",
+  "BREVO_FROM",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "SMTP_FROM",
+] as const;
 const previousSmtpEnv = new Map<string, string | undefined>();
 
 function authHeader(clerkId: string, email: string, displayName?: string) {
@@ -66,7 +72,7 @@ async function allowResend(inviteId: string) {
 }
 
 function useUnconfiguredSmtpMailer() {
-  for (const key of smtpEnvKeys) {
+  for (const key of mailEnvKeys) {
     if (!previousSmtpEnv.has(key)) {
       previousSmtpEnv.set(key, process.env[key]);
     }
