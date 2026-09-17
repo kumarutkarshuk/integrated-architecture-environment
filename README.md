@@ -119,7 +119,3 @@ docker/       Postgres init scripts
 - [docs/schema-api.md](./docs/schema-api.md) — API overview
 - [docs/adr/](./docs/adr/) — Architecture decision records
 - [AGENTS.md](./AGENTS.md) — Notes for coding agents working in this repo
-
-## License
-
-License not yet published in this repository. See `prompt.md` todos if you are looking for an OSS license addition.
