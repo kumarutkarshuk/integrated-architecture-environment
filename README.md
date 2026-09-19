@@ -4,6 +4,14 @@ A real-time, AI-assisted web app for collaborative system design. Each **project
 
 Inspired by the VS Code layout: projects on the left, canvas in the center, AI tools on the right.
 
+## Launch Video
+
+Click on the image below for the launch video:
+
+<br/>
+
+[![Watch the video](https://img.youtube.com/vi/Zu-BOjxC7lw/maxresdefault.jpg)](https://www.youtube.com/watch?v=Zu-BOjxC7lw)
+
 ## Features
 
 - **Authentication** — Sign in with Clerk (Google or email + OTP).
