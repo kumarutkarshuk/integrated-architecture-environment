@@ -7,7 +7,7 @@ export const TLDRAW_OPTIONS = {
 
 // Public client key. tldraw checks it locally; it is not a secret.
 export const TLDRAW_LICENSE_KEY =
-  "tldraw-2026-09-29/WyJTWGhwd0dpUCIsWyIqIl0sMTYsIjIwMjYtMDktMjkiXQ.N6K8CC2Nux0ZSIxMXo6XXZaBCE1q6rITtYuhdQ2qYBLnvnXxFKTdjmfiaqKDnxlbkGY1HQXpwHtonui5Pbmxng";
+  "tldraw-utkarsh-kumar-2027-09-17/WyIzVC1RZUpUUyIsWyIqLmludGVncmF0ZWQtYXJjaGl0ZWN0dXJlLWVudmlyb25tZW50LnZlcmNlbC5hcHAiXSw5LCIyMDI3LTA5LTE3Il0.+fXZ2DBjBJmaWOmZ6zT9d/HrlHQVVsmquNXINFLTO0wKC/gxwFyRNoQsjJB5vCGTFBhKyfYY6prjpejcvBpZ2g";
 
 const LEGACY_PAGE_ID = "page:preview";
 const INDEX_DIGITS =
