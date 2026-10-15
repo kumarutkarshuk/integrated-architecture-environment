@@ -1,8 +1,9 @@
 import { captureProductEvent } from "../analytics";
 import type { CanvasAgentSession, CompactCanvasState } from "./session";
 
+// Keeps the browser relay on v5, same as the page runtime. Relay v6 hides tools and every call fails.
 const EMBED_SRC =
-  "https://cdn.jsdelivr.net/npm/@mcp-b/webmcp-local-relay@latest/dist/browser/embed.js";
+  "https://cdn.jsdelivr.net/npm/@mcp-b/webmcp-local-relay@5/dist/browser/embed.js";
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
